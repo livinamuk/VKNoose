@@ -1,0 +1,131 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{c2759769-b02c-429d-b2a5-91b3385d7439}</ProjectGuid>
+    <RootNamespace>VKNoose</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(SolutionDir)\Build\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\Build\$(Configuration)\Temp</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)\Build\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\Build\$(Configuration)\Temp</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>vendor\VulkanMemoryAllocator\include;vendor\stb_image;vendor\TinyObjectLoader;vendor\GLFW\include;C:\VulkanSDK\1.3.239.0\Include;vendor\VkBootstrap;vendor\fmod\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>vendor\Vulkan;vendor\GLFW\lib\release;vendor\fmod\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;fmod_vc.lib;shaderc.lib;shaderc_util.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>vendor\VulkanMemoryAllocator\include;vendor\stb_image;vendor\TinyObjectLoader;vendor\GLFW\include;C:\VulkanSDK\1.3.239.0\Include;vendor\VkBootstrap;vendor\fmod\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>vendor\Vulkan;vendor\GLFW\lib\release;vendor\fmod\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;fmod_vc.lib;shaderc_combined.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\Audio\Audio.cpp" />
+    <ClCompile Include="src\Game\Camera.cpp" />
+    <ClCompile Include="src\Game\Player.cpp" />
+    <ClCompile Include="src\IO\Input.cpp" />
+    <ClCompile Include="src\Main.cpp" />
+    <ClCompile Include="src\Renderer\Shader.cpp" />
+    <ClCompile Include="src\vk_engine.cpp" />
+    <ClCompile Include="src\vk_initializers.cpp" />
+    <ClCompile Include="src\vk_mesh.cpp" />
+    <ClCompile Include="src\vk_textures.cpp" />
+    <ClCompile Include="src\vk_tools.cpp" />
+    <ClCompile Include="vendor\VkBootstrap\VkBootstrap.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\Audio\Audio.h" />
+    <ClInclude Include="src\Common.h" />
+    <ClInclude Include="src\Game\Camera.h" />
+    <ClInclude Include="src\Game\Player.h" />
+    <ClInclude Include="src\IO\Input.h" />
+    <ClInclude Include="src\IO\keycodes.h" />
+    <ClInclude Include="src\Renderer\Shader.h" />
+    <ClInclude Include="src\Util.h" />
+    <ClInclude Include="src\vk_engine.h" />
+    <ClInclude Include="src\vk_initializers.h" />
+    <ClInclude Include="src\vk_mesh.h" />
+    <ClInclude Include="src\vk_textures.h" />
+    <ClInclude Include="src\vk_tools.h" />
+    <ClInclude Include="src\vk_types.h" />
+    <ClInclude Include="vendor\TinyObjectLoader\tiny_obj_loader.h" />
+    <ClInclude Include="vendor\VkBootstrap\VkBootstrap.h" />
+    <ClInclude Include="vendor\VkBootstrap\VkBootstrapDispatch.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="res\shaders\tri_mesh.frag.vert" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
