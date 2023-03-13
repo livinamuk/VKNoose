@@ -4,8 +4,6 @@
 
 int main()
 {
-	//system("compile.bat");
-
 	std::cout << "\nWELCOME TO HELL FUCK WHIT\n";
 	VulkanEngine engine;
 

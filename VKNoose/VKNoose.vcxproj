@@ -96,6 +96,7 @@
     <ClCompile Include="src\IO\Input.cpp" />
     <ClCompile Include="src\Main.cpp" />
     <ClCompile Include="src\Renderer\Shader.cpp" />
+    <ClCompile Include="src\UI\TextBlitting.cpp" />
     <ClCompile Include="src\vk_engine.cpp" />
     <ClCompile Include="src\vk_initializers.cpp" />
     <ClCompile Include="src\vk_mesh.cpp" />
@@ -111,6 +112,7 @@
     <ClInclude Include="src\IO\Input.h" />
     <ClInclude Include="src\IO\keycodes.h" />
     <ClInclude Include="src\Renderer\Shader.h" />
+    <ClInclude Include="src\UI\TextBlitter.h" />
     <ClInclude Include="src\Util.h" />
     <ClInclude Include="src\vk_engine.h" />
     <ClInclude Include="src\vk_initializers.h" />
@@ -121,9 +123,6 @@
     <ClInclude Include="vendor\TinyObjectLoader\tiny_obj_loader.h" />
     <ClInclude Include="vendor\VkBootstrap\VkBootstrap.h" />
     <ClInclude Include="vendor\VkBootstrap\VkBootstrapDispatch.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="res\shaders\tri_mesh.frag.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

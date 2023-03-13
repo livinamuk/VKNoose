@@ -14,11 +14,11 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/transform.hpp>
 
+#include "Audio/Audio.h"
 #include "Game/Player.h"
 #include "IO/Input.h"
-#include "Audio/Audio.h"
-
 #include "Renderer/Shader.h"
+#include "UI/TextBlitter.h"
 
 constexpr unsigned int FRAME_OVERLAP = 2;
 
@@ -40,7 +40,6 @@ public:
 };
 
 
-
 struct DeletionQueue
 {
 	std::deque<std::function<void()>> deletors;
@@ -59,9 +58,12 @@ struct DeletionQueue
 	}
 };
 
+
 struct Texture {
 	AllocatedImage image;
 	VkImageView imageView;
+	int _width = 0;
+	int _height = 0;
 };
 
 struct UploadContext {
@@ -84,14 +86,13 @@ struct Material {
 
 struct RenderObject {
 	Mesh* mesh;
-
 	Material* material;
-
-	//glm::mat4 transformMatrix;
 	Transform transform;
 	bool spin = false;
 };
 
+#define TEXTURE_ARRAY_SIZE 91
+#define MAX_RENDER_OBJECTS 10000
 
 struct FrameData {
 	VkSemaphore _presentSemaphore, _renderSemaphore;
@@ -100,13 +101,17 @@ struct FrameData {
 	DeletionQueue _frameDeletionQueue;
 
 	VkCommandPool _commandPool;
-	VkCommandBuffer _mainCommandBuffer;
+	//VkCommandBuffer _mainCommandBuffer;
+	VkCommandBuffer _commandBuffer;
 
 	AllocatedBuffer cameraBuffer;
 	VkDescriptorSet globalDescriptor;
 
 	AllocatedBuffer objectBuffer;
 	VkDescriptorSet objectDescriptor;
+
+	AllocatedBuffer _uboBuffer_rayTracing;
+	VkDescriptorBufferInfo _uboBuffer_rayTracing_descriptor;
 };
 
 struct GPUCameraData {
@@ -125,8 +130,21 @@ struct GPUSceneData {
 	glm::vec4 sunlightColor;
 };
 
-struct GPUObjectData {
-	glm::mat4 modelMatrix;
+
+struct RayTracingScratchBuffer
+{
+	uint64_t deviceAddress = 0;
+	AllocatedBuffer handle;// VkBuffer handle = VK_NULL_HANDLE;
+	VkDeviceMemory memory = VK_NULL_HANDLE;
+};
+
+// Ray tracing acceleration structure
+struct AccelerationStructure {
+	VkAccelerationStructureKHR handle;
+	uint64_t deviceAddress = 0;
+	VkDeviceMemory memory;
+	//VkBuffer buffer;
+	AllocatedBuffer buffer;
 };
 
 struct GameData {
@@ -136,12 +154,20 @@ struct GameData {
 class VulkanEngine {
 public:
 
-	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR;
-	PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR;
+
+
+
+	//PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR;
+	//PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR;
 
 	VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeaturesKHR{};
 
 	GameData _gameData;
+
+
+	VkSampler _sampler; 
+	VkDescriptorSetLayout _descSetLayout;
+	VkDescriptorSet	_descriptorSet;
 
 	bool _shouldClose{ false };
 
@@ -196,6 +222,7 @@ public:
 	VkDescriptorSetLayout _globalSetLayout;
 	VkDescriptorSetLayout _objectSetLayout;
 	VkDescriptorSetLayout _singleTextureSetLayout;
+	VkDescriptorSetLayout _bindlessTextureSetLayout;
 
 	GPUSceneData _sceneParameters;
 	AllocatedBuffer _sceneParameterBuffer;
@@ -206,45 +233,125 @@ public:
 	VkShaderModule _texturedMeshShader;
 	VkShaderModule _meshVertShader;
 
+	VkShaderModule _text_blitter_vertex_shader;
+	VkShaderModule _text_blitter_fragment_shader;
+
 	VkSampler _textureSampler;
 
 	//initializes everything in the engine
 	void init();
-
-	//shuts down the engine
 	void cleanup();
-
-	//draw loop
 	void draw();
-
-	//run main loop
+	void update();
 	void run();
 
-	void init2();
-	void draw2();
-	void cleanup2();
+	// Pipelines
+	VkPipeline _textblitterPipeline;
+	VkPipelineLayout _textblitterPipelineLayout;
 
 	FrameData& get_current_frame();
 	FrameData& get_last_frame();
 
-	//VkPipelineLayout _pipelineLayout;
-	//VkDescriptorSet _descriptorSet;
-	//VkPipeline _pipeline;
 
-	VkCommandPool _cmdPool;
-	std::vector<VkCommandBuffer> _drawCmdBuffers; 
-	void createCommandPool();
-	void createCommandBuffers();
-	void createPipelines();
-	void buildCommandBuffers(int swapchainImageIndex);
-	void create_render_targets();
+	float _cameraZoom = 1.0f;// glm::radians(70.f);
+
+			// Ray tracing
+
+			RayTracingScratchBuffer createScratchBuffer(VkDeviceSize size);
+			uint32_t getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32* memTypeFound = nullptr) const;
+			VkPhysicalDeviceMemoryProperties _memoryProperties;
+
+			PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR;
+			PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR;
+			PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR;
+			PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR;
+			PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR;
+			PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR;
+			PFN_vkBuildAccelerationStructuresKHR vkBuildAccelerationStructuresKHR;
+			PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR;
+			PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR;
+			PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR;
+
+			VkPhysicalDeviceRayTracingPipelinePropertiesKHR  rayTracingPipelineProperties{};
+			VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{};
+
+			//VkPhysicalDeviceBufferDeviceAddressFeatures enabledBufferDeviceAddresFeatures{};
+			//VkPhysicalDeviceRayTracingPipelineFeaturesKHR enabledRayTracingPipelineFeatures{};
+			//VkPhysicalDeviceAccelerationStructureFeaturesKHR enabledAccelerationStructureFeatures{};
+
+			//kPhysicalDeviceRayTracingPipelinePropertiesKHR _rtProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
+			AccelerationStructure _bottomLevelAS{};
+			AccelerationStructure _topLevelAS{};
+			void createBottomLevelAccelerationStructure();
+			void createTopLevelAccelerationStructure();
+			void createStorageImage();
+			void createUniformBuffer();
+			void createRayTracingPipeline();
+			void createShaderBindingTable();
+			void createDescriptorSets();
+			void build_rt_command_buffers(int swapchainIndex);
+			void updateUniformBuffers();
+			//vks::Buffer vertexBuffer;
+			//vks::Buffer indexBuffer;
+			AllocatedBuffer _rtVertexBuffer;
+			AllocatedBuffer _rtIndexBuffer;
+			AllocatedBuffer _rtTransformBuffer;
+			uint32_t _rtIndexCount;
+			//vks::Buffer transformBuffer;
+			std::vector<VkRayTracingShaderGroupCreateInfoKHR> _rtShaderGroups{};
+			std::vector<VkPipelineShaderStageCreateInfo> _rtShaderStages;
+			VkPipeline _rtPipeline;
+			VkPipelineLayout _rtPipelineLayout;
+			VkDescriptorSet _rtDescriptorSet;
+			VkDescriptorSetLayout _rtDescriptorSetLayout; 
+			VkShaderModule _rayGenShader;
+			VkShaderModule _rayMissShader;
+			VkShaderModule _closestHitShader;
+
+			AllocatedBuffer _raygenShaderBindingTable;
+			AllocatedBuffer _missShaderBindingTable;
+			AllocatedBuffer _hitShaderBindingTable;
+			VkDescriptorPool _rtDescriptorPool = VK_NULL_HANDLE;
+
+			//vks::Buffer raygenShaderBindingTable;
+			//vks::Buffer missShaderBindingTable;
+			//vks::Buffer hitShaderBindingTable;
+
+			struct StorageImage {
+				VkDeviceMemory memory;
+				AllocatedImage image;
+				//VkImage image;
+				VkImageView view;
+				VkFormat format;
+			} _storageImage;
+
+			struct RTUniformData {
+				glm::mat4 viewInverse;
+				glm::mat4 projInverse;
+				glm::vec4 viewPos;
+			} _uniformData;
+
+
+
+
+	//vks::Buffer ubo;
+
+	//VkPipeline pipeline;
+	//VkPipelineLayout pipelineLayout;
+	//VkDescriptorSet descriptorSet;
+	//VkDescriptorSetLayout descriptorSetLayout;
+
+
+
 
 	//default array of renderable objects
 	std::vector<RenderObject> _renderables;
 
 	std::unordered_map<std::string, Material> _materials;
 	std::unordered_map<std::string, Mesh> _meshes;
-	std::unordered_map<std::string, Texture> _loadedTextures;
+	//std::unordered_map<std::string, Texture> _loadedTextures;
+	std::vector<Texture> _loadedTextures;
+	 
 	//functions
 
 
@@ -262,7 +369,7 @@ public:
 	Mesh* get_mesh(const std::string& name);
 
 	//our draw function
-	void draw_objects(VkCommandBuffer cmd, RenderObject* first, int count);
+	//void draw_objects(VkCommandBuffer cmd, RenderObject* first, int count);
 
 	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
 
@@ -276,20 +383,30 @@ public:
 private:
 	void init_vulkan();
 	void init_swapchain();
-	void init_default_renderpass();
-	void init_framebuffers();
 	void init_commands();
 	void init_sync_structures();
-	void init_pipelines();
 	void init_scene();
 	void init_descriptors();
-	//loads a shader module from a spir-v file. Returns false if it errors
-	bool load_shader_module(const char* filePath, VkShaderModule* outShaderModule);
+	//bool load_shader_module(const char* filePath, VkShaderModule* outShaderModule, VkShaderModuleCreateInfo createInfo = VkShaderModuleCreateInfo());
 	void load_meshes();
 	void load_images();
 	void upload_mesh(Mesh& mesh);
+	void load_texture(std::string filepath);
 
-	void recreate_swapchain();
 	void recreate_dynamic_swapchain();
+	void load_shaders();
+	void cleanup_shaders();
 	void hotload_shaders();
+
+	void create_command_buffers();
+	void create_pipelines();
+	void create_pipelines_2();
+	void build_command_buffers(int swapchainImageIndex);
+	void create_render_targets();
+	void draw_quad(Transform transform, Texture* texture);
+
+	void init_raytracing();
+	void cleanup_rayracing();
+	uint64_t get_buffer_device_address(VkBuffer buffer);
+	void createAccelerationStructureBuffer(AccelerationStructure& accelerationStructure, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo);
 };

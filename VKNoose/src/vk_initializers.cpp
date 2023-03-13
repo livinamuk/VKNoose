@@ -352,3 +352,94 @@ VkSamplerCreateInfo vkinit::sampler_create_info(VkFilter filters, VkSamplerAddre
 
 	return info;
 }
+
+VkSamplerCreateInfo vkinit::sampler_create_info2(VkFilter minMagFilter, VkSamplerAddressMode addressMode, VkSamplerMipmapMode mipMapMode, float maxAniso)
+{
+	VkSamplerCreateInfo samplerInfo = {};
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.magFilter = minMagFilter;
+	samplerInfo.minFilter = minMagFilter;
+
+	samplerInfo.addressModeU = addressMode;
+	samplerInfo.addressModeV = addressMode;
+	samplerInfo.addressModeW = addressMode;
+
+	samplerInfo.anisotropyEnable = maxAniso > 0.01f ? VK_TRUE : VK_FALSE;
+	samplerInfo.maxAnisotropy = maxAniso;
+	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+
+	//mostly for pcf? 
+	samplerInfo.compareEnable = VK_FALSE;
+	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+
+	samplerInfo.mipmapMode = mipMapMode;
+	samplerInfo.mipLodBias = 0.0f;
+	samplerInfo.minLod = 0.0f;
+	samplerInfo.maxLod = 0.0f;
+
+	return samplerInfo;
+}
+
+VkDescriptorSetLayoutBinding vkinit::descriptor_set_layout_binding2(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding, uint32_t descriptorCount, const VkSampler* immutableSamplers)
+{
+	VkDescriptorSetLayoutBinding layoutBinding = {};
+	layoutBinding.descriptorCount = descriptorCount;
+	layoutBinding.binding = binding;
+	layoutBinding.stageFlags = stageFlags;
+	layoutBinding.descriptorType = type;
+	layoutBinding.pImmutableSamplers = immutableSamplers;
+	return layoutBinding;
+}
+
+VkDescriptorSetLayoutCreateInfo vkinit::descriptor_set_layout_create_info2(VkDescriptorSetLayoutBinding* bindings, uint32_t bindingCount)
+{
+	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfo.bindingCount = bindingCount;
+	layoutInfo.pBindings = bindingCount > 0 ? bindings : nullptr;
+	return layoutInfo;
+}
+
+VkDescriptorPoolCreateInfo vkinit::descriptor_pool_create_info(const std::vector<VkDescriptorPoolSize>& poolSizes, uint32_t maxSets) {
+	VkDescriptorPoolCreateInfo descriptorPoolInfo{};
+	descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	descriptorPoolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+	descriptorPoolInfo.pPoolSizes = poolSizes.data();
+	descriptorPoolInfo.maxSets = maxSets;
+	return descriptorPoolInfo;
+}
+
+VkDescriptorSetAllocateInfo vkinit::descriptor_set_allocate_info(VkDescriptorPool descriptorPool, const VkDescriptorSetLayout* pSetLayouts, uint32_t descriptorSetCount)
+{
+	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo{};
+	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descriptorSetAllocateInfo.descriptorPool = descriptorPool;
+	descriptorSetAllocateInfo.pSetLayouts = pSetLayouts;
+	descriptorSetAllocateInfo.descriptorSetCount = descriptorSetCount;
+	return descriptorSetAllocateInfo;
+}
+
+VkWriteDescriptorSet vkinit::write_descriptor_set(VkDescriptorSet dstSet, VkDescriptorType type, uint32_t binding, VkDescriptorImageInfo* imageInfo, uint32_t descriptorCount)
+{
+	VkWriteDescriptorSet writeDescriptorSet{};
+	writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDescriptorSet.dstSet = dstSet;
+	writeDescriptorSet.descriptorType = type;
+	writeDescriptorSet.dstBinding = binding;
+	writeDescriptorSet.pImageInfo = imageInfo;
+	writeDescriptorSet.descriptorCount = descriptorCount;
+	return writeDescriptorSet;
+}
+
+VkWriteDescriptorSet vkinit::write_descriptor_set(VkDescriptorSet dstSet, VkDescriptorType type, uint32_t binding, VkDescriptorBufferInfo* bufferInfo,	uint32_t descriptorCount)
+{
+	VkWriteDescriptorSet writeDescriptorSet{};
+	writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDescriptorSet.dstSet = dstSet;
+	writeDescriptorSet.descriptorType = type;
+	writeDescriptorSet.dstBinding = binding;
+	writeDescriptorSet.pBufferInfo = bufferInfo;
+	writeDescriptorSet.descriptorCount = descriptorCount;
+	return writeDescriptorSet;
+}

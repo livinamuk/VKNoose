@@ -4,6 +4,7 @@
 #pragma once
 
 #include "vk_types.h"
+#include <vector>
 
 namespace vkinit {
 
@@ -58,4 +59,18 @@ namespace vkinit {
 	VkWriteDescriptorSet write_descriptor_image(VkDescriptorType type, VkDescriptorSet dstSet, VkDescriptorImageInfo* imageInfo, uint32_t binding);
 
 	VkSamplerCreateInfo sampler_create_info(VkFilter filters, VkSamplerAddressMode samplerAdressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT);
+
+	VkSamplerCreateInfo sampler_create_info2(VkFilter minMagFilter, VkSamplerAddressMode addressMode, VkSamplerMipmapMode mipMapMode, float maxAniso);
+
+	VkDescriptorSetLayoutBinding descriptor_set_layout_binding2(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding, uint32_t descriptorCount = 1, const VkSampler* immutableSamplers = nullptr);
+	
+	VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info2(VkDescriptorSetLayoutBinding* bindings, uint32_t bindingCount);
+
+	VkDescriptorPoolCreateInfo descriptor_pool_create_info(const std::vector<VkDescriptorPoolSize>& poolSizes, uint32_t maxSets);
+
+	VkDescriptorSetAllocateInfo descriptor_set_allocate_info(VkDescriptorPool descriptorPool, const VkDescriptorSetLayout* pSetLayouts, uint32_t descriptorSetCount);
+
+	VkWriteDescriptorSet write_descriptor_set(VkDescriptorSet dstSet, VkDescriptorType type, uint32_t binding, VkDescriptorImageInfo* imageInfo, uint32_t descriptorCount = 1);
+
+	VkWriteDescriptorSet write_descriptor_set(VkDescriptorSet dstSet, VkDescriptorType type, uint32_t binding, VkDescriptorBufferInfo* bufferInfo, uint32_t descriptorCount = 1);
 }

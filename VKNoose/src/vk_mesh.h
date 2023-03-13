@@ -25,8 +25,14 @@ struct Vertex {
 
 struct Mesh {
 	std::vector<Vertex> _vertices;
+	std::vector<uint16_t> _indices;
+	std::string _filename;
 
 	AllocatedBuffer _vertexBuffer;
+	AllocatedBuffer _indexBuffer;
 
 	bool load_from_obj(const char* filename);
+	bool load_from_raw_data(std::vector<Vertex> vertices, std::vector<uint16_t>indices);
+	void draw(VkCommandBuffer commandBuffer, uint32_t firstInstance);
+
 };

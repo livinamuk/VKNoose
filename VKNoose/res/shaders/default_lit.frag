@@ -2,7 +2,7 @@
 #version 450
 
 //shader input
-layout (location = 0) in vec3 inColor;
+layout (location = 0) in vec3 normal;
 layout (location = 1) in vec2 texCoord;
 layout (location = 2) in vec3 worldPos;
 layout (location = 3) in vec3 camPos;
@@ -21,6 +21,6 @@ layout(set = 0, binding = 1) uniform  SceneData{
 
 void main() 
 {	
-	outFragColor = vec4(inColor + sceneData.ambientColor.xyz,1.0f);
-	outFragColor = vec4(inColor,1.0f);
+	outFragColor = vec4(normal + sceneData.ambientColor.xyz,1.0f);
+	outFragColor = vec4(normal,1.0f);
 }

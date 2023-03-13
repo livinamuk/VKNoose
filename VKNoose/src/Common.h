@@ -8,7 +8,39 @@
 #include <glm/gtx/euler_angles.hpp>
 #include "glm/gtx/hash.hpp"
 
+
+struct Extent2Di {
+	int width;
+	int height;
+}; 
+
+struct Extent3Di {
+	int width;
+	int height;
+	int depth;
+};
+
+struct Extent2Df {
+	float width;
+	float height;
+};
+
+struct Extent3Df {
+	float width;
+	float height;
+	float depth;
+};
+
+struct GPUObjectData {
+	glm::mat4 modelMatrix;
+	int index_basecolor;
+	int index_normals;
+	int index_rma;
+	int index_emissive;
+};
+
 /*
+* 
 #define NEAR_PLANE 0.01f
 #define FAR_PLANE 100.0f
 #define NOOSE_PI 3.14159265359f
@@ -80,10 +112,5 @@ struct Transform
 	}
 };
 
-namespace std {
-	template<> struct hash<Vertex> {
-		size_t operator()(Vertex const& vertex) const {
-			return ((hash<glm::vec3>()(vertex.Position) ^ (hash<glm::vec3>()(vertex.Normal) << 1)) >> 1) ^ (hash<glm::vec2>()(vertex.TexCoords) << 1);
-		}
-	};
-}*/
+*/
+

@@ -8,17 +8,17 @@
 
 
 
-bool vkutil::load_image_from_file(VulkanEngine& engine, const char* file, AllocatedImage & outImage)
+bool vkutil::load_image_from_file(VulkanEngine& engine, const char* file, AllocatedImage & outImage, int & outWidth, int & outHeight)
 {
 	int texWidth, texHeight, texChannels;
 
-	stbi_uc* pixels = stbi_load(file, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);	
+	stbi_uc* pixels = stbi_load(file, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
 	if (!pixels) {
 		std::cout << "Failed to load texture file " << file << std::endl;
 		return false;
 	}
-	
+
 	void* pixel_ptr = pixels;
 	VkDeviceSize imageSize = texWidth * texHeight * 4;
 
@@ -39,18 +39,18 @@ bool vkutil::load_image_from_file(VulkanEngine& engine, const char* file, Alloca
 	imageExtent.width = static_cast<uint32_t>(texWidth);
 	imageExtent.height = static_cast<uint32_t>(texHeight);
 	imageExtent.depth = 1;
-	
-	//VkImageCreateInfo dimg_info = vkinit::image_create_info(image_format, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT , imageExtent);
-	VkImageCreateInfo dimg_info = vkinit::image_create_info(image_format, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, imageExtent);
 
-	AllocatedImage newImage;	
-	
+	VkImageCreateInfo dimg_info = vkinit::image_create_info(image_format, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, imageExtent);
+
+	AllocatedImage newImage;
+
 	VmaAllocationCreateInfo dimg_allocinfo = {};
-	dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	//dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	dimg_allocinfo.usage = VMA_MEMORY_USAGE_AUTO;
 
 	//allocate and create the image
 	vmaCreateImage(engine._allocator, &dimg_info, &dimg_allocinfo, &newImage._image, &newImage._allocation, nullptr);
-	
+
 	//transition image to transfer-receiver	
 	engine.immediate_submit([&](VkCommandBuffer cmd) {
 		VkImageSubresourceRange range;
@@ -73,7 +73,7 @@ bool vkutil::load_image_from_file(VulkanEngine& engine, const char* file, Alloca
 
 		//barrier the image into the transfer-receive layout
 		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toTransfer);
-		
+
 		VkBufferImageCopy copyRegion = {};
 		copyRegion.bufferOffset = 0;
 		copyRegion.bufferRowLength = 0;
@@ -92,26 +92,20 @@ bool vkutil::load_image_from_file(VulkanEngine& engine, const char* file, Alloca
 
 		imageBarrier_toReadable.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 		imageBarrier_toReadable.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		
+
 		imageBarrier_toReadable.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		imageBarrier_toReadable.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
 		//barrier the image into the shader readable layout
 		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
-	});
-
-
-	engine._mainDeletionQueue.push_function([=]() {
-	
-		vmaDestroyImage(engine._allocator, newImage._image, newImage._allocation);
-	});
+		});
 
 	vmaDestroyBuffer(engine._allocator, stagingBuffer._buffer, stagingBuffer._allocation);
 
-	std::cout << "Loaded: " << file << std::endl;
+	//std::cout << "Loaded: " << file << std::endl;
 
-	newImage._width = texWidth;
-	newImage._height = texHeight;
+	outWidth = texWidth;
+	outHeight = texHeight;
 	outImage = newImage;
 	return true;
 }

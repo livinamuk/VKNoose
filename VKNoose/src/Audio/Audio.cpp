@@ -61,8 +61,9 @@ void Audio::Init()
 	Audio::LoadAudio("pl_dirt3.wav");
 	Audio::LoadAudio("pl_dirt4.wav"); 
 
+	Audio::LoadAudio("UI_Select.wav");
 	//gSoloud.init();
-	/*Audio::LoadAudio("UI_Select.wav");
+	/*
 	Audio::LoadAudio("UI_Select2.wav");
 	Audio::LoadAudio("UI_Select3.wav");
 	Audio::LoadAudio("UI_Select4.wav");

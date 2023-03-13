@@ -21,22 +21,26 @@ std::vector<uint32_t> compile_file(const std::string& source_name, shaderc_shade
 	shaderc::Compiler compiler;
 	shaderc::CompileOptions options;
 
-	// Like -DMY_DEFINE=1
-	options.AddMacroDefinition("MY_DEFINE", "1");
-	if (optimize) options.SetOptimizationLevel(shaderc_optimization_level_size);
+	options.SetTargetSpirv(shaderc_spirv_version::shaderc_spirv_version_1_6);
+	options.SetTargetEnvironment(shaderc_target_env::shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_3);
+	options.SetForcedVersionProfile(460, shaderc_profile_core);
 
-	shaderc::SpvCompilationResult module =
-		compiler.CompileGlslToSpv(source, kind, source_name.c_str(), options);
+	if (optimize) 
+		options.SetOptimizationLevel(shaderc_optimization_level_size);
+
+	shaderc::SpvCompilationResult module = compiler.CompileGlslToSpv(source, kind, source_name.c_str(), options);
 
 	if (module.GetCompilationStatus() != shaderc_compilation_status_success) {
 		std::cerr << module.GetErrorMessage();
 		return std::vector<uint32_t>();
 	}
-
 	return { module.cbegin(), module.cend() };
 }
-bool load_shader(VkDevice device, std::string filePath,	VkShaderStageFlagBits flag, VkShaderModule* outShaderModule)
+
+bool load_shader(VkDevice device, std::string filePath, VkShaderStageFlagBits flag, VkShaderModule* outShaderModule)
 {
+	std::cout << "Loading: " << filePath << "\n";
+
 	shaderc_shader_kind kind;
 	if (flag == VK_SHADER_STAGE_VERTEX_BIT) {
 		kind = shaderc_vertex_shader;
@@ -44,7 +48,15 @@ bool load_shader(VkDevice device, std::string filePath,	VkShaderStageFlagBits fl
 	if (flag == VK_SHADER_STAGE_FRAGMENT_BIT) {
 		kind = shaderc_fragment_shader;
 	}
-
+	if (flag == VK_SHADER_STAGE_RAYGEN_BIT_KHR) {
+		kind = shaderc_raygen_shader;
+	}
+	if (flag == VK_SHADER_STAGE_MISS_BIT_KHR) {
+		kind = shaderc_miss_shader;
+	}
+	if (flag == VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR) {
+		kind = shaderc_closesthit_shader;
+	}
 	std::string vertSource = read_file("res/shaders/" + filePath);
 
 	std::vector<uint32_t> buffer = compile_file("shader_src", kind, vertSource, true);
@@ -54,7 +66,6 @@ bool load_shader(VkDevice device, std::string filePath,	VkShaderStageFlagBits fl
 	VkShaderModuleCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	createInfo.pNext = nullptr;
-
 	//codeSize has to be in bytes, so multply the ints in the buffer by size of int to know the real size of the buffer
 	createInfo.codeSize = buffer.size() * sizeof(uint32_t);
 	createInfo.pCode = buffer.data();
@@ -68,23 +79,3 @@ bool load_shader(VkDevice device, std::string filePath,	VkShaderStageFlagBits fl
 	return true;
 }
 
-
-
-
-/*
-Shader create_shader(VkDevice* device, Shader* outShader) {
-	char stage_type_strs[OBJECT_SHADER_STAGE_COUNT][5] = { "vert", "frag" };
-	VkShaderStageFlagBits stage_types[OBJECT_SHADER_STAGE_COUNT] = { VK_SHADER_STAGE_VERTEX_BIT,VK_SHADER_STAGE_FRAGMENT_BIT };
-
-	for (int i = 0; i < OBJECT_SHADER_STAGE_COUNT; i++) {
-
-	}
-}
-
-void destroy_shader(VkDevice* device, Shader* shader) {
-
-}
-
-void use_shader(VkDevice* device, Shader* shader) {
-
-}*/

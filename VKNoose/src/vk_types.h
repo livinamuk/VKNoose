@@ -18,13 +18,12 @@ do                                                              \
 struct AllocatedBuffer {
 	VkBuffer _buffer;
 	VmaAllocation _allocation;
+	//void* _mapped = nullptr; // used only by uploading uniform buffers RT function
 };
 
 struct AllocatedImage {
 	VkImage _image;
 	VmaAllocation _allocation;
-	int _width;
-	int _height;
 };
 
 typedef struct VulkanShaderStage {
