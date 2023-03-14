@@ -91,7 +91,7 @@ struct RenderObject {
 	bool spin = false;
 };
 
-#define TEXTURE_ARRAY_SIZE 91
+#define TEXTURE_ARRAY_SIZE 128
 #define MAX_RENDER_OBJECTS 10000
 
 struct FrameData {
@@ -166,8 +166,8 @@ public:
 
 
 	VkSampler _sampler; 
-	VkDescriptorSetLayout _descSetLayout;
-	VkDescriptorSet	_descriptorSet;
+	VkDescriptorSetLayout _textureArrayDescriptorLayout;
+	VkDescriptorSet	_textureArrayDescriptorSet;
 
 	bool _shouldClose{ false };
 
@@ -236,8 +236,6 @@ public:
 	VkShaderModule _text_blitter_vertex_shader;
 	VkShaderModule _text_blitter_fragment_shader;
 
-	VkSampler _textureSampler;
-
 	//initializes everything in the engine
 	void init();
 	void cleanup();
@@ -303,7 +301,11 @@ public:
 			VkPipeline _rtPipeline;
 			VkPipelineLayout _rtPipelineLayout;
 			VkDescriptorSet _rtDescriptorSet;
-			VkDescriptorSetLayout _rtDescriptorSetLayout; 
+			VkDescriptorSet _rtVertexBufferDescriptorSet;
+			//VkDescriptorSet _rtDescriptorSet_1;
+			VkDescriptorSetLayout _rtDescriptorSetLayout;
+			VkDescriptorSetLayout _rtVertexBufferDescriptorSetLayout;
+			//VkDescriptorSetLayout _rtDescriptorSetLayout_1;
 			VkShaderModule _rayGenShader;
 			VkShaderModule _rayMissShader;
 			VkShaderModule _closestHitShader;

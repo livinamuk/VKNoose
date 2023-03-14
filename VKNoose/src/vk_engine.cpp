@@ -64,6 +64,28 @@ void VulkanEngine::init()
 
 	init_raytracing();
 
+
+
+
+
+
+
+	VkDescriptorImageInfo	descriptorImageInfos[TEXTURE_ARRAY_SIZE];
+
+	for (uint32_t i = 0; i < TEXTURE_ARRAY_SIZE; ++i) {
+		descriptorImageInfos[i].sampler = nullptr;
+		descriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		descriptorImageInfos[i].imageView = _loadedTextures[0].imageView;
+	}
+
+	for (uint32_t i = 0; i < _loadedTextures.size(); ++i) {
+		descriptorImageInfos[i].sampler = nullptr;
+		descriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		descriptorImageInfos[i].imageView = _loadedTextures[i].imageView;
+	}
+
+
+
 	Input::Init(_windowExtent.width, _windowExtent.height);
 	Audio::Init();
 }
@@ -91,9 +113,6 @@ void VulkanEngine::cleanup()
 	vkDestroyPipeline(_device, _textblitterPipeline, nullptr);
 	vkDestroyPipelineLayout(_device, _textblitterPipelineLayout, nullptr);
 	
-	// Samplers
-	vkDestroySampler(_device, _textureSampler, nullptr);
-
 	// Command pools
 	vkDestroyCommandPool(_device, _uploadContext._commandPool, nullptr);
 	vkDestroyFence(_device, _uploadContext._uploadFence, nullptr);
@@ -145,7 +164,7 @@ void VulkanEngine::cleanup()
 	vkDestroyDescriptorPool(_device, _descriptorPool, nullptr);
 
 	// new destroys
-	vkDestroyDescriptorSetLayout(_device, _descSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(_device, _textureArrayDescriptorLayout, nullptr);
 	vkDestroySampler(_device, _sampler, nullptr);
 
 	cleanup_rayracing();
@@ -225,6 +244,8 @@ void VulkanEngine::cleanup_rayracing()
 	vmaDestroyBuffer(_allocator, _missShaderBindingTable._buffer, _missShaderBindingTable._allocation);
 	vmaDestroyBuffer(_allocator, _hitShaderBindingTable._buffer, _hitShaderBindingTable._allocation);
 	vkDestroyDescriptorSetLayout(_device, _rtDescriptorSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(_device, _rtVertexBufferDescriptorSetLayout, nullptr);
+	//vkDestroyDescriptorSetLayout(_device, _rtDescriptorSetLayout_1, nullptr);
 	vkDestroyPipeline(_device, _rtPipeline, nullptr);
 	vkDestroyPipelineLayout(_device, _rtPipelineLayout, nullptr);
 }
@@ -409,18 +430,8 @@ void VulkanEngine::build_command_buffers(int swapchainImageIndex)
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipeline);
 	uint32_t uniform_offset = pad_uniform_buffer_size(sizeof(GPUSceneData)) * frameIndex;
 	
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipelineLayout, 0, 1, &get_current_frame().globalDescriptor, 1, &uniform_offset);
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipelineLayout, 1, 1, &get_current_frame().objectDescriptor, 0, nullptr);
-	if (colorMaterial->textureSet != VK_NULL_HANDLE) {
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipelineLayout, 2, 1, &colorMaterial->textureSet, 0, nullptr);
-	}
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipelineLayout, 3, 1, &_descriptorSet, 0, nullptr);
-/*
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipelineLayout, 0, 1, &_descriptorSet, 1, &uniform_offset);
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipelineLayout, 1, 1, &_descriptorSet, 0, nullptr);
-	if (colorMaterial->textureSet != VK_NULL_HANDLE) {
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipelineLayout, 2, 1, &_descriptorSet, 0, nullptr);
-	}*/
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipelineLayout, 0, 1, &get_current_frame().objectDescriptor, 0, nullptr);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipelineLayout, 1, 1, &_textureArrayDescriptorSet, 0, nullptr);
 
 	int firstCharIndex = _renderables.size();
 
@@ -647,8 +658,8 @@ void VulkanEngine::run()
 		currentTime = newTime;
 
 		if (Input::KeyPressed(HELL_KEY_1)) {
-			TextBlitter::Type("Might leave in a body bag, never in cuffs.");
-			//TextBlitter::Type("My little rasterized triangles");
+			//TextBlitter::Type("I don't feel comfortable in this place.");
+			TextBlitter::Type("I don't feel comfortable here.");
 			Audio::PlayAudio("UI_Select.wav", 0.9f);
 		}
 		if (Input::KeyPressed(HELL_KEY_2)) {
@@ -1031,7 +1042,7 @@ void VulkanEngine::hotload_shaders()
 
 	cleanup_shaders();
 
-	vkDestroySampler(_device, _textureSampler, nullptr);
+	//vkDestroySampler(_device, _sampler, nullptr);
 
 	// pipeline etc
 	for (auto& it : _materials) {
@@ -1046,6 +1057,7 @@ void VulkanEngine::hotload_shaders()
 	//vmaDestroyBuffer(_allocator, _missShaderBindingTable._buffer, _missShaderBindingTable._allocation);
 	//vmaDestroyBuffer(_allocator, _hitShaderBindingTable._buffer, _hitShaderBindingTable._allocation);
 	vkDestroyDescriptorSetLayout(_device, _rtDescriptorSetLayout, nullptr);
+	//vkDestroyDescriptorSetLayout(_device, _rtDescriptorSetLayout_1, nullptr);
 	vkDestroyPipeline(_device, _rtPipeline, nullptr);
 	vkDestroyPipelineLayout(_device, _rtPipelineLayout, nullptr);
 
@@ -1225,13 +1237,13 @@ void VulkanEngine::create_pipelines()
 
 void VulkanEngine::create_pipelines_2()
 {
-	VkDescriptorSetLayout texturedSetLayouts[] = { _globalSetLayout, _objectSetLayout,_singleTextureSetLayout, _descSetLayout };
+	VkDescriptorSetLayout texturedSetLayouts[] = { _objectSetLayout, _textureArrayDescriptorLayout };
 
-	VertexInputDescription vertexDescription = Vertex::get_vertex_description();
+	VertexInputDescription vertexDescription = Vertex::get_vertex_description_position_and_texcoords_only();
 
 	{
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo = vkinit::pipeline_layout_create_info();
-		pipelineLayoutInfo.setLayoutCount = 4;
+		pipelineLayoutInfo.setLayoutCount = 2;
 		pipelineLayoutInfo.pSetLayouts = texturedSetLayouts;
 
 		VK_CHECK(vkCreatePipelineLayout(_device, &pipelineLayoutInfo, nullptr, &_textblitterPipelineLayout));
@@ -1250,6 +1262,7 @@ void VulkanEngine::create_pipelines_2()
 		pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
 		pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, _text_blitter_vertex_shader));
 		pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, _text_blitter_fragment_shader));
+		//pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, _closestHitShader));
 
 		_textblitterPipeline = pipelineBuilder.build_dynamic_rendering_pipeline(_device, &_swachainImageFormat, _depthFormat);
 	}
@@ -1546,22 +1559,29 @@ void VulkanEngine::load_texture(std::string filepath)
 }
 
 void VulkanEngine::load_images()
-{
-	load_texture("res/textures/lost_empire-RGBA.png");
-
+{	
 	TextBlitter::_charExtents.clear();
 
 	for (size_t i = 1; i <= 90; i++) {
 		load_texture("res/textures/char_" + std::to_string(i) + ".png");
-		int index = i;
-		TextBlitter::_charExtents.push_back({ _loadedTextures[i]._width, _loadedTextures[i]._height });
+		TextBlitter::_charExtents.push_back({ _loadedTextures[i-1]._width, _loadedTextures[i-1]._height });
 	}
+	load_texture("res/textures/lost_empire-RGBA.png");
+	load_texture("res/textures/FallenChair.png");
 
 	std::cout << "TEXTURE_ARRAY_SIZE: " << TEXTURE_ARRAY_SIZE << "\n";
 	std::cout << "_loadedTextures.size(): " << _loadedTextures.size() << "\n";
 
 	VkDescriptorImageInfo	descriptorImageInfos[TEXTURE_ARRAY_SIZE];
+	//for (uint32_t i = 0; i < TEXTURE_ARRAY_SIZE; ++i) {
+
 	for (uint32_t i = 0; i < TEXTURE_ARRAY_SIZE; ++i) {
+		descriptorImageInfos[i].sampler = nullptr;
+		descriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		descriptorImageInfos[i].imageView = _loadedTextures[0].imageView;
+	}
+
+	for (uint32_t i = 0; i < _loadedTextures.size(); ++i) {
 		descriptorImageInfos[i].sampler = nullptr;
 		descriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		descriptorImageInfos[i].imageView = _loadedTextures[i].imageView;
@@ -1578,7 +1598,7 @@ void VulkanEngine::load_images()
 	writes[0].dstArrayElement = 0;
 	writes[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
 	writes[0].descriptorCount = 1;
-	writes[0].dstSet = _descriptorSet;
+	writes[0].dstSet = _textureArrayDescriptorSet;
 	writes[0].pBufferInfo = 0;
 	writes[0].pImageInfo = &samplerInfo;
 
@@ -1589,24 +1609,15 @@ void VulkanEngine::load_images()
 	writes[1].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 	writes[1].descriptorCount = TEXTURE_ARRAY_SIZE;
 	writes[1].pBufferInfo = 0;
-	writes[1].dstSet = _descriptorSet;
+	writes[1].dstSet = _textureArrayDescriptorSet;
 	writes[1].pImageInfo = descriptorImageInfos;
 
 	vkUpdateDescriptorSets(_device, 2, writes, 0, nullptr);
-	/*
-	VkWriteDescriptorSet writes = {};
-	writes.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writes.pNext = nullptr;
-	writes.dstBinding = 0;
-	writes.dstSet = _descriptorSet;
-	writes.descriptorCount = 1;
-	writes.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	writes.pImageInfo = descriptorImageInfos;
-	vkUpdateDescriptorSets(_device, 1, &writes, 0, nullptr);*/
 }
 
 void VulkanEngine::upload_mesh(Mesh& mesh)
 {
+	std::cout << mesh._filename << " has " << mesh._vertices.size() << " vertices and " << mesh._indices.size() << " indices " << "\n";
 	// Vertices
 	{		
 		const size_t bufferSize = mesh._vertices.size() * sizeof(Vertex);
@@ -1666,7 +1677,7 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 
 		void* data;
 		vmaMapMemory(_allocator, stagingBuffer._allocation, &data);
-		memcpy(data, mesh._indices.data(), mesh._indices.size() * sizeof(Vertex));
+		memcpy(data, mesh._indices.data(), mesh._indices.size() * sizeof(uint16_t));
 		vmaUnmapMemory(_allocator, stagingBuffer._allocation);
 
 		VkBufferCreateInfo indexBufferInfo = {};
@@ -1689,7 +1700,6 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 
 		vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
 	}
-	std::cout << mesh._filename << " has " << mesh._indices.size() << "\n";
 }
 
 
@@ -1892,12 +1902,8 @@ void VulkanEngine::init_scene()
 
 	vkAllocateDescriptorSets(_device, &allocInfo, &texturedMat->textureSet);
 
-	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
-
-	vkCreateSampler(_device, &samplerInfo, nullptr, &_textureSampler);
-
 	VkDescriptorImageInfo imageBufferInfo;
-	imageBufferInfo.sampler = _textureSampler;
+	imageBufferInfo.sampler = _sampler;
 	//imageBufferInfo.imageView = _loadedTextures["lost_empire-RGBA"].imageView;
 	imageBufferInfo.imageView = _loadedTextures[0].imageView;
 	imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -2009,9 +2015,12 @@ void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& f
 
 void VulkanEngine::init_descriptors()
 {
+	// Good as place as any for a turret
+	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
+	vkCreateSampler(_device, &samplerInfo, nullptr, &_sampler);
+
 	//create a descriptor pool that will hold 10 uniform buffers
-	std::vector<VkDescriptorPoolSize> sizes =
-	{
+	std::vector<VkDescriptorPoolSize> sizes = {
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10 },
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10 },
 		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 },
@@ -2068,36 +2077,41 @@ void VulkanEngine::init_descriptors()
 	vkCreateDescriptorSetLayout(_device, &set3info, nullptr, &_singleTextureSetLayout);
 
 
+	// Texture array
+	{
+		// Layout 
 
-	VkDescriptorSetLayoutBinding textureArrayLayoutBindings[2];
-	textureArrayLayoutBindings[0] = vkinit::descriptor_set_layout_binding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0, 1);
-	textureArrayLayoutBindings[1] = vkinit::descriptor_set_layout_binding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, 1, TEXTURE_ARRAY_SIZE);
+		VkDescriptorSetLayoutBinding textureArrayLayoutBindings[2];
+		textureArrayLayoutBindings[0] = vkinit::descriptor_set_layout_binding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 0, 1);
+		textureArrayLayoutBindings[1] = vkinit::descriptor_set_layout_binding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 1, TEXTURE_ARRAY_SIZE);
 
-	VkDescriptorSetLayoutCreateInfo set4info = {};
-	set4info.bindingCount = 2;
-	set4info.flags = 0;
-	set4info.pNext = nullptr;
-	set4info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	set4info.pBindings = textureArrayLayoutBindings;
+		VkDescriptorSetLayoutCreateInfo setinfo = {};
+		setinfo.bindingCount = 2;
+		setinfo.flags = 0;
+		setinfo.pNext = nullptr;
+		setinfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		setinfo.pBindings = textureArrayLayoutBindings;
 
-	VkResult res = vkCreateDescriptorSetLayout(_device, &set4info, nullptr, &_descSetLayout);
-	if (res != VK_SUCCESS) {
-		std::cout << "Error creating desc set layout\n";
+		VkResult res = vkCreateDescriptorSetLayout(_device, &setinfo, nullptr, &_textureArrayDescriptorLayout);
+		if (res != VK_SUCCESS) {
+			std::cout << "Error creating desc set layout\n";
+		}
+
+		// Set
+
+		VkDescriptorSetAllocateInfo allocInfo = {};
+		allocInfo.pNext = nullptr;
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = _descriptorPool;
+		allocInfo.descriptorSetCount = 1;
+		allocInfo.pSetLayouts = &_textureArrayDescriptorLayout;
+		vkAllocateDescriptorSets(_device, &allocInfo, &_textureArrayDescriptorSet);
 	}
 
 
 
 
-	VkDescriptorSetAllocateInfo allocInfo = {};
-	allocInfo.pNext = nullptr;
-	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.descriptorPool = _descriptorPool;
-	allocInfo.descriptorSetCount = 1;
-	allocInfo.pSetLayouts = &_descSetLayout;
-	vkAllocateDescriptorSets(_device, &allocInfo, &_descriptorSet);
 
-	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
-	vkCreateSampler(_device, &samplerInfo, nullptr, &_sampler);
 
 	
 
@@ -2276,8 +2290,8 @@ RayTracingScratchBuffer VulkanEngine::createScratchBuffer(VkDeviceSize size)
 
 void VulkanEngine::createBottomLevelAccelerationStructure()
 {
-	Mesh* mesh = &_meshes["triangle"];
-	//Mesh* mesh = &_meshes["monkey"];
+	//Mesh* mesh = &_meshes["triangle"];
+	Mesh* mesh = &_meshes["fallen_chair"];
 
 	VkTransformMatrixKHR transformMatrix = {
 		1.0f, 0.0f, 0.0f, 0.0f,
@@ -2305,8 +2319,12 @@ void VulkanEngine::createBottomLevelAccelerationStructure()
 		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		vertexBufferInfo.pNext = nullptr;
 		vertexBufferInfo.size = bufferSize;
-		vertexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
-		vmaallocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;// VMA_MEMORY_USAGE_AUTO;// VMA_MEMORY_USAGE_GPU_ONLY;
+		vertexBufferInfo.usage = 
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | 
+			VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | 
+			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+		vmaallocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 		VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo, &vmaallocInfo, &_rtVertexBuffer._buffer, &_rtVertexBuffer._allocation, nullptr));
 		immediate_submit([=](VkCommandBuffer cmd) {
 			VkBufferCopy copy;
@@ -2316,6 +2334,8 @@ void VulkanEngine::createBottomLevelAccelerationStructure()
 			vkCmdCopyBuffer(cmd, stagingBuffer._buffer, _rtVertexBuffer._buffer, 1, &copy);
 			});
 		vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
+
+		int objectCount = 1;
 	}
 
 	// Indices
@@ -2338,8 +2358,12 @@ void VulkanEngine::createBottomLevelAccelerationStructure()
 		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		bufferInfo.pNext = nullptr;
 		bufferInfo.size = bufferSize;
-		bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
-		vmaallocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;// VMA_MEMORY_USAGE_AUTO;// VMA_MEMORY_USAGE_GPU_ONLY;
+		bufferInfo.usage = 
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | 
+			VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | 
+			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+		vmaallocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 		VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo, &_rtIndexBuffer._buffer, &_rtIndexBuffer._allocation, nullptr));
 		immediate_submit([=](VkCommandBuffer cmd) {
 			VkBufferCopy copy;
@@ -2730,20 +2754,46 @@ void VulkanEngine::createRayTracingPipeline()
 	std::vector<VkDescriptorSetLayoutBinding> bindings({
 		accelerationStructureLayoutBinding,
 		resultImageLayoutBinding,
-		uniformBufferBinding
-		});
+		uniformBufferBinding,
+	});	
 
-	VkDescriptorSetLayoutCreateInfo descriptorSetlayoutCI{};
-	descriptorSetlayoutCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptorSetlayoutCI.bindingCount = static_cast<uint32_t>(bindings.size());
-	descriptorSetlayoutCI.pBindings = bindings.data();
-	VK_CHECK(vkCreateDescriptorSetLayout(_device, &descriptorSetlayoutCI, nullptr, &_rtDescriptorSetLayout));
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
+	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+	descriptorSetLayoutCreateInfo.pBindings = bindings.data();
+	VK_CHECK(vkCreateDescriptorSetLayout(_device, &descriptorSetLayoutCreateInfo, nullptr, &_rtDescriptorSetLayout));
 
-	VkPipelineLayoutCreateInfo pipelineLayoutCI{};
-	pipelineLayoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutCI.setLayoutCount = 1;
-	pipelineLayoutCI.pSetLayouts = &_rtDescriptorSetLayout;
-	VK_CHECK(vkCreatePipelineLayout(_device, &pipelineLayoutCI, nullptr, &_rtPipelineLayout));
+
+	// vertex data binding
+	{
+		VkDescriptorSetLayoutBinding vertexDataBinding{};
+		vertexDataBinding.binding = 0;
+		vertexDataBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		vertexDataBinding.descriptorCount = 1;
+		vertexDataBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+
+		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
+		descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(1);
+		descriptorSetLayoutCreateInfo.pBindings = &vertexDataBinding;
+		VK_CHECK(vkCreateDescriptorSetLayout(_device, &descriptorSetLayoutCreateInfo, nullptr, &_rtVertexBufferDescriptorSetLayout));
+	}
+
+
+	/*VkDescriptorSetLayoutCreateInfo descriptorSetlayoutCI_1{};
+	descriptorSetlayoutCI_1.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetlayoutCI_1.bindingCount = static_cast<uint32_t>(bindings2.size());
+	descriptorSetlayoutCI_1.pBindings = bindings2.data();
+	VK_CHECK(vkCreateDescriptorSetLayout(_device, &descriptorSetlayoutCI_1, nullptr, &_rtDescriptorSetLayout_1));*/
+
+	//VkDescriptorSetLayout rtDescriptorSetLayouts[] = { _rtDescriptorSetLayout_0, _rtDescriptorSetLayout_1 };
+	VkDescriptorSetLayout rtDescriptorSetLayouts[] = { _rtDescriptorSetLayout, _textureArrayDescriptorLayout, _rtVertexBufferDescriptorSetLayout };
+
+	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
+	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutCreateInfo.setLayoutCount = 3;
+	pipelineLayoutCreateInfo.pSetLayouts = rtDescriptorSetLayouts;
+	VK_CHECK(vkCreatePipelineLayout(_device, &pipelineLayoutCreateInfo, nullptr, &_rtPipelineLayout));
 
 	VkRayTracingPipelineCreateInfoKHR rayTracingPipelineCI{};
 	rayTracingPipelineCI.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
@@ -2811,13 +2861,19 @@ void VulkanEngine::createDescriptorSets()
 	std::vector<VkDescriptorPoolSize> poolSizes = {
 			{ VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },
 			{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
+			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 10},
+			{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000}
 	};
-	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vkinit::descriptor_pool_create_info(poolSizes, 1);
+	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = vkinit::descriptor_pool_create_info(poolSizes, 3);
 	VK_CHECK(vkCreateDescriptorPool(_device, &descriptorPoolCreateInfo, nullptr, &_rtDescriptorPool));
 
 	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = vkinit::descriptor_set_allocate_info(_rtDescriptorPool, &_rtDescriptorSetLayout, 1);
 	VK_CHECK(vkAllocateDescriptorSets(_device, &descriptorSetAllocateInfo, &_rtDescriptorSet));
+
+	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo2 = vkinit::descriptor_set_allocate_info(_rtDescriptorPool, &_rtVertexBufferDescriptorSetLayout, 1);
+	VK_CHECK(vkAllocateDescriptorSets(_device, &descriptorSetAllocateInfo2, &_rtVertexBufferDescriptorSet));
 
 	VkWriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo{};
 	descriptorAccelerationStructureInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
@@ -2846,6 +2902,28 @@ void VulkanEngine::createDescriptorSets()
 		uniformBufferWrite
 	};
 	vkUpdateDescriptorSets(_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
+
+
+	// Senting the vertex buffer to ray tracing descriptor set here
+	{
+		int objectCount = 1;
+
+		VkDescriptorBufferInfo bufferInfo = {};
+		bufferInfo.buffer = _rtVertexBuffer._buffer;
+		bufferInfo.range = VK_WHOLE_SIZE;
+
+		VkWriteDescriptorSet write = {};
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.dstBinding = 0;
+		write.dstArrayElement = 0;
+		write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		write.descriptorCount = objectCount;
+		write.dstSet = _rtVertexBufferDescriptorSet;
+		write.pBufferInfo = &bufferInfo;
+		write.pImageInfo = nullptr;
+
+		vkUpdateDescriptorSets(_device, 1, &write, 0, nullptr);
+	}
 }
 
 /*uint64_t getBufferDeviceAddress(VkBuffer buffer)
@@ -2906,6 +2984,8 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	//Dispatch the ray tracing commands
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _rtPipeline);
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _rtPipelineLayout, 0, 1, &_rtDescriptorSet, 0, 0);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _rtPipelineLayout, 1, 1, &_textureArrayDescriptorSet, 0, nullptr);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _rtPipelineLayout, 2, 1, &_rtVertexBufferDescriptorSet, 0, nullptr);
 
 	vkCmdTraceRaysKHR(
 		commandBuffer,
@@ -3005,27 +3085,23 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-
 	Material* colorMaterial = get_material("texturedmesh");
-	Mesh* mesh = get_mesh("quad");
+	Mesh* quadMesh = get_mesh("quad");
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipeline);
 	uint32_t uniform_offset = pad_uniform_buffer_size(sizeof(GPUSceneData)) * frameIndex;
 	
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipelineLayout, 0, 1, &get_current_frame().globalDescriptor, 1, &uniform_offset);
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipelineLayout, 1, 1, &get_current_frame().objectDescriptor, 0, nullptr);
-	if (colorMaterial->textureSet != VK_NULL_HANDLE) {
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipelineLayout, 2, 1, &colorMaterial->textureSet, 0, nullptr);
-	}
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipelineLayout, 3, 1, &_descriptorSet, 0, nullptr);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipelineLayout, 0, 1, &get_current_frame().objectDescriptor, 0, nullptr);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipelineLayout, 1, 1, &_textureArrayDescriptorSet, 0, nullptr);
 
 	int firstCharIndex = _renderables.size();
 
 	VkDeviceSize offset = 0;
-	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &mesh->_vertexBuffer._buffer, &offset);
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &quadMesh->_vertexBuffer._buffer, &offset);
+
 	//we can now draw
 		
 	for (int i = 0; i < TextBlitter::_objectData.size(); i++) {
-		vkCmdDraw(commandBuffer, mesh->_vertices.size(), 1, 0, firstCharIndex + i);
+		vkCmdDraw(commandBuffer, quadMesh->_vertices.size(), 1, 0, firstCharIndex + i);
 	}
 
 	

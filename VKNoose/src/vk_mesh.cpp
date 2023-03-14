@@ -44,6 +44,34 @@ VertexInputDescription Vertex::get_vertex_description()
 }
 
 
+VertexInputDescription Vertex::get_vertex_description_position_and_texcoords_only()
+{
+	VertexInputDescription description;
+
+	VkVertexInputBindingDescription mainBinding = {};
+	mainBinding.binding = 0;
+	mainBinding.stride = sizeof(Vertex);
+	mainBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+	description.bindings.push_back(mainBinding);
+
+	VkVertexInputAttributeDescription positionAttribute = {};
+	positionAttribute.binding = 0;
+	positionAttribute.location = 0;
+	positionAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+	positionAttribute.offset = offsetof(Vertex, position);
+
+	VkVertexInputAttributeDescription uvAttribute = {};
+	uvAttribute.binding = 0;
+	uvAttribute.location = 1;
+	uvAttribute.format = VK_FORMAT_R32G32_SFLOAT;
+	uvAttribute.offset = offsetof(Vertex, uv);
+
+	description.attributes.push_back(positionAttribute);
+	description.attributes.push_back(uvAttribute);
+	return description;
+}
+
 bool Mesh::load_from_raw_data(std::vector<Vertex> vertices, std::vector<uint16_t>indices) {
 	
 	if (!vertices.size()) {
@@ -59,7 +87,7 @@ bool Mesh::load_from_raw_data(std::vector<Vertex> vertices, std::vector<uint16_t
 
 bool Mesh::load_from_obj(const char* filename)
 {
-	/*
+	
 	{	
 		tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
@@ -72,7 +100,7 @@ bool Mesh::load_from_obj(const char* filename)
 			return false;
 		}
 
-		std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
+		std::unordered_map<Vertex, uint16_t> uniqueVertices = {};
 
 		//glm::vec3 minPos = glm::vec3(9999, 9999, 9999);
 		//glm::vec3 maxPos = glm::vec3(0, 0, 0);
@@ -164,16 +192,15 @@ bool Mesh::load_from_obj(const char* filename)
 			_indices = indices;
 
 			_filename = filename;
-			return true;
 
 		}
 
 	}
 
 
+	return true;
 
-	return false;
-	*/
+	/*
 	//attrib will contain the vertex arrays of the file
 	tinyobj::attrib_t attrib;
 	//shapes contains the info for each separate object in the file
@@ -230,7 +257,7 @@ bool Mesh::load_from_obj(const char* filename)
 		}
 	}
 	_filename = filename;
-	return true;
+	return true;*/
 }
 
 void Mesh::draw(VkCommandBuffer commandBuffer, uint32_t firstInstance)

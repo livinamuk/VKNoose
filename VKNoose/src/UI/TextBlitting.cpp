@@ -56,8 +56,6 @@ namespace TextBlitter {
 			float cursor_X = ((xcursor + (texWidth / 2.0f)) / renderTargetWidth) * 2 - 1;
 			float cursor_Y = ((ycursor + (texWHeight / 2.0f)) / renderTargetHeight) * 2 - 1;
 
-			//std::cout << character << " (" << texWidth << ", " << texWHeight << ") " << cursor_X << " " << cursor_Y << "\n";
-
 			Transform transform;
 			transform.position.x = cursor_X;
 			transform.position.y = cursor_Y * -1;
@@ -65,7 +63,7 @@ namespace TextBlitter {
 
 			GPUObjectData data;
 			data.modelMatrix = transform.to_mat4();
-			data.index_basecolor = charPos+1;
+			data.index_basecolor = charPos;
 			_objectData.push_back(data);
 
 			xcursor += texWidth + _charSpacing;
