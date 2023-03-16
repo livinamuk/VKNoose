@@ -72,7 +72,7 @@ VertexInputDescription Vertex::get_vertex_description_position_and_texcoords_onl
 	return description;
 }
 
-bool Mesh::load_from_raw_data(std::vector<Vertex> vertices, std::vector<uint16_t>indices) {
+bool Mesh::load_from_raw_data(std::vector<Vertex> vertices, std::vector<uint32_t>indices) {
 	
 	if (!vertices.size()) {
 		return false;
@@ -100,13 +100,13 @@ bool Mesh::load_from_obj(const char* filename)
 			return false;
 		}
 
-		std::unordered_map<Vertex, uint16_t> uniqueVertices = {};
+		std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
 
 		//glm::vec3 minPos = glm::vec3(9999, 9999, 9999);
 		//glm::vec3 maxPos = glm::vec3(0, 0, 0);
 
 		std::vector<Vertex> vertices;
-		std::vector<uint16_t> indices;
+		std::vector<uint32_t> indices;
 
 		// Loop over shapes
 		for (size_t s = 0; s < shapes.size(); s++) {
@@ -150,7 +150,7 @@ bool Mesh::load_from_obj(const char* filename)
 		for (const auto& shape : shapes)
 		{
 			std::vector<Vertex> vertices;
-			std::vector<uint16_t> indices;
+			std::vector<uint32_t> indices;
 
 			for (int i = 0; i < shape.mesh.indices.size(); i++) {
 				//		for (const auto& index : shape.mesh.indices) {
@@ -268,7 +268,7 @@ void Mesh::draw(VkCommandBuffer commandBuffer, uint32_t firstInstance)
 	//std::cout << "static_cast<uint32_t>_indices.size(): " << static_cast<uint32_t>(_indices.size()) << "\n";
 	if (_indices.size()) {
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &_vertexBuffer._buffer, &offset);
-		vkCmdBindIndexBuffer(commandBuffer, _indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT16);
+		vkCmdBindIndexBuffer(commandBuffer, _indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
 		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(_indices.size()), 1, 0, 0, firstInstance);
 	}
 	else {

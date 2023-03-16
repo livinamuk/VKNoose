@@ -64,6 +64,7 @@ struct Texture {
 	VkImageView imageView;
 	int _width = 0;
 	int _height = 0;
+	uint32_t mipLevels = 1;
 };
 
 struct UploadContext {
@@ -91,7 +92,7 @@ struct RenderObject {
 	bool spin = false;
 };
 
-#define TEXTURE_ARRAY_SIZE 128
+#define TEXTURE_ARRAY_SIZE 256
 #define MAX_RENDER_OBJECTS 10000
 
 struct FrameData {
@@ -278,9 +279,12 @@ public:
 			//VkPhysicalDeviceAccelerationStructureFeaturesKHR enabledAccelerationStructureFeatures{};
 
 			//kPhysicalDeviceRayTracingPipelinePropertiesKHR _rtProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
-			AccelerationStructure _bottomLevelAS{};
+			std::vector<AccelerationStructure> _bottomLevelAccelerationStructures;
+			//AccelerationStructure _bottomLevelAS{};
 			AccelerationStructure _topLevelAS{};
-			void createBottomLevelAccelerationStructure();
+			std::vector<Mesh*> _rtScene;
+			void init_rt_scene();
+			void createBottomLevelAccelerationStructure(Mesh* mesh);
 			void createTopLevelAccelerationStructure();
 			void createStorageImage();
 			void createUniformBuffer();
@@ -301,19 +305,28 @@ public:
 			VkPipeline _rtPipeline;
 			VkPipelineLayout _rtPipelineLayout;
 			VkDescriptorSet _rtDescriptorSet;
-			VkDescriptorSet _rtVertexBufferDescriptorSet;
 			//VkDescriptorSet _rtDescriptorSet_1;
 			VkDescriptorSetLayout _rtDescriptorSetLayout;
-			VkDescriptorSetLayout _rtVertexBufferDescriptorSetLayout;
 			//VkDescriptorSetLayout _rtDescriptorSetLayout_1;
 			VkShaderModule _rayGenShader;
 			VkShaderModule _rayMissShader;
 			VkShaderModule _closestHitShader;
+			VkShaderModule _rayshadowMissShader;
 
 			AllocatedBuffer _raygenShaderBindingTable;
 			AllocatedBuffer _missShaderBindingTable;
 			AllocatedBuffer _hitShaderBindingTable;
 			VkDescriptorPool _rtDescriptorPool = VK_NULL_HANDLE;
+
+			VkDescriptorSet _rtObjectDescDescriptorSet;
+			VkDescriptorSetLayout _rtObjectDescDescriptorSetLayout;
+			AllocatedBuffer _rtObjectDescBuffer;
+
+			VkDeviceOrHostAddressConstKHR _vertexBufferDeviceAddress{};
+			VkDeviceOrHostAddressConstKHR _indexBufferDeviceAddress{};
+			VkDeviceOrHostAddressConstKHR _transformBufferDeviceAddress{};
+
+			AllocatedBuffer _rtInstancesBuffer;
 
 			//vks::Buffer raygenShaderBindingTable;
 			//vks::Buffer missShaderBindingTable;
@@ -330,7 +343,8 @@ public:
 			struct RTUniformData {
 				glm::mat4 viewInverse;
 				glm::mat4 projInverse;
-				glm::vec4 viewPos;
+				glm::vec4 viewPos; 
+				int32_t vertexSize;
 			} _uniformData;
 
 
@@ -381,6 +395,10 @@ public:
 
 	void submit_barrier_command_swapchain_to_transfer_dst_optimal();
 	void submit_barrier_command_swapchain_to_present_src_khr();
+
+	//void generate_mipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
+	//VkCommandBuffer beginSingleTimeCommands();
+	//void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 
 private:
 	void init_vulkan();

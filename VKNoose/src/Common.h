@@ -8,6 +8,12 @@
 #include <glm/gtx/euler_angles.hpp>
 #include "glm/gtx/hash.hpp"
 
+struct ObjDesc {
+	int textureIndex;
+	int vertexOffset;
+	int indexOffset;
+	int dummy;
+};
 
 struct Extent2Di {
 	int width;

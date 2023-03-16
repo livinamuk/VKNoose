@@ -25,8 +25,11 @@ struct VertexInputDescription {
 struct Vertex {
 
 	glm::vec3 position;
+	float pad;
 	glm::vec3 normal;
+	float pad2;
 	glm::vec2 uv;
+	glm::vec2 nothing;
 
 	static VertexInputDescription get_vertex_description();
 	static VertexInputDescription get_vertex_description_position_and_texcoords_only();
@@ -48,14 +51,17 @@ namespace std {
 
 struct Mesh {
 	std::vector<Vertex> _vertices;
-	std::vector<uint16_t> _indices;
+	std::vector<uint32_t> _indices;
 	std::string _filename;
+	int _textureIndex = 0;
 
 	AllocatedBuffer _vertexBuffer;
 	AllocatedBuffer _indexBuffer;
 
+
+
 	bool load_from_obj(const char* filename);
-	bool load_from_raw_data(std::vector<Vertex> vertices, std::vector<uint16_t>indices);
+	bool load_from_raw_data(std::vector<Vertex> vertices, std::vector<uint32_t>indices);
 	void draw(VkCommandBuffer commandBuffer, uint32_t firstInstance);
 
 };
