@@ -58,13 +58,21 @@ struct DeletionQueue
 	}
 };
 
+/*
+struct Handles {
+	VkDevice device;
+	UploadContext uploadContext;
+	VkQueue graphicsQueue;
+};*/
 
 struct Texture {
 	AllocatedImage image;
 	VkImageView imageView;
 	int _width = 0;
 	int _height = 0;
-	uint32_t mipLevels = 1;
+	int _channelCount = 0;
+	uint32_t _mipLevels = 1;
+	std::string _filename;
 };
 
 struct UploadContext {
@@ -156,7 +164,7 @@ class VulkanEngine {
 public:
 
 
-
+	//Handles _handles;
 
 	//PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR;
 	//PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR;
@@ -174,6 +182,7 @@ public:
 
 	VkExtent2D _windowExtent{ 1700 , 900 };
 	VkExtent3D _renderTargetExtent = { 512, 288, 1 };
+//	VkExtent3D _renderTargetExtent = { 512 * 2, 288 * 2, 1 };
 
 	GLFWwindow* _window;
 
@@ -364,7 +373,10 @@ public:
 	std::vector<RenderObject> _renderables;
 
 	std::unordered_map<std::string, Material> _materials;
-	std::unordered_map<std::string, Mesh> _meshes;
+	//std::unordered_map<std::string, Mesh> _meshes;
+
+	std::unordered_map<std::string, Model> _models;
+
 	//std::unordered_map<std::string, Texture> _loadedTextures;
 	std::vector<Texture> _loadedTextures;
 	 
@@ -382,7 +394,8 @@ public:
 	Material* get_material(const std::string& name);
 
 	//returns nullptr if it cant be found
-	Mesh* get_mesh(const std::string& name);
+	//Mesh* get_mesh(const std::string& name);
+	Model* get_model(const std::string& name);
 
 	//our draw function
 	//void draw_objects(VkCommandBuffer cmd, RenderObject* first, int count);

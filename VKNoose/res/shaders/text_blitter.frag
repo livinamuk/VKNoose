@@ -11,4 +11,6 @@ layout(set = 1, binding = 1) uniform texture2D textures[91];
 
 void main() {
     outFragColor = texture(sampler2D(textures[textureIndex], samp), texCoord).rgba;
+
+    //outFragColor = vec4(texCoord, 0, 1);
 }

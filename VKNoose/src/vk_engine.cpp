@@ -100,6 +100,7 @@ void VulkanEngine::cleanup_shaders()
 	vkDestroyShaderModule(_device, _rayGenShader, nullptr);
 	vkDestroyShaderModule(_device, _rayMissShader, nullptr);
 	vkDestroyShaderModule(_device, _closestHitShader, nullptr);
+	vkDestroyShaderModule(_device, _rayshadowMissShader, nullptr);
 }
 
 void VulkanEngine::cleanup()
@@ -140,11 +141,20 @@ void VulkanEngine::cleanup()
 	vkDestroySwapchainKHR(_device, _swapchain, nullptr);
 
 	// Mesh buffers
-	for (auto& it : _meshes) {
+	/*for (auto& it : _meshes) {
 		Mesh& mesh = it.second;
 		vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
 		if (mesh._indices.size()) {
 			vmaDestroyBuffer(_allocator, mesh._indexBuffer._buffer, mesh._indexBuffer._allocation);
+		}
+	}*/
+	for (auto& it : _models) {
+		Model& model = it.second;
+		for (auto mesh : model._meshes) {
+			vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
+			if (mesh._indices.size()) {
+				vmaDestroyBuffer(_allocator, mesh._indexBuffer._buffer, mesh._indexBuffer._allocation);
+			}
 		}
 	}
 
@@ -434,7 +444,7 @@ void VulkanEngine::build_command_buffers(int swapchainImageIndex)
 
 	// Special quad
 	Material* colorMaterial = get_material("texturedmesh");
-	Mesh* mesh = get_mesh("quad");
+	Mesh* mesh = &get_model("quad")->_meshes[0];
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipeline);
 	uint32_t uniform_offset = pad_uniform_buffer_size(sizeof(GPUSceneData)) * frameIndex;
 
@@ -1472,113 +1482,80 @@ void VulkanEngine::draw_quad(Transform transform, Texture* texture)
 void VulkanEngine::load_meshes()
 {
 	Vertex vertA, vertB, vertC, vertD;
-	vertA.position = { -1.0f,  1.0f, 0.0f };
-	vertB.position = { -1.0f, -1.0f, 0.0f };
+	vertA.position = { -1.0f, -1.0f, 0.0f };
+	vertB.position = { -1.0f, 1.0f, 0.0f };
 	vertC.position = { 1.0f,  1.0f, 0.0f };
-	vertD.position = { 1.0f, -1.0f, 0.0f };
-	vertA.uv = { 0.0f, 0.0f };
-	vertB.uv = { 0.0f, 1.0f };
+	vertD.position = { 1.0f,  -1.0f, 0.0f };
+
+	vertA.uv = { 0.0f, 1.0f };
+	vertB.uv = { 0.0f, 0.0f };
 	vertC.uv = { 1.0f, 0.0f };
 	vertD.uv = { 1.0f, 1.0f };
 
-	Mesh quadMesh{};
-	quadMesh._vertices.push_back(vertA);
-	quadMesh._vertices.push_back(vertB);
-	quadMesh._vertices.push_back(vertC);
-	quadMesh._vertices.push_back(vertD);
-	quadMesh._vertices.push_back(vertC);
-	quadMesh._vertices.push_back(vertB);
+	std::vector<Vertex> quadVertices;
+	quadVertices.push_back(vertA);
+	quadVertices.push_back(vertB);
+	quadVertices.push_back(vertC);
+	quadVertices.push_back(vertD);
+	std::vector<uint32_t> quadIndices = { 0, 1, 2, 0, 2, 3};
 
-	Vertex triA, triB, triC;
-	triA.position = { 1.f,2.f, 0.0f };
-	triB.position = { -1.f,2.f, 0.0f };
-	triC.position = { 0.f,0.f, 0.0f };
+	Model quadModel;
+	quadModel.load_from_raw_data(quadVertices, quadIndices);
 
-	std::vector<Vertex> triVertices;
-	triVertices.push_back(triA);
-	triVertices.push_back(triB);
-	triVertices.push_back(triC);
+	//Model wifeModel;
+	//wifeModel.load_from_obj("res/models/Wife.obj");
 
-	std::vector<uint32_t> triIndices = { 0, 1, 2 };
+	Model fallenChairModel;
+	fallenChairModel.load_from_obj("res/models/FallenChair.obj");
+		
+	Vertex vert0, vert1, vert2, vert3;
+	float size = 10;
+	float texSize = 10;
+	vert0.position = { -size, 0, -size };
+	vert1.position = { -size, 0, size };
+	vert2.position = { size, 0, size };
+	vert3.position = { size, 0, -size };
+	vert0.uv = { 0, 0 };
+	vert1.uv = { 0, 10 };
+	vert2.uv = { 10, 10 };
+	vert3.uv = { 10, 0 };
+	vert0.normal = { 0, 1, 0 };
+	vert1.normal = { 0, 1, 0 };
+	vert2.normal = { 0, 1, 0 };
+	vert3.normal = { 0, 1, 0 };
+	std::vector<Vertex> vertices;
+	vertices.push_back(vert0);
+	vertices.push_back(vert1);
+	vertices.push_back(vert2);
+	vertices.push_back(vert3);
+	std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
+	
+	Model floorModel;
+	floorModel.load_from_raw_data(vertices, indices);
 
-	Mesh triMesh{};
-	triMesh.load_from_raw_data(triVertices, triIndices);
+	_models["quad"] = quadModel;
+	_models["fallen_chair"] = fallenChairModel;
+	//_models["wife"] = wifeModel;
+	_models["floor"] = floorModel;
 
-	//load the monkey
-	Mesh monkeyMesh{};
-	monkeyMesh.load_from_obj("res/models/monkey_smooth.obj");
-
-	Mesh lostEmpire{};
-	lostEmpire.load_from_obj("res/models/lost_empire.obj");
-
-	Mesh fallenChair{};
-	fallenChair.load_from_obj("res/models/FallenChair.obj");
-
-	Mesh skull{};
-	skull.load_from_obj("res/models/BlackSkull2.obj");
-
-	//Mesh skull{};
-	//lostEmpire.load_from_obj("res/models/BlackSkull.obj");
-
-	upload_mesh(triMesh);
-	upload_mesh(quadMesh);
-	upload_mesh(monkeyMesh);
-	upload_mesh(lostEmpire);
-	upload_mesh(fallenChair);
-	upload_mesh(skull);
-
-
-	_meshes["monkey"] = monkeyMesh;
-	_meshes["triangle"] = triMesh;
-	_meshes["quad"] = quadMesh;
-	_meshes["empire"] = lostEmpire;
-	_meshes["fallen_chair"] = fallenChair;
-	_meshes["skull"] = skull;
-
-	{
-		Vertex vert0, vert1, vert2, vert3;
-		float size = 10;
-		float texSize = 10;
-		vert0.position = { -size, 0, -size };
-		vert1.position = { -size, 0, size };
-		vert2.position = { size, 0, size };
-		vert3.position = { size, 0, -size };
-		vert0.uv = { 0, 0 };
-		vert1.uv = { 0, 10 };
-		vert2.uv = { 10, 10 };
-		vert3.uv = { 10, 0 };
-		vert0.normal = { 0, 1, 0 };
-		vert1.normal = { 0, 1, 0 };
-		vert2.normal = { 0, 1, 0 };
-		vert3.normal = { 0, 1, 0 };
-		std::vector<Vertex> vertices;
-		vertices.push_back(vert0);
-		vertices.push_back(vert1);
-		vertices.push_back(vert2);
-		vertices.push_back(vert3);
-		std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
-		Mesh floorMesh{};
-		floorMesh.load_from_raw_data(vertices, indices);
-		upload_mesh(floorMesh);
-		_meshes["floor"] = floorMesh;
+	for (auto& it : _models) {
+		Model& model = it.second;
+		for (auto& mesh : model._meshes) {
+			upload_mesh(mesh);
+		}
 	}
+
+	/*Model* model = &_models["quad"];
+	Mesh& mesh = model->_meshes[0];
+	upload_mesh(mesh);*/
 }
 
 
 void VulkanEngine::load_texture(std::string filepath)
 {
 	Texture texture;
-
-	vkutil::load_image_from_file(*this, filepath.c_str(), texture.image, texture._width, texture._height);
-	VkImageViewCreateInfo imageinfo = vkinit::imageview_create_info(VK_FORMAT_R8G8B8A8_SRGB, texture.image._image, VK_IMAGE_ASPECT_COLOR_BIT);
-	vkCreateImageView(_device, &imageinfo, nullptr, &texture.imageView);
-
-	// isolate name
-	std::string filename = filepath.substr(filepath.rfind("/") + 1);
-	filename = filename.substr(0, filename.length() - 4);
-
+	vkutil::load_image_from_file(*this, filepath.c_str(), texture, true);
 	_loadedTextures.push_back(texture);
-	//_loadedTextures[filename] = texture;
 }
 
 void VulkanEngine::load_images()
@@ -1758,10 +1735,22 @@ Material* VulkanEngine::get_material(const std::string& name)
 }
 
 
-Mesh* VulkanEngine::get_mesh(const std::string& name)
+
+/*Mesh* VulkanEngine::get_mesh(const std::string& name)
 {
 	auto it = _meshes.find(name);
 	if (it == _meshes.end()) {
+		return nullptr;
+	}
+	else {
+		return &(*it).second;
+	}
+}
+*/
+Model* VulkanEngine::get_model(const std::string& name)
+{
+	auto it = _models.find(name);
+	if (it == _models.end()) {
 		return nullptr;
 	}
 	else {
@@ -1773,25 +1762,7 @@ Mesh* VulkanEngine::get_mesh(const std::string& name)
 void VulkanEngine::init_scene()
 {
 	_renderables.clear();
-
-	RenderObject monkey;
-	monkey.mesh = get_mesh("monkey");
-	monkey.material = get_material("defaultmesh");
-	monkey.transform.position = glm::vec3(2, -1, 2);
-	monkey.transform.rotation = glm::vec3(0, 3.14f, 0);
-	monkey.spin = true;
-	_renderables.push_back(monkey);
-
-	RenderObject map;
-	map.mesh = get_mesh("empire");
-	map.material = get_material("texturedmesh");
-
-	Transform transform;
-	transform.position = glm::vec3{ 5,-10, 0 };
-	transform.scale = glm::vec3(0.5);
-	map.transform = transform;
-
-	//map.transformMatrix = transform.to_mat4();//glm::translate(glm::vec3{ 5,-10, -50 }); //glm::mat4{ 1.0f };
+	/*
 
 	_renderables.push_back(map);
 
@@ -1844,7 +1815,7 @@ void VulkanEngine::init_scene()
 	texture1.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texture1.pImageInfo = &imageBufferInfo;
 	vkUpdateDescriptorSets(_device, 1, &texture1, 0, nullptr);
-
+	*/
 
 
 
@@ -1921,6 +1892,7 @@ size_t VulkanEngine::pad_uniform_buffer_size(size_t originalSize)
 }
 
 
+
 void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function)
 {
 	VkCommandBuffer cmd = _uploadContext._commandBuffer;
@@ -1944,6 +1916,19 @@ void VulkanEngine::init_descriptors()
 {
 	// Good as place as any for a turret
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
+	samplerInfo.magFilter = VK_FILTER_LINEAR;
+	samplerInfo.minFilter = VK_FILTER_LINEAR;
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+	samplerInfo.mipLodBias = 0.0f;
+	samplerInfo.compareOp = VK_COMPARE_OP_NEVER;
+	samplerInfo.minLod = 0.0f;
+	samplerInfo.maxLod = 12.0f;
+	samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+	samplerInfo.maxAnisotropy = _gpuProperties.limits.maxSamplerAnisotropy;;
+	samplerInfo.anisotropyEnable = VK_TRUE;
 	vkCreateSampler(_device, &samplerInfo, nullptr, &_sampler);
 
 	//create a descriptor pool that will hold 10 uniform buffers
@@ -2257,10 +2242,31 @@ void VulkanEngine::init_rt_scene()
 	}
 
 
+	for (auto& it : _models) {
 
-	_rtScene.push_back(&_meshes["fallen_chair"]);
-	_rtScene.push_back(&_meshes["floor"]);
+		Model& model = it.second;
 
+		for (auto& mesh : model._meshes) {
+		//	_rtScene.push_back(&mesh);
+		}
+	}
+
+
+	_rtScene.push_back(&_models["fallen_chair"]._meshes[0]);
+	_rtScene.push_back(&_models["floor"]._meshes[0]);
+	//_rtScene.push_back(&_models["wife"]._meshes[0]);
+
+	/*Transform transform;
+	transform.rotation.y = 3.7f;
+	get_model("fallen_chair")->_meshes[0]._transform = transform;
+
+	transform.scale = glm::vec3(0.01f);
+	transform.position.x = 0.8f - 0.6f;
+	transform.position.y = 2.5f;
+	transform.position.z = 1.1f - 0.9f;
+	transform.rotation.y = -1.75;
+	get_model("wife")->_meshes[0]._transform = transform;
+	*/
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
 
@@ -2469,6 +2475,15 @@ void VulkanEngine::createTopLevelAccelerationStructure()
 			1.0f, 0.0f, 0.0f, 0.0f,
 			0.0f, 1.0f, 0.0f, 0.0f,
 			0.0f, 0.0f, 1.0f, 0.0f };
+
+		glm::mat4 modelMatrix = _rtScene[i]->_transform.to_mat4();
+		modelMatrix = glm::transpose(modelMatrix);
+
+		for (int x = 0; x < 3; x++) {
+			for (int y = 0; y < 4; y++) {
+				transformMatrix.matrix[x][y] = modelMatrix[x][y];
+			}
+		}
 
 		VkAccelerationStructureInstanceKHR& instance = instances[i];
 		//VkAccelerationStructureInstanceKHR instance{};
@@ -2920,13 +2935,13 @@ void VulkanEngine::createDescriptorSets()
 	vkUpdateDescriptorSets(_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
 
 
-	get_mesh("fallen_chair")->_textureIndex = 91;
-	get_mesh("floor")->_textureIndex = 93;
+	get_model("fallen_chair")->_meshes[0]._textureIndex = 91;
+	get_model("floor")->_meshes[0]._textureIndex = 93;
 
 	{
 		std::vector<Mesh*> meshes;
-		meshes.push_back(get_mesh("fallen_chair"));
-		meshes.push_back(get_mesh("floor"));
+		meshes.push_back(&get_model("fallen_chair")->_meshes[0]);
+		meshes.push_back(&get_model("floor")->_meshes[0]);
 
 		std::vector<ObjDesc> objectDescs;
 
@@ -3185,7 +3200,7 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 	Material* colorMaterial = get_material("texturedmesh");
-	Mesh* quadMesh = get_mesh("quad");
+	Mesh* quadMesh = &get_model("quad")->_meshes[0];
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipeline);
 	uint32_t uniform_offset = pad_uniform_buffer_size(sizeof(GPUSceneData)) * frameIndex;
 
@@ -3200,7 +3215,8 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	//we can now draw
 
 	for (int i = 0; i < TextBlitter::_objectData.size(); i++) {
-		vkCmdDraw(commandBuffer, quadMesh->_vertices.size(), 1, 0, firstCharIndex + i);
+		quadMesh->draw(commandBuffer, firstCharIndex + i);
+		//vkCmdDrawIndexed(commandBuffer, quadMesh->_indices.size(), 1, 0, firstCharIndex + i);
 	}
 
 

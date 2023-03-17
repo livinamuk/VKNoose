@@ -6,6 +6,7 @@
 #include <glm/vec3.hpp>
 
 #include <iostream>
+#include "Common.h"
 #define GLM_FORCE_SILENT_WARNINGS
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
@@ -57,11 +58,15 @@ struct Mesh {
 
 	AllocatedBuffer _vertexBuffer;
 	AllocatedBuffer _indexBuffer;
-
-
+	Transform _transform;
 
 	bool load_from_obj(const char* filename);
 	bool load_from_raw_data(std::vector<Vertex> vertices, std::vector<uint32_t>indices);
 	void draw(VkCommandBuffer commandBuffer, uint32_t firstInstance);
+};
 
+struct Model {
+	std::vector<Mesh> _meshes;
+	bool load_from_obj(const char* filename);
+	bool load_from_raw_data(std::vector<Vertex> vertices, std::vector<uint32_t>indices);
 };

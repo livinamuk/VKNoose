@@ -130,11 +130,12 @@ void main()
   
 
     texCoord.y = texCoord.y;
-
+    
     vec4 outFragColor = texture(sampler2D(textures[textureIndex], samp), texCoord).rgba;
+   // outFragColor = textureLod(sampler2D(textures[textureIndex], samp), texCoord, 10).rgba;
 
    
-
+   
 
   //vec3 ambient = outFragColor.rgb;
   
@@ -144,7 +145,7 @@ void main()
     vec3 objectColor =  outFragColor.rgb;
 
     vec3 lightColor = vec3(1, 0.95, 0.8);
-    float ambientStrength = 0.1;
+    float ambientStrength = 0.2;
     vec3 ambient = ambientStrength * lightColor;
   	
     // diffuse 
@@ -155,6 +156,8 @@ void main()
     
     // specular
     float specularStrength = 1.5;
+   // specularStrength = 2.5;
+
     vec3 viewDir = normalize(viewPos - FragPos);
     vec3 reflectDir = reflect(-lightDir, norm);  
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
@@ -198,6 +201,8 @@ void main()
 		finalColor *= 0.25;
        // hitValue = vec3(1, 0, 0);
     }
+    
+    //finalColor = vec3(1, 0, 0);
 
     rayPayload.color = finalColor;
 	rayPayload.distance = gl_RayTmaxEXT;
@@ -209,16 +214,6 @@ void main()
         finalColor = test;
     }
 
+
     rayPayload.reflector = ((finalColor.r == 1.0f) && (finalColor.g == 1.0f) && (finalColor.b == 1.0f)) ? 1.0f : 0.0f; 
-
-    //rayPayload.color = finalColor;
-
-    //rayPayload.reflector = 1.0;
-  //  hitValue = normal;
-
- //hitValue = vec3(doom2);
-
-  //hitValue = vec3(1, 0, 0);
-
-//  hitValue = vec3(texCoord, 0);
 }

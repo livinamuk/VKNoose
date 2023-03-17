@@ -74,6 +74,9 @@ VertexInputDescription Vertex::get_vertex_description_position_and_texcoords_onl
 
 bool Mesh::load_from_raw_data(std::vector<Vertex> vertices, std::vector<uint32_t>indices) {
 	
+	std::cout <<_filename << ": " << " vertices: " << vertices.size() << " indices: " << indices.size() << "\n";
+
+
 	if (!vertices.size()) {
 		return false;
 	}
@@ -88,7 +91,30 @@ bool Mesh::load_from_raw_data(std::vector<Vertex> vertices, std::vector<uint32_t
 bool Mesh::load_from_obj(const char* filename)
 {
 	
-	{	
+	
+}
+
+void Mesh::draw(VkCommandBuffer commandBuffer, uint32_t firstInstance)
+{
+	VkDeviceSize offset = 0;
+
+	//std::cout << "_indices.size(): " << _indices.size() << "\n";
+	//std::cout << "static_cast<uint32_t>_indices.size(): " << static_cast<uint32_t>(_indices.size()) << "\n";
+	if (_indices.size()) {
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &_vertexBuffer._buffer, &offset);
+		vkCmdBindIndexBuffer(commandBuffer, _indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(_indices.size()), 1, 0, 0, firstInstance);
+	}
+	else {
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &_vertexBuffer._buffer, &offset);
+		vkCmdDraw(commandBuffer, _vertices.size(), 1, 0, firstInstance);
+	}
+}
+
+
+bool Model::load_from_obj(const char* filename) 
+{
+	{
 		tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
 		std::vector<tinyobj::material_t> materials;
@@ -153,12 +179,10 @@ bool Mesh::load_from_obj(const char* filename)
 			std::vector<uint32_t> indices;
 
 			for (int i = 0; i < shape.mesh.indices.size(); i++) {
-				//		for (const auto& index : shape.mesh.indices) {
+
 				Vertex vertex = {};
 
 				const auto& index = shape.mesh.indices[i];
-				//vertex.MaterialID = shape.mesh.material_ids[i / 3];
-
 				vertex.position = {
 					attrib.vertices[3 * index.vertex_index + 0],
 					attrib.vertices[3 * index.vertex_index + 1],
@@ -173,7 +197,7 @@ bool Mesh::load_from_obj(const char* filename)
 				}
 
 				if (attrib.texcoords.size() && index.texcoord_index != -1) { // should only be 1 or 2, some bug in debug where there were over 1000 on the spherelines model...
-					vertex.uv = {attrib.texcoords[2 * index.texcoord_index + 0],	1.0f - attrib.texcoords[2 * index.texcoord_index + 1]};
+					vertex.uv = { attrib.texcoords[2 * index.texcoord_index + 0],	1.0f - attrib.texcoords[2 * index.texcoord_index + 1] };
 				}
 
 				if (uniqueVertices.count(vertex) == 0) {
@@ -184,95 +208,19 @@ bool Mesh::load_from_obj(const char* filename)
 				indices.push_back(uniqueVertices[vertex]);
 			}
 
-			for (int i = 0; i < indices.size(); i += 3) {
-				//Util::SetNormalsAndTangentsFromVertices(&vertices[indices[i]], &vertices[indices[i + 1]], &vertices[indices[i + 2]]);
-			}
-
-				_vertices = vertices;
-			_indices = indices;
-
-			_filename = filename;
-
+			Mesh& mesh = _meshes.emplace_back(Mesh());
+			mesh._vertices = vertices;
+			mesh._indices = indices;
+			mesh._filename = filename;
 		}
-
 	}
-
-
 	return true;
 
-	/*
-	//attrib will contain the vertex arrays of the file
-	tinyobj::attrib_t attrib;
-	//shapes contains the info for each separate object in the file
-	std::vector<tinyobj::shape_t> shapes;
-	std::vector<tinyobj::material_t> materials;
-	std::string warn;
-	std::string err;
 
-	tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename,
-		nullptr);
-	if (!warn.empty()) {
-		//std::cout << "WARN: " << warn << std::endl;
-	}
-	if (!err.empty()) {
-		std::cerr << err << std::endl;
-		return false;
-	}
-
-
-	for (size_t s = 0; s < shapes.size(); s++) {
-		// Loop over faces(polygon)
-		size_t index_offset = 0;
-		for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
-			//hardcode loading to triangles
-			int fv = 3;
-			// Loop over vertices in the face.
-			for (size_t v = 0; v < fv; v++) {
-				// access to vertex
-				tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
-				//vertex position
-				tinyobj::real_t vx = attrib.vertices[3 * idx.vertex_index + 0];
-				tinyobj::real_t vy = attrib.vertices[3 * idx.vertex_index + 1];
-				tinyobj::real_t vz = attrib.vertices[3 * idx.vertex_index + 2];
-				//vertex normal
-				tinyobj::real_t nx = attrib.normals[3 * idx.normal_index + 0];
-				tinyobj::real_t ny = attrib.normals[3 * idx.normal_index + 1];
-				tinyobj::real_t nz = attrib.normals[3 * idx.normal_index + 2];
-				//vertex uv
-				tinyobj::real_t ux = attrib.texcoords[2 * idx.texcoord_index + 0];
-				tinyobj::real_t uy = attrib.texcoords[2 * idx.texcoord_index + 1];
-				//copy it into our vertex
-				Vertex new_vert;
-				new_vert.position.x = vx;
-				new_vert.position.y = vy;
-				new_vert.position.z = vz;
-				new_vert.normal.x = nx;
-				new_vert.normal.y = ny;
-				new_vert.normal.z = nz;
-				new_vert.uv.x = ux;
-				new_vert.uv.y = 1 - uy;
-				_vertices.push_back(new_vert);
-			}
-			index_offset += fv;
-		}
-	}
-	_filename = filename;
-	return true;*/
 }
 
-void Mesh::draw(VkCommandBuffer commandBuffer, uint32_t firstInstance)
+bool Model::load_from_raw_data(std::vector<Vertex> vertices, std::vector<uint32_t>indices) 
 {
-	VkDeviceSize offset = 0;
-
-	//std::cout << "_indices.size(): " << _indices.size() << "\n";
-	//std::cout << "static_cast<uint32_t>_indices.size(): " << static_cast<uint32_t>(_indices.size()) << "\n";
-	if (_indices.size()) {
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &_vertexBuffer._buffer, &offset);
-		vkCmdBindIndexBuffer(commandBuffer, _indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
-		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(_indices.size()), 1, 0, 0, firstInstance);
-	}
-	else {
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &_vertexBuffer._buffer, &offset);
-		vkCmdDraw(commandBuffer, _vertices.size(), 1, 0, firstInstance);
-	}
+	Mesh& mesh = _meshes.emplace_back(Mesh());
+	mesh.load_from_raw_data(vertices, indices);
 }

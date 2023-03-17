@@ -7,4 +7,5 @@ void main()
 {
     hitValue = vec3(0.1, 0.1, 0.1);
     hitValue = vec3(0.0);
+ //   hitValue = vec3(1.0);
 }
