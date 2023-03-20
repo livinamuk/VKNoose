@@ -65,15 +65,7 @@ struct Handles {
 	VkQueue graphicsQueue;
 };*/
 
-struct Texture {
-	AllocatedImage image;
-	VkImageView imageView;
-	int _width = 0;
-	int _height = 0;
-	int _channelCount = 0;
-	uint32_t _mipLevels = 1;
-	std::string _filename;
-};
+
 
 struct UploadContext {
 	VkFence _uploadFence;
@@ -86,16 +78,16 @@ struct MeshPushConstants {
 	glm::mat4 render_matrix;
 };
 
-
+/*
 struct Material {
 	VkDescriptorSet textureSet{ VK_NULL_HANDLE };
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
-};
+};*/
 
 struct RenderObject {
 	Mesh* mesh;
-	Material* material;
+	//Material* material;
 	Transform transform;
 	bool spin = false;
 };
@@ -147,14 +139,7 @@ struct RayTracingScratchBuffer
 	VkDeviceMemory memory = VK_NULL_HANDLE;
 };
 
-// Ray tracing acceleration structure
-struct AccelerationStructure {
-	VkAccelerationStructureKHR handle;
-	uint64_t deviceAddress = 0;
-	VkDeviceMemory memory;
-	//VkBuffer buffer;
-	AllocatedBuffer buffer;
-};
+
 
 struct GameData {
 	Player player;
@@ -288,12 +273,12 @@ public:
 			//VkPhysicalDeviceAccelerationStructureFeaturesKHR enabledAccelerationStructureFeatures{};
 
 			//kPhysicalDeviceRayTracingPipelinePropertiesKHR _rtProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
-			std::vector<AccelerationStructure> _bottomLevelAccelerationStructures;
+			//std::vector<AccelerationStructure> _bottomLevelAccelerationStructures;
 			//AccelerationStructure _bottomLevelAS{};
 			AccelerationStructure _topLevelAS{};
-			std::vector<Mesh*> _rtScene;
+			//std::vector<Mesh*> _rtScene;
 			void init_rt_scene();
-			void createBottomLevelAccelerationStructure(Mesh* mesh);
+			AccelerationStructure createBottomLevelAccelerationStructure(Mesh* mesh);
 			void createTopLevelAccelerationStructure();
 			void createStorageImage();
 			void createUniformBuffer();
@@ -302,11 +287,14 @@ public:
 			void createDescriptorSets();
 			void build_rt_command_buffers(int swapchainIndex);
 			void updateUniformBuffers();
+			void build_bottom_level_acceleration_structures();
+
+			void updateTLASdescriptorSet();
 			//vks::Buffer vertexBuffer;
 			//vks::Buffer indexBuffer;
 			AllocatedBuffer _rtVertexBuffer;
 			AllocatedBuffer _rtIndexBuffer;
-			AllocatedBuffer _rtTransformBuffer;
+			//AllocatedBuffer _rtTransformBuffer;
 			uint32_t _rtIndexCount;
 			//vks::Buffer transformBuffer;
 			std::vector<VkRayTracingShaderGroupCreateInfoKHR> _rtShaderGroups{};
@@ -372,13 +360,13 @@ public:
 	//default array of renderable objects
 	std::vector<RenderObject> _renderables;
 
-	std::unordered_map<std::string, Material> _materials;
+//	std::unordered_map<std::string, Material> _materials;
 	//std::unordered_map<std::string, Mesh> _meshes;
 
-	std::unordered_map<std::string, Model> _models;
+	//std::unordered_map<std::string, Model> _models;
 
 	//std::unordered_map<std::string, Texture> _loadedTextures;
-	std::vector<Texture> _loadedTextures;
+	//std::vector<Texture> _loadedTextures;
 	 
 	//functions
 
@@ -388,14 +376,14 @@ public:
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 
 	//create material and add it to the map
-	Material* create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);
+	//Material* create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);
 
 	//returns nullptr if it cant be found
-	Material* get_material(const std::string& name);
+	//Material* get_material(const std::string& name);
 
 	//returns nullptr if it cant be found
 	//Mesh* get_mesh(const std::string& name);
-	Model* get_model(const std::string& name);
+	//Model* get_model(const std::string& name);
 
 	//our draw function
 	//void draw_objects(VkCommandBuffer cmd, RenderObject* first, int count);
@@ -421,7 +409,7 @@ private:
 	void init_scene();
 	void init_descriptors();
 	//bool load_shader_module(const char* filePath, VkShaderModule* outShaderModule, VkShaderModuleCreateInfo createInfo = VkShaderModuleCreateInfo());
-	void load_meshes();
+	void upload_meshes();
 	void load_images();
 	void upload_mesh(Mesh& mesh);
 	void load_texture(std::string filepath);
@@ -434,12 +422,12 @@ private:
 	void create_command_buffers();
 	void create_pipelines();
 	void create_pipelines_2();
-	void build_command_buffers(int swapchainImageIndex);
+	//void build_command_buffers(int swapchainImageIndex);
 	void create_render_targets();
 	void draw_quad(Transform transform, Texture* texture);
 
 	void init_raytracing();
-	void cleanup_rayracing();
+	void cleanup_raytracing();
 	uint64_t get_buffer_device_address(VkBuffer buffer);
 	void createAccelerationStructureBuffer(AccelerationStructure& accelerationStructure, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo);
 };

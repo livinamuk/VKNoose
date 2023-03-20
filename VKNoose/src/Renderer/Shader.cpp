@@ -39,7 +39,7 @@ std::vector<uint32_t> compile_file(const std::string& source_name, shaderc_shade
 
 bool load_shader(VkDevice device, std::string filePath, VkShaderStageFlagBits flag, VkShaderModule* outShaderModule)
 {
-	std::cout << "Loading: " << filePath << "\n";
+	//std::cout << "Loading: " << filePath << "\n";
 
 	shaderc_shader_kind kind;
 	if (flag == VK_SHADER_STAGE_VERTEX_BIT) {

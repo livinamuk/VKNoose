@@ -40,7 +40,7 @@ void main()
 
     //traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
 
-	int MAX_RECURSION = 2;
+	int MAX_RECURSION = 1;
 
 	for (int i = 0; i < MAX_RECURSION; i++) 
 	{
@@ -48,23 +48,38 @@ void main()
 		traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
 
 		vec3 hitColor = rayPayload.color;
-		//color += hitColor;
+		const vec4 hitPos = origin + direction * rayPayload.distance;
 
-		if (rayPayload.distance < 0.0f) {
-			color += hitColor;
-			break;
-		} else if (rayPayload.reflector == 1.0f && hitColor.r != 0 && hitColor.g != 0) {
+		color += hitColor;
+/*
+if (true) {
 
-			const vec4 hitPos = origin + direction * rayPayload.distance;
-			origin.xyz = hitPos.xyz + rayPayload.normal * 0.001f;
-			direction.xyz = reflect(direction.xyz, rayPayload.normal);
-			//color += hitColor;
-			color = mix(color, hitColor, 0.25);
+			if (rayPayload.distance < 0.0f) {
+				color += hitColor;
+				break;
+			} else if (rayPayload.reflector == 1.0f && hitColor.r != 0 && hitColor.g != 0) {
 
-		} else {
-			color += hitColor;
-			break;
-		}		
+				origin.xyz = hitPos.xyz + rayPayload.normal * 0.001f;
+				direction.xyz = reflect(direction.xyz, rayPayload.normal);
+				//color += hitColor;
+				color = mix(color, hitColor, 0.05);
+
+			} else if (rayPayload.reflector == 2.0f) {
+			
+			    float ratio = 1.00 / 1.52;
+				vec3 I = normalize(hitPos.xyz - cam.viewPos.xyz);
+				vec3 R = refract(I, normalize(rayPayload.normal), ratio);
+
+				//color = R;//vec3(1,1,0);
+				traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, hitPos.xyz, tmin, direction.xyz, tmax, 0);
+				color = rayPayload.color;
+				//color = rayPayload.normal * 2.0 - 1.0;
+						
+			} else {
+				//color += hitColor;
+				break;
+			}	
+		}*/
 	}
 
 	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(color, 0.0));

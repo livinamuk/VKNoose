@@ -11,7 +11,9 @@ int main()
 
 	engine.run();
 
+	std::cout << "Cleaning up...\n";
 	engine.cleanup();
+	std::cout << "Goodbye!\n";
 
 	return 0;
 }

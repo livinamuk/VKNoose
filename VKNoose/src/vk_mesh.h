@@ -27,10 +27,18 @@ struct Vertex {
 
 	glm::vec3 position;
 	float pad;
+
 	glm::vec3 normal;
 	float pad2;
+
 	glm::vec2 uv;
-	glm::vec2 nothing;
+	glm::vec2 pad3;
+
+	glm::vec3 tangent;
+	float pad4;
+
+	glm::vec3 bitangent;
+	float pad5;
 
 	static VertexInputDescription get_vertex_description();
 	static VertexInputDescription get_vertex_description_position_and_texcoords_only();
@@ -58,15 +66,29 @@ struct Mesh {
 
 	AllocatedBuffer _vertexBuffer;
 	AllocatedBuffer _indexBuffer;
+	AllocatedBuffer _transformBuffer;
 	Transform _transform;
+	AccelerationStructure _accelerationStructure;
 
-	bool load_from_obj(const char* filename);
-	bool load_from_raw_data(std::vector<Vertex> vertices, std::vector<uint32_t>indices);
+	bool load_from_raw_data(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 	void draw(VkCommandBuffer commandBuffer, uint32_t firstInstance);
 };
 
 struct Model {
+public:
+	// methods
+	Model();
+	Model(const char* filename);
+	Model(const char* name, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
+	void draw(VkCommandBuffer commandBuffer, uint32_t firstInstance);
+	std::string _filename;
+
+	// fields
+//private:
 	std::vector<Mesh> _meshes;
-	bool load_from_obj(const char* filename);
-	bool load_from_raw_data(std::vector<Vertex> vertices, std::vector<uint32_t>indices);
+	
+private:
+	// methods
+	//bool load_from_obj(const char* filename);
+	//bool load_from_raw_data(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 };

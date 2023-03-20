@@ -62,6 +62,7 @@ void Audio::Init()
 	Audio::LoadAudio("pl_dirt4.wav"); 
 
 	Audio::LoadAudio("UI_Select.wav");
+	Audio::LoadAudio("Rope.wav");
 	//gSoloud.init();
 	/*
 	Audio::LoadAudio("UI_Select2.wav");
@@ -71,7 +72,6 @@ void Audio::Init()
 	Audio::LoadAudio("DrawerOpen.wav");
 	Audio::LoadAudio("DrawerClose.wav");
 	Audio::LoadAudio("ItemPickUp.wav");
-	Audio::LoadAudio("Rope.wav");
 	Audio::LoadAudio("Music2.wav");
 	Audio::LoadAudio("Door_Open2.wav");
 	Audio::LoadAudio("CabinetOpen.wav");

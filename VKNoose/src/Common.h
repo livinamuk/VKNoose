@@ -9,10 +9,15 @@
 #include "glm/gtx/hash.hpp"
 
 struct ObjDesc {
-	int textureIndex;
+	glm::mat4 worldMatrix;
 	int vertexOffset;
 	int indexOffset;
+	int basecolorIndex;
+	int normalIndex;
+	int rmaIndex;
 	int dummy;
+	int dummy1;
+	int dummy2;
 };
 
 struct Extent2Di {
@@ -44,6 +49,7 @@ struct GPUObjectData {
 	int index_rma;
 	int index_emissive;
 };
+
 
 /*
 * 

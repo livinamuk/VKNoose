@@ -8,6 +8,6 @@
 
 namespace vkutil {
 
-	bool load_image_from_file(VulkanEngine& engine, const char* file, Texture& outTexture, bool generateMips = false);
+	//bool load_image_from_file(VulkanEngine& engine, const char* file, Texture& outTexture, bool generateMips = false);
 
 }

@@ -43,3 +43,20 @@ struct Shader {
 	VulkanShaderStage stages[OBJECT_SHADER_STAGE_COUNT];
 	VulkanPipeline pipeline;
 };
+
+struct AccelerationStructure {
+	VkAccelerationStructureKHR handle;
+	uint64_t deviceAddress = 0;
+	VkDeviceMemory memory;
+	AllocatedBuffer buffer;
+};
+
+struct Texture {
+	AllocatedImage image;
+	VkImageView imageView;
+	int _width = 0;
+	int _height = 0;
+	int _channelCount = 0;
+	uint32_t _mipLevels = 1;
+	std::string _filename;
+};

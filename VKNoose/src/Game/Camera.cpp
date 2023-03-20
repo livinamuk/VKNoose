@@ -10,6 +10,12 @@ void Camera::Update(bool moving, bool crouching)
 	else
 		totalTime += 0.0075f;
 
+	bool disableHeadBob = true;
+
+	if (disableHeadBob) {
+		totalTime = 0;
+	}
+
 	float amplitude = 0.00505f;
 	float frequency = 25.0f;
 
