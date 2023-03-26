@@ -1,8 +1,34 @@
 #pragma once
 #include "GameObject.h"
+#include "../Common.h"
+#include "../vk_types.h"
+
+struct MeshRenderInfo {
+	uint64_t _deviceAddress;
+	VkTransformMatrixKHR _vkTransform;
+	glm::mat4 _modelMatrix;
+	int _basecolor;
+	int _normal;
+	int _rma;
+	int _vertexOffset;
+	int _indexOffset;
+	int _parentIndex;
+	std::string _parentType;
+	void* _parent;
+};
 
 namespace Scene {
 	void Init();
 	void Update();
 	std::vector<GameObject>& GetGameObjects();	
+
+	std::vector<MeshRenderInfo> GetMeshRenderInfos();
+	void StoreMousePickResult(int instanceIndex, int primitiveIndex);
+
+	inline uint32_t _instanceIndex = 0;
+	inline uint32_t _primitiveIndex = 0;
+	inline uint32_t _rayhitGameObjectIndex = 0;
+
+	inline glm::vec3 _worldPosOfHitObject;
+	inline std::string _hitModelName;
 }

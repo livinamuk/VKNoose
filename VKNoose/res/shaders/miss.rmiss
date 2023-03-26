@@ -1,11 +1,15 @@
 #version 460
 #extension GL_EXT_ray_tracing : enable
 
-layout(location = 0) rayPayloadInEXT vec3 hitValue;
+#include "raycommon.glsl"
+
+layout(location = 0) rayPayloadInEXT RayPayload rayPayload;
 
 void main()
 {
-    hitValue = vec3(0.1, 0.1, 0.1);
-    hitValue = vec3(0.0);
- //   hitValue = vec3(1.0);
+    rayPayload.color = vec3(0, 0, 0);
+	rayPayload.done = 1;
+	rayPayload.attenuation = vec3(0);	
+	//rayPayload.instanceIndex = 8;
+	//rayPayload.primitiveIndex = 9;
 }

@@ -31,6 +31,30 @@ namespace vktools {
 		}
 	}*/
 
+	/*void insertImageMemoryBarrier(VkCommandBuffer cmdbuffer, AllocatedImage allocatedImage, VkImageLayout newImageLayout, VkAccessFlags dstAccessMask, VkPipelineStageFlags dstStageMask) {
+
+		VkImageSubresourceRange range;
+		range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		range.baseMipLevel = 0;
+		range.levelCount = 1;
+		range.baseArrayLayer = 0;
+		range.layerCount = 1;
+
+		VkImageMemoryBarrier barrier = {};
+		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		barrier.oldLayout = allocatedImage._currentLayout;
+		barrier.newLayout = newImageLayout;
+		barrier.image = allocatedImage._image;
+		barrier.subresourceRange = range;
+		barrier.srcAccessMask = allocatedImage._currentAccessMask;
+		barrier.dstAccessMask = dstAccessMask;
+		vkCmdPipelineBarrier(cmdbuffer, allocatedImage._currentLayout, dstStageMask, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+		allocatedImage._currentLayout = newImageLayout;
+		allocatedImage._currentAccessMask = dstAccessMask;
+		allocatedImage._currentStageFlags = dstStageMask;
+	}*/
+
 	void insertImageMemoryBarrier(
 		VkCommandBuffer cmdbuffer,
 		VkImage image,

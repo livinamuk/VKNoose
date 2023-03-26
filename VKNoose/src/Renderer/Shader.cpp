@@ -8,12 +8,26 @@ std::string read_file(std::string filepath)
 	std::string line;
 	std::ifstream stream(filepath);
 	std::stringstream ss;
-
-	while (getline(stream, line))
-		ss << line << "\n";
-
+	while (getline(stream, line)) {
+		// Check for includes
+		if (line.length() >= 8 && line.substr(0, 8) == "#include") {
+			// Get the file name
+			std::string filename = line.substr(line.find('"')+1, line.rfind('"') - line.find('"')-1);
+			// Add the contents
+			std::string line2;
+			std::ifstream stream2("res/shaders/" + filename);
+			while (getline(stream2, line2)) {
+				ss << line2 << "\n";
+			}
+		}
+		// Otherwise just add the line
+		else {
+			ss << line << "\n";
+		}
+	}
 	return ss.str();
 }
+
 
 // Compiles a shader to a SPIR-V binary. Returns the binary as a vector of 32-bit words.
 std::vector<uint32_t> compile_file(const std::string& source_name, shaderc_shader_kind kind, const std::string& source,	bool optimize = false) 

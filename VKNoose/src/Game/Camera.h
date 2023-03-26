@@ -9,6 +9,7 @@ public:
 	glm::vec3 GetRotation();
 
 public:
+	bool _disableHeadBob = false;
 	Transform m_transform;
 	glm::mat4 m_viewMatrix = glm::mat4(1);
 	glm::mat4 m_inverseViewMatrix = glm::mat4(1);

@@ -30,11 +30,166 @@ namespace Util {
 		return Current + DeltaMove;
 	}
 
+	inline std::string FloatToString(float value, int precision = 2) {
+		std::stringstream stream;
+		stream << std::fixed << std::setprecision(precision) << value;
+		return stream.str();
+	}
+
+	inline std::string Vec3ToString(glm::vec3 value) {
+		return FloatToString(value.x) + ", " + FloatToString(value.y) + ", " + FloatToString(value.z);
+	}
+
 	inline float RandomFloat(float LO, float HI)
 	{
 		return LO + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (HI - LO)));
 	}
 
+	inline glm::vec3 NormalFromTriangle(glm::vec3 pos0, glm::vec3 pos1, glm::vec3 pos2)
+	{
+		return glm::normalize(glm::cross(pos1 - pos0, pos2 - pos0));
+	}
+
+	inline VkTransformMatrixKHR GetIdentiyVkTransformMatrixKHR() {
+		return {
+		1.0f, 0.0f, 0.0f, 0.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
+
+		0.0f, 0.0f, 1.0f, 0.0f };
+	}
+	inline void SetTangentsFromVertices(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
+		if (vertices.size() > 0) {
+			for (int i = 0; i < indices.size(); i += 3) {
+				Vertex* vert0 = &vertices[indices[i]];
+				Vertex* vert1 = &vertices[indices[i + 1]];
+				Vertex* vert2 = &vertices[indices[i + 2]];
+				// Shortcuts for UVs
+				glm::vec3& v0 = vert0->position;
+				glm::vec3& v1 = vert1->position;
+				glm::vec3& v2 = vert2->position;
+				glm::vec2& uv0 = vert0->uv;
+				glm::vec2& uv1 = vert1->uv;
+				glm::vec2& uv2 = vert2->uv;
+				// Edges of the triangle : postion delta. UV delta
+				glm::vec3 deltaPos1 = v1 - v0;
+				glm::vec3 deltaPos2 = v2 - v0;
+				glm::vec2 deltaUV1 = uv1 - uv0;
+				glm::vec2 deltaUV2 = uv2 - uv0;
+				float r = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
+				glm::vec3 tangent = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y) * r;
+				glm::vec3 bitangent = (deltaPos2 * deltaUV1.x - deltaPos1 * deltaUV2.x) * r;
+				vert0->tangent = tangent;
+				vert1->tangent = tangent;
+				vert2->tangent = tangent;
+				vert0->bitangent = bitangent;
+				vert1->bitangent = bitangent;
+				vert2->bitangent = bitangent;
+			}
+		}
+	}
+
+	inline VertexInputDescription get_vertex_description()
+	{
+		VertexInputDescription description;
+
+		//we will have just 1 vertex buffer binding, with a per-vertex rate
+		VkVertexInputBindingDescription mainBinding = {};
+		mainBinding.binding = 0;
+		mainBinding.stride = sizeof(Vertex);
+		mainBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		description.bindings.push_back(mainBinding);
+
+		VkVertexInputAttributeDescription positionAttribute = {};
+		positionAttribute.binding = 0;
+		positionAttribute.location = 0;
+		positionAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+		positionAttribute.offset = offsetof(Vertex, position);
+
+		VkVertexInputAttributeDescription normalAttribute = {};
+		normalAttribute.binding = 0;
+		normalAttribute.location = 1;
+		normalAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+		normalAttribute.offset = offsetof(Vertex, normal);
+
+		VkVertexInputAttributeDescription uvAttribute = {};
+		uvAttribute.binding = 0;
+		uvAttribute.location = 2;
+		uvAttribute.format = VK_FORMAT_R32G32_SFLOAT;
+		uvAttribute.offset = offsetof(Vertex, uv);
+
+		VkVertexInputAttributeDescription tangentAttribute = {};
+		tangentAttribute.binding = 0;
+		tangentAttribute.location = 3;
+		tangentAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+		tangentAttribute.offset = offsetof(Vertex, tangent);
+
+		VkVertexInputAttributeDescription bitangentAttribute = {};
+		bitangentAttribute.binding = 0;
+		bitangentAttribute.location = 4;
+		bitangentAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+		bitangentAttribute.offset = offsetof(Vertex, bitangent);
+
+		description.attributes.push_back(positionAttribute);
+		description.attributes.push_back(normalAttribute);
+		description.attributes.push_back(uvAttribute);
+		description.attributes.push_back(tangentAttribute);
+		description.attributes.push_back(bitangentAttribute);
+		return description;
+	}
+
+
+	inline VertexInputDescription get_vertex_description_position_and_texcoords_only()
+	{
+		VertexInputDescription description;
+
+		VkVertexInputBindingDescription mainBinding = {};
+		mainBinding.binding = 0;
+		mainBinding.stride = sizeof(Vertex);
+		mainBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		description.bindings.push_back(mainBinding);
+
+		VkVertexInputAttributeDescription positionAttribute = {};
+		positionAttribute.binding = 0;
+		positionAttribute.location = 0;
+		positionAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+		positionAttribute.offset = offsetof(Vertex, position);
+
+		VkVertexInputAttributeDescription uvAttribute = {};
+		uvAttribute.binding = 0;
+		uvAttribute.location = 1;
+		uvAttribute.format = VK_FORMAT_R32G32_SFLOAT;
+		uvAttribute.offset = offsetof(Vertex, uv);
+
+		description.attributes.push_back(positionAttribute);
+		description.attributes.push_back(uvAttribute);
+		return description;
+	}
+
+	inline VertexInputDescription get_vertex_description_position_only() {
+		VertexInputDescription description;
+		VkVertexInputBindingDescription mainBinding = {};
+		mainBinding.binding = 0;
+		mainBinding.stride = sizeof(Vertex);
+		mainBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+		description.bindings.push_back(mainBinding);
+		VkVertexInputAttributeDescription positionAttribute = {};
+		positionAttribute.binding = 0;
+		positionAttribute.location = 0;
+		positionAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+		positionAttribute.offset = offsetof(Vertex, position);
+		description.attributes.push_back(positionAttribute);
+		return description;
+	}
+
+	inline float YRotationBetweenTwoPoints(glm::vec3 a, glm::vec3 b)
+	{
+		float delta_x = b.x - a.x;
+		float delta_y = b.z - a.z;
+		float theta_radians = atan2(delta_y, delta_x);
+		return -theta_radians;
+	}
 	/*
 
 
@@ -55,10 +210,6 @@ namespace Util {
 
 
 
-	glm::vec3 NormalFromTriangle(glm::vec3 pos0, glm::vec3 pos1, glm::vec3 pos2)
-	{
-		return glm::normalize(glm::cross(pos1 - pos0, pos2 - pos0));
-	}
 
 	void SetNormalsAndTangentsFromVertices(Vertex* vert0, Vertex* vert1, Vertex* vert2)
 	{
@@ -191,22 +342,11 @@ namespace Util {
 
 		return glm::vec3(projection.x, 0, projection.y);
 	}
-	
-	inline float YRotationBetweenTwoPoints(glm::vec3 a, glm::vec3 b)
-	{
-		float delta_x = b.x - a.x;
-		float delta_y = b.z - a.z;
-		float theta_radians = atan2(delta_y, delta_x);
-		return -theta_radians;
-	}
+
 
 
 	
-	inline std::string FloatToString(float value, int precision = 2) {
-		std::stringstream stream;
-		stream << std::fixed << std::setprecision(precision) << value;
-		return stream.str();
-	}
+
 
 	inline std::string Vec3ToString(glm::vec3 value, int precision = 2) {
 		std::stringstream stream;

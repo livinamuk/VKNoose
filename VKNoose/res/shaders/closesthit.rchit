@@ -4,15 +4,11 @@
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
-struct RayPayload {
-	vec3 color;
-	float distance;
-	vec3 normal;
-	float reflector;
-};
+#include "raycommon.glsl"
+#include "pbr_functions.glsl"
 
 layout(location = 0) rayPayloadInEXT RayPayload rayPayload;
-layout(location = 2) rayPayloadEXT bool shadowed;
+layout(location = 1) rayPayloadEXT bool isShadowed;
 
 struct Vertex {
 	vec3 position;
@@ -47,8 +43,8 @@ layout(set = 0, binding = 2) uniform CameraProperties {
     int sizeOfVertex;
 } cam;
 
-layout(set = 0, binding = 3) buffer Vertices { Vertex v[]; } vertices;
-layout(set = 0, binding = 4) buffer Indices { uint i[]; } indices;
+layout(set = 0, binding = 3) readonly buffer Vertices { Vertex v[]; } vertices;
+layout(set = 0, binding = 4) readonly buffer Indices { uint i[]; } indices;
 
 layout(set = 1, binding = 0) uniform sampler samp;
 layout(set = 1, binding = 1) uniform texture2D textures[256];
@@ -58,7 +54,9 @@ layout(set = 2, binding = 0) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
 hitAttributeEXT vec2 attribs;
 
 const float PI = 3.14159265359;  
-const vec3 lightPos = vec3(-2.2, 2, -2.5);
+//const vec3 lightPos = vec3(-2.2, 2, -3.5);
+const vec3 lightPos = vec3(0, 2, -0);
+float lightStrength = 1.0;
 const vec3 lightColor = vec3(1, 0.95, 0.8);
 
 float fog_exp2(const float dist, const float density) {
@@ -78,7 +76,7 @@ float calculateDoomFactor(vec3 fragPos, vec3 camPos, float fallOff)
     float doomFactor = 1;	
     if (distanceFromCamera > fallOff) {
         distanceFromCamera -= fallOff;
-        distanceFromCamera *= 0.125;
+        distanceFromCamera *= 0.13;
         doomFactor = (1 - distanceFromCamera);
        // doomFactor = clamp(doomFactor, 0.23, 1.0);
         doomFactor = clamp(doomFactor, 0.1, 1.0);
@@ -97,62 +95,16 @@ vec3 CalculatePhong(vec3 fragPos, vec3 baseColor, vec3 normal, vec3 camPos) {
     vec3 norm = normalize(normal.rgb);
     vec3 lightDir = normalize(lightPos - fragPos);
     float diff = max(dot(norm, lightDir), 0.0);
-    vec3 diffuse = diff * lightColor;    
+    vec3 diffuse = diff * lightColor * lightStrength;    
     float specularStrength = 1.5;
     vec3 viewDir = normalize(viewPos - fragPos);
     vec3 reflectDir = reflect(-lightDir, norm);  
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
-    vec3 specular = specularStrength * spec * lightColor;        
+    vec3 specular = specularStrength * spec * lightColor ;        
     return (ambient + diffuse + specular) * baseColor;
 }
 
 
-struct PBRInfo
-{
-	float NdotL;                  // cos angle between normal and light direction
-	float NdotV;                  // cos angle between normal and view direction
-	float NdotH;                  // cos angle between normal and half vector
-	float LdotH;                  // cos angle between light direction and half vector
-	float VdotH;                  // cos angle between view direction and half vector
-	float perceptualRoughness;    // roughness value, as authored by the model creator (input to shader)
-	float metalness;              // metallic value at the surface
-	vec3 reflectance0;            // full reflectance color (normal incidence angle)
-	vec3 reflectance90;           // reflectance color at grazing angle
-	float alphaRoughness;         // roughness mapped to a more linear change in the roughness (proposed by [2])
-	vec3 diffuseColor;            // color contribution from diffuse lighting
-	vec3 specularColor;           // color contribution from specular lighting
-};
-vec3 specularReflection(PBRInfo pbrInputs) {
-	return pbrInputs.reflectance0 + (pbrInputs.reflectance90 - pbrInputs.reflectance0) * pow(clamp(1.0 - pbrInputs.VdotH, 0.0, 1.0), 5.0);
-}
-float geometricOcclusion(PBRInfo pbrInputs) {
-	float NdotL = pbrInputs.NdotL;
-	float NdotV = pbrInputs.NdotV;
-	float r = pbrInputs.alphaRoughness;
-	float attenuationL = 2.0 * NdotL / (NdotL + sqrt(r * r + (1.0 - r * r) * (NdotL * NdotL)));
-	float attenuationV = 2.0 * NdotV / (NdotV + sqrt(r * r + (1.0 - r * r) * (NdotV * NdotV)));
-	return attenuationL * attenuationV;
-}
-float microfacetDistribution(PBRInfo pbrInputs) {
-	float roughnessSq = pbrInputs.alphaRoughness * pbrInputs.alphaRoughness;
-	float f = (pbrInputs.NdotH * roughnessSq - pbrInputs.NdotH) * pbrInputs.NdotH + 1.0;
-	return roughnessSq / (PI * f * f);
-}
-vec3 diffuse(PBRInfo pbrInputs) {
-	return pbrInputs.diffuseColor / PI;
-}
-float saturate(float value) {
-	return clamp(value, 0.0, 1.0);
-}
-
-
-vec3 mixBary(vec3 a, vec3 b, vec3 c, vec3 barycentrics) {
-	return (a * barycentrics.x + b * barycentrics.y + c * barycentrics.z);
-}
-
-vec3 srgb_to_linear(vec3 c) {
-    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
-}
 
 void main()
 {
@@ -187,16 +139,27 @@ void main()
 	const vec4 btng0 = vec4(v0.bitangent, 0);
 	const vec4 btng1 = vec4(v1.bitangent, 0);
 	const vec4 btng2 = vec4(v2.bitangent, 0);
-	
+		
+    vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y + v2.texCoord * barycentrics.z;
+    vec4 baseColor = texture(sampler2D(textures[objResource.basecolorIndex], samp), texCoord).rgba;
+    vec3 rma = texture(sampler2D(textures[objResource.rmaIndex], samp), texCoord).rgb;	
+	vec3 normalMap = texture(sampler2D(textures[objResource.normalIndex], samp), texCoord).rgb;
+
 	// Normal
-	vec3 normal = normalize(mixBary(nrm0, nrm1, nrm2, barycentrics));
-	normal    = normalize(vec3(normal * gl_WorldToObjectEXT));
+	vec3 vnormal = normalize(mixBary(nrm0, nrm1, nrm2, barycentrics));
+	vec3 normal    = normalize(vec3(vnormal * gl_WorldToObjectEXT));
 	vec3 geonrm = normalize(cross(pos1 - pos0, pos2 - pos0));
 	geonrm = normalize(vec3(geonrm * gl_WorldToObjectEXT));
 	vec3 tangent = normalize(mixBary(tng0.xyz, tng1.xyz, tng2.xyz, barycentrics));
 	tangent    = normalize(vec3(tangent * gl_WorldToObjectEXT));
 	vec3 bitangent = normalize(mixBary(btng0.xyz, btng1.xyz, btng2.xyz, barycentrics));
 	bitangent    = normalize(vec3(bitangent * gl_WorldToObjectEXT));
+	
+	mat3 tbn = mat3(normalize(bitangent), normalize(tangent), normalize(normal));
+	normal = normalize(tbn * normalize(normalMap * 2.0 - 1.0));
+
+	vec4 modelSpaceHitPos = vec4(pos0 * barycentrics.x + pos1 * barycentrics.y + pos2 * barycentrics.z, 1.0);
+	vec3 worldPos = (worldMatrix * modelSpaceHitPos).xyz;
 
 	//normal = bitangent;
 	
@@ -213,14 +176,8 @@ void main()
 		bitangent = -bitangent;
 	  }
 
-    vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y + v2.texCoord * barycentrics.z;
 
-    vec4 baseColor = texture(sampler2D(textures[objResource.basecolorIndex], samp), texCoord).rgba;
-    vec3 rma = texture(sampler2D(textures[objResource.rmaIndex], samp), texCoord).rgb;
-	
-	vec3 normalMap = texture(sampler2D(textures[objResource.normalIndex], samp), texCoord).rgb;
-
-	mat3 tbn = mat3(normalize(tangent), normalize(bitangent), normalize(normal));
+	/*mat3 tbn = mat3(normalize(tangent), normalize(bitangent), normalize(normal));
 	normal = normalize(tbn * normalize(normalMap * 2.0 - 1.0));
 
 	vec3 vertexNormal = (v0.normal * barycentrics.x + v1.normal * barycentrics.y + v2.normal * barycentrics.z);
@@ -230,90 +187,26 @@ void main()
 	vec3 attrNormal = mat3( transpose( inverse( worldMatrix ) ) ) * vertexNormal;
 	vec3 attrTangent = mat3( transpose( inverse( worldMatrix ) ) ) * vertexTangent;
 	vec3 attrBiTangent = mat3( transpose( inverse( worldMatrix ) ) ) * vertexBiTangent;
-	
-	attrNormal = mat3( transpose( inverse( worldMatrix ) ) ) * vertexNormal;
-	attrTangent = mat3( transpose( inverse( worldMatrix ) ) ) * vertexTangent;
-	attrBiTangent = mat3( transpose( inverse( worldMatrix ) ) ) * vertexBiTangent;
 
 	tbn = mat3(normalize(attrBiTangent), normalize(attrTangent), normalize(attrNormal));
-	normal = normalize(tbn * normalize(normalMap * 2.0 - 1.0));
+	normal = normalize(tbn * normalize(normalMap * 2.0 - 1.0));*/
 
-    vec3 hitPos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+    //vec3 hitPos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
     vec3 camPos = cam.viewPos.rgb;
 
+	    
+
+
+
+    vec3 phong = CalculatePhong(worldPos.rgb, baseColor.rgb, normal.rgb, camPos.rgb);
+    
 	
-	
-
-//	normal = normalMap * 1.22;
-	//normal = vec3(0.5, 0.5, 1);
-
-
-	/*vec3 tangentNormal = normalMap * 2.0 - 1.0;
-    vec3 Q1  = dFdx(hitPos);
-    vec3 Q2  = dFdy(hitPos);
-    vec2 st1 = dFdx(texCoord);
-    vec2 st2 = dFdy(texCoord);
-    vec3 N   = normalize(normal);
-    vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
-    vec3 B  = -normalize(cross(N, T));
-    mat3 TBN = mat3(T, B, N);
-    normal = normalize(TBN * tangentNormal);*/
-
-    float doom = calculateDoomFactor(hitPos, camPos, 1.0);
-    vec3 fogColor = vec3(0.5);
-    float fogDensity = 0.75;
-    float fogDistance = distance(hitPos, camPos) * 0.12;  
-    vec3 FOG = calculateFog(hitPos, fogColor, fogDensity, fogDistance);
-  
-    
-
-    vec3 result = CalculatePhong(hitPos.rgb, baseColor.rgb, normal.rgb, camPos.rgb);
-    vec4 outFragColor = vec4(result, 1.0);
-    
-    vec3 finalColor = outFragColor.rgb * doom * doom;
-
-    float dist = distance(hitPos * 3, vec3(0,1,0));
-
-    float attenuation = 1.0 / (dist * dist);
-    attenuation = clamp(attenuation, 0, 1);
-
-    float doom2 = attenuation;
-
-  
-    finalColor = finalColor * doom2;
+    // HDR tonemapping
+	//phong = phong / (phong + vec3(1.0));
+    // gamma correct
+   // phong = pow(phong, vec3(1.0/2.2)); 
 
 
-    vec3 lightVector = normalize(lightPos);
-	float dot_product = max(dot(lightVector, normal), 0.2);
- // Shadow casting
-	float tmin = 0.001;
-	float tmax = 10000.0;
-	vec3 origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
-	shadowed = true;  
-
-    
-     //   hitValue = vec3(0, 0, 0);
-
-	// Trace shadow ray and offset indices to match shadow hit/miss shader group indices
-	traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 1, 0, 1, origin, tmin, lightVector, tmax, 2);
-	if (shadowed) {
-		finalColor *= 0.25;
-       // hitValue = vec3(1, 0, 0);
-    }
-    
-    //finalColor = normal;//vec3(1, 0, 0);
-
-    rayPayload.color = finalColor;
-	rayPayload.distance = gl_RayTmaxEXT;
-	rayPayload.normal = normal;
-
-
-
-
-
-
-
-	float lightStrength = 10.0;
 
      
     vec3 albedo = baseColor.rgb;
@@ -323,10 +216,10 @@ void main()
       
 
 
-    vec3 worldPos = hitPos;
+    //vec3 worldPos = hitPos;
 
     // Get textures
-//	baseColor.rgb = pow(baseColor.rgb, vec3(2.2));
+	//baseColor.rgb = pow(baseColor.rgb, vec3(2.2));
 	vec3 RMA = rma;
     vec3 n = normal;
 
@@ -399,7 +292,7 @@ void main()
     // attenuation
 	float att = 1.0 / (1.0 + 0.1*dist2 + 0.01*dist2*dist2);
 	//att *= 1.5;
-	float strength = lightStrength * 0.5;
+	float strength = lightStrength * 1000;
 	float lumance = att * att * att * att * att * att * att  * att * strength;
 	attenuation2 = min(lumance, 1);
 	vec3 radiance = lightColor * attenuation2;  
@@ -407,56 +300,132 @@ void main()
 	color *= radiance;
 	
     // HDR tonemapping
-	color = color / (color + vec3(1.0));
+	//color = color / (color + vec3(1.0));
     // gamma correct
     color = pow(color, vec3(1.0/2.2)); 
 
-    rayPayload.color = color;
+ //   finalColor = color;
 
 
 
 
 
+	vec3 lightVector = normalize(lightPos - worldPos);
+	//float tmin = 0.001;
+//	float tmax = length(lightPos - worldPos);
+	//vec3 origin = worldPos;//vec3(worldMatrix * vec4(hitPos, 1));//gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+//	origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+//	shadowed = true;  
+
+	vec3 pbr = color;
+
+	vec3 finalColor = mix(phong, pbr, 0.45);
+	
+	// Trace shadow ray and offset indices to match shadow hit/miss shader group indices
+	//traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 1, 0, 1, origin, tmin, lightVector, tmax, 2);
+	
+	//if (baseColor.a > 0.99) 
+	{		
+	//	traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 1, 0, 1, origin, tmin, lightVector, tmax, 2);
+	//	shadowed = false;
+		//if (shadowed) {
+		//	finalColor *= 0.25;
+	//		rayPayload.done = 1;			
+	//	}
+	//}
+	}
 
 
+	float tMin   = 0.001;
+    float tMax   = length(lightPos - worldPos);;
+    vec3  origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+    vec3  rayDir = lightVector;
+    uint  flags  = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+    isShadowed   = true;
+    traceRayEXT(topLevelAS,  // acceleration structure
+                flags,       // rayFlags
+                0xFF,        // cullMask
+                0,           // sbtRecordOffset
+                0,           // sbtRecordStride
+                1,           // missIndex
+                origin,      // ray origin
+                tMin,        // ray min range
+                rayDir,      // ray direction
+                tMax,        // ray max range
+                1            // payload (location = 1)
+    );
 
-
-
-
-
-
-    
-    if (gl_InstanceCustomIndexEXT == 1) {
-        finalColor = vec3(0.0, 0.0, 0.0);
+    if(isShadowed)
+    {
+      finalColor *= 0.25;
     }
-    
-    if (gl_InstanceCustomIndexEXT == 12) {
-      //  finalColor = vec3(1.0, 1.0, 1.0);
-    }
-
-    if (gl_InstanceCustomIndexEXT == 11) {
-       // finalColor = vec3(1.0, 1.0, 1.0);
-    }
 
 
-   //rayPayload.color = outFragColor.rgb;//vec3(texCoord, 0);
-  
-
-    rayPayload.reflector = 0;
-
-    if ((finalColor.r == 0.0f) && (finalColor.g == 0.0f) && (finalColor.b == 0.0f))  {
-         rayPayload.reflector = 1;
-    }
-    else if ((finalColor.r == 1.0f) && (finalColor.g == 1.0f) && (finalColor.b == 1.0f)) {
-         rayPayload.reflector = 2;
-         rayPayload.color = normal;//vec3(0, 1, 0);
-    }
-
-  //  rayPayload.color = normal * 0.5 + 0.5;
- //   rayPayload.color = normal;
-    rayPayload.reflector = 0.5;
 
 
 	
-	//rayPayload.color = normal;
+	if (baseColor.a < 0.5) 
+		finalColor = vec3(0,0,0);
+    
+	//firstHitColor
+		
+    float doom = calculateDoomFactor(worldPos, camPos, 1.0);
+    vec3 fogColor = vec3(0.5);
+    float fogDensity = 0.75;
+    float fogDistance = distance(worldPos, camPos) * 0.15;  
+    vec3 FOG = calculateFog(finalColor, fogColor, fogDensity, fogDistance);
+    //finalColor = finalColor.rgb * doom * doom;
+    float dist = distance(worldPos * 3, vec3(0,1,0));
+    float attenuation = 1.0 / (dist * dist);
+    attenuation = clamp(attenuation, 0, 1);
+    float doom2 = attenuation;  
+    //finalColor = finalColor * doom2;
+	
+
+	//finalColor = FOG * doom* doom;
+	//finalColor = FOG * doom* doom;
+	finalColor = finalColor * doom;
+
+//    finalColor = normal;//vec3(1, 0, 0);
+	//hitPos = vec3(worldMatrix * vec4(hitPos, 1));
+
+	//finalColor = worldPos2;
+	//finalColor = vnormal;
+
+    rayPayload.color = finalColor;
+	rayPayload.distance = gl_RayTmaxEXT;
+	rayPayload.normal = normal;
+
+//rayPayload.color = vec4(1, 0, 1, 1);
+
+
+	const vec3 pos      = pos0 * barycentrics.x + pos1 * barycentrics.y + pos2 * barycentrics.z;
+	const vec3 worldPosition = vec3(gl_ObjectToWorldEXT * vec4(pos, 1.0)); 
+
+	const vec3 nrm      = nrm0 * barycentrics.x + nrm1 * barycentrics.y + nrm2 * barycentrics.z;
+	const vec3 worldNrm = normalize(vec3(nrm * gl_WorldToObjectEXT));  
+
+	if (rayPayload.done == 1) {
+		rayPayload.color = rayPayload.color * vec3(0.3025);
+	}
+
+	rayPayload.done = 1;
+	rayPayload.hitPos = worldPosition;// + (normal * vec3(0.1));
+	//rayPayload.reflectDir = reflect(gl_WorldRayDirectionEXT, worldNrm);
+	rayPayload.normal = normal;
+	rayPayload.attenuation = vec3(1,1,1);
+
+	//rayPayload.color = vec3(texCoord, 0);
+
+    if (gl_InstanceCustomIndexEXT == 1 || 
+	gl_InstanceCustomIndexEXT == 2 || 
+	gl_InstanceCustomIndexEXT == 3 || 
+	gl_InstanceCustomIndexEXT == 4 || 
+	gl_InstanceCustomIndexEXT == 5 ){//|| metallic > 0.9|| roughness > 0.1) {
+		rayPayload.done = 0;		
+    }
+	//	rayPayload.done = 0;
+	// rayPayload.color += vec3(0.1);
+	rayPayload.instanceIndex = gl_InstanceCustomIndexEXT;
+	rayPayload.primitiveIndex = gl_PrimitiveID;
 }

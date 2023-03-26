@@ -10,9 +10,8 @@ void Camera::Update(bool moving, bool crouching)
 	else
 		totalTime += 0.0075f;
 
-	bool disableHeadBob = true;
-
-	if (disableHeadBob) {
+	
+	if (_disableHeadBob) {
 		totalTime = 0;
 	}
 

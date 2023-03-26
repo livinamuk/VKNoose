@@ -1,17 +1,82 @@
 #include "AssetManager.h"
 #include <filesystem>
+#include "../Util.h"
 #include "../vk_initializers.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+#include <cmath>
 
 namespace AssetManager {
 	std::unordered_map<std::string, Model> _models;
 	std::unordered_map<std::string, Material> _materials;
+	std::vector<Mesh> _meshes;
 	std::vector<Texture> _textures;
+	std::vector<Vertex> _vertices;		// ALL of em
+	std::vector<uint32_t> _indices;		// ALL of em
+	int _vertexOffset = 0;				// insert index for next mesh
+	int _indexOffset = 0;				// insert index for next mesh
+}
+
+void AssetManager::Init() {
+	//_vertices.reserve(10000);
+	//_indices.reserve(10000);
+}
+
+void* AssetManager::GetVertexPointer(int offset) {
+	return &_vertices[offset];
+}
+
+void* AssetManager::GetIndexPointer(int offset) {
+	return &_indices[offset];
+}
+
+std::vector<Vertex>& AssetManager::GetVertices_TEMPORARY() {
+	return _vertices;
+}
+
+std::vector<uint32_t>& AssetManager::GetIndices_TEMPORARY() {
+	return _indices;
+}
+
+std::vector<Mesh>& AssetManager::GetMeshList() {
+	return _meshes;
+}
+
+int AssetManager::CreateMesh(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
+
+	Mesh& mesh = _meshes.emplace_back(Mesh());
+	mesh._vertexCount = vertices.size();
+	mesh._indexCount = indices.size();
+	mesh._vertexOffset = _vertexOffset;
+	mesh._indexOffset = _indexOffset;
+
+	for (int i = 0; i < vertices.size(); i++)
+		_vertices.push_back(vertices[i]);
+	for (int i = 0; i < indices.size(); i++)
+		_indices.push_back(indices[i]);
+
+	/*for (int i = 0; i < vertices.size(); i++)
+		_vertices[_vertexOffset + i] = vertices[i];
+	for (int i = 0; i < indices.size(); i++)
+		_indices[_indexOffset + i] = indices[i];*/
+
+	_vertexOffset += vertices.size();
+	_indexOffset += indices.size();
+	return _meshes.size() - 1;
 }
 
 
+/*
+int AssetManager::CreateModel(std::vector<int> meshIndices) {
 
+}*/
+
+Mesh* AssetManager::GetMesh(int index) {
+	if (index >= 0 && index < _meshes.size())
+		return &_meshes[index];
+	else
+		return nullptr;
+}
 
 bool AssetManager::load_image_from_file(VulkanEngine& engine, const char* file, Texture& outTexture, VkFormat imageFormat, bool generateMips)
 {
@@ -224,6 +289,10 @@ void AssetManager::AddTexture(Texture& texture) {
 	_textures.push_back(texture);
 }
 
+/*void AssetManager::AddModel(Model& model) {
+	_models.push_back(model);
+}*/
+
 struct FileInfo {
 	std::string fullpath;
 	std::string directory;
@@ -277,9 +346,9 @@ void AssetManager::LoadTextures(VulkanEngine& engine) {
 		if (info.filetype == "png" || info.filetype == "tga" || info.filetype == "jpg") {
 			if (!TextureExists(info.filename)) {
 				Texture texture;
-				VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
-				if (info.materialType == "NRM") {
-					imageFormat = VK_FORMAT_R8G8B8A8_UNORM;
+				VkFormat imageFormat = VK_FORMAT_R8G8B8A8_UNORM;// VK_FORMAT_R8G8B8A8_SRGB;
+				if (info.materialType == "ALB") {
+					imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
 				}
 				load_image_from_file(engine, info.fullpath.c_str(), texture, imageFormat, true);
 				AddTexture(texture);
@@ -304,11 +373,6 @@ void AssetManager::BuildMaterials() {
 
 void AssetManager::LoadAssets() {
 
-	_models["chair"] = Model("res/models/FallenChair.obj");
-	_models["wife"] = Model("res/models/Wife.obj");
-	_models["door"] = Model("res/models/Door.obj");
-	_models["skull"] = Model("res/models/BlackSkull.obj");
-
 	{
 		// Quad for text blitting
 		Vertex vertA, vertB, vertC, vertD;
@@ -326,8 +390,22 @@ void AssetManager::LoadAssets() {
 		vertices.push_back(vertC);
 		vertices.push_back(vertD);
 		std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
-		_models["quad"] = Model("blitterQuad", vertices, indices);
+
+		Model model;
+		model._meshIndices.push_back(CreateMesh(vertices, indices));
+		_models["blitter_quad"] = model;
 	}
+
+	_models["chair"] = Model("res/models/FallenChair.obj");
+	_models["wife"] = Model("res/models/Wife.obj");
+	_models["door"] = Model("res/models/Door.obj");
+	_models["skull"] = Model("res/models/BlackSkull.obj");
+	_models["door_frame"] = Model("res/models/DoorFrame.obj");
+	_models["trims_ceiling"] = Model("res/models/TrimCeiling.obj");
+	_models["flowers"] = Model("res/models/Flowers.obj");
+	_models["vase"] = Model("res/models/Vase.obj");
+	_models["chest_of_drawers"] = Model("res/models/ChestOfDrawers.obj");
+	_models["light_switch"] = Model("res/models/LightSwitchOn.obj");
 
 	{
 		// Floor 
@@ -352,9 +430,49 @@ void AssetManager::LoadAssets() {
 		vertices.push_back(vert2);
 		vertices.push_back(vert3);
 		std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
-		_models["floor"] = Model("floorQuad", vertices, indices);;
+		Util::SetTangentsFromVertices(vertices, indices);
+		Model model;
+		model._meshIndices.push_back(CreateMesh(vertices, indices));
+		_models["floor"] = model;
+	} 
+	{
+		float Zmin = -1.8f;
+		float Zmax = 1.8f;
+		float Xmin = -2.75f;
+		float Xmax = 1.6f;
+		// bedroom ceiling 
+		Vertex vert0, vert1, vert2, vert3;
+		float size = 10;
+		float texScale = 3;
+		vert0.position = { Xmin, CEILING_HEIGHT, Zmin };
+		vert1.position = { Xmin, CEILING_HEIGHT, Zmax };
+		vert2.position = { Xmax, CEILING_HEIGHT, Zmax };
+		vert3.position = { Xmax, CEILING_HEIGHT, Zmin };
+		vert0.uv = { 0, fmod(2.0, 1.0) };
+		vert1.uv = { 0, 0 };
+		vert2.uv = { fmod(2.0, 1.0), fmod(2.0, 1.0) };
+		vert3.uv = { fmod(2.0, 1.0), 0 };
+		vert0.uv = { Xmin / texScale, Zmax / texScale };
+		vert1.uv = { Xmin / texScale, Zmin / texScale };
+		vert2.uv = { Xmax / texScale, Zmin / texScale };
+		vert3.uv = { Xmax / texScale, Zmax / texScale };
+		vert0.normal = { 0, 1, 0 };
+		vert1.normal = { 0, 1, 0 };
+		vert2.normal = { 0, 1, 0 };
+		vert3.normal = { 0, 1, 0 };
+		std::vector<Vertex> vertices;
+		vertices.push_back(vert0);
+		vertices.push_back(vert1);
+		vertices.push_back(vert2);
+		vertices.push_back(vert3);
+		std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
+		Util::SetTangentsFromVertices(vertices, indices);
+		Model model;
+		model._meshIndices.push_back(CreateMesh(vertices, indices));
+		_models["ceiling"] = model;
 	}
 }
+
 
 Model* AssetManager::GetModel(const std::string & name) {
 	auto it = _models.find(name);
@@ -377,10 +495,11 @@ Material* AssetManager::GetMaterial(const std::string& name) {
 	}
 }
 
+/*
 std::vector<Model*> AssetManager::GetAllModels() {
 	std::vector<Model*> models;
 	for (auto& it : _models) {
 		models.push_back(&it.second);
 	}
 	return models;
-}
+}*/

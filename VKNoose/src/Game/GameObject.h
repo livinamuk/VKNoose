@@ -16,15 +16,36 @@ struct GameObject {
 		_model = AssetManager::GetModel(name);
 
 		if (_model) {
-			_meshMaterials.resize(_model->_meshes.size()); 
+			_meshMaterials.resize(_model->_meshIndices.size()); 
 		}
 		else {
 			std::cout << "Failed to set model '" << name << "', it does not exist.\n";
 		}
 	}
+
+	VkTransformMatrixKHR GetVkTransformMatrixKHR() {
+		VkTransformMatrixKHR transformMatrix = {
+		1.0f, 0.0f, 0.0f, 0.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f };
+
+		glm::mat4 modelMatrix = _worldTransform.to_mat4();
+		modelMatrix = glm::transpose(modelMatrix);
+
+		for (int x = 0; x < 3; x++) {
+			for (int y = 0; y < 4; y++) {
+				transformMatrix.matrix[x][y] = modelMatrix[x][y];
+			}
+		}
+		return transformMatrix;
+	}
 	
 	void SetMeshMaterial(int meshIndex, const char* name) {
-		// write an if is within range funcion if you ever crash on here. OK!
+		if (meshIndex < 0 || meshIndex > _meshMaterials.size() || !_meshMaterials.size()) {
+			std::cout << "Index " << meshIndex << " is out of range, GameObject has _meshMaterials size " << _meshMaterials.size() << "\n";
+			return;
+		}
+
 		Material* material = AssetManager::GetMaterial(name);
 		if (material) {
 			_meshMaterials[meshIndex] = material;

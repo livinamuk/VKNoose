@@ -7,6 +7,51 @@
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtx/euler_angles.hpp>
 #include "glm/gtx/hash.hpp"
+#include "vk_types.h"
+
+#define NEAR_PLANE 0.01f
+#define FAR_PLANE 100.0f
+#define NOOSE_PI 3.14159265359f
+#define NOOSE_HALF_PI 1.57079632679f
+
+#define CEILING_HEIGHT 2.5f
+
+struct VertexInputDescription {
+	std::vector<VkVertexInputBindingDescription> bindings;
+	std::vector<VkVertexInputAttributeDescription> attributes;
+	VkPipelineVertexInputStateCreateFlags flags = 0;
+};
+
+struct Vertex {
+
+	glm::vec3 position;
+	float pad;
+
+	glm::vec3 normal;
+	float pad2;
+
+	glm::vec2 uv;
+	glm::vec2 pad3;
+
+	glm::vec3 tangent;
+	float pad4;
+
+	glm::vec3 bitangent;
+	float pad5;
+
+	bool operator==(const Vertex& other) const {
+		return position == other.position && normal == other.normal && uv == other.uv;
+	}
+};
+
+
+namespace std {
+	template<> struct hash<Vertex> {
+		size_t operator()(Vertex const& vertex) const {
+			return ((hash<glm::vec3>()(vertex.position) ^ (hash<glm::vec3>()(vertex.normal) << 1)) >> 1) ^ (hash<glm::vec2>()(vertex.uv) << 1);
+		}
+	};
+}
 
 struct ObjDesc {
 	glm::mat4 worldMatrix;
@@ -41,6 +86,8 @@ struct Extent3Df {
 	float height;
 	float depth;
 };
+
+
 
 struct GPUObjectData {
 	glm::mat4 modelMatrix;

@@ -1,22 +1,19 @@
 #version 460
 #extension GL_EXT_ray_tracing : enable
 
-layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(binding = 1, set = 0, rgba8) uniform image2D image;
-layout(binding = 2, set = 0) uniform CameraProperties 
+layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
+layout(set = 0, binding = 1, rgba8) uniform image2D image;
+layout(set = 0, binding = 2) uniform CameraProperties 
 {
 	mat4 viewInverse;
 	mat4 projInverse;
 	vec4 viewPos;
 } cam;
+//layout(set = 0, binding = 5) writeonly buffer uint instanceIndex;
+layout(set = 0, binding = 5) writeonly buffer MousepickData { uint i[]; } mousepickData;
+//layout(binding = 5, set = 0, rgba8) uniform image2D image2;
 
-struct RayPayload {
-	vec3 color;
-	float distance;
-	vec3 normal;
-	float reflector;
-};
-
+#include "raycommon.glsl"
 layout(location = 0) rayPayloadEXT RayPayload rayPayload;
 
 void main() 
@@ -36,51 +33,50 @@ void main()
 	float tmin = 0.001;
 	float tmax = 10000.0;
 
+	
+
+	// Initial ray settings
+	rayPayload.done = 1000000;
+	rayPayload.attenuation = vec3(1, 1, 1);	
+	rayPayload.instanceIndex = 5;
+	rayPayload.primitiveIndex = 6;
+
+	rayPayload.distance = 0; // this stops the screen being black when you inserted that ray cast above
+
     vec3 color = vec3(0.0);
 
-    //traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
+	int MAX_RECURSION = 1;// 2;
+	
+	float mult = 1.0f;
 
-	int MAX_RECURSION = 1;
+
+
+	
+
 
 	for (int i = 0; i < MAX_RECURSION; i++) 
 	{
-
 		traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
+		
+		color += rayPayload.color.xyz * mult;//* rayPayload.attenuation;;
 
-		vec3 hitColor = rayPayload.color;
-		const vec4 hitPos = origin + direction * rayPayload.distance;
+		mult *= 0.75;
 
-		color += hitColor;
-/*
-if (true) {
-
-			if (rayPayload.distance < 0.0f) {
-				color += hitColor;
-				break;
-			} else if (rayPayload.reflector == 1.0f && hitColor.r != 0 && hitColor.g != 0) {
-
-				origin.xyz = hitPos.xyz + rayPayload.normal * 0.001f;
-				direction.xyz = reflect(direction.xyz, rayPayload.normal);
-				//color += hitColor;
-				color = mix(color, hitColor, 0.05);
-
-			} else if (rayPayload.reflector == 2.0f) {
+		if (rayPayload.done == 1) {
+			break;
+		} 
 			
-			    float ratio = 1.00 / 1.52;
-				vec3 I = normalize(hitPos.xyz - cam.viewPos.xyz);
-				vec3 R = refract(I, normalize(rayPayload.normal), ratio);
-
-				//color = R;//vec3(1,1,0);
-				traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, hitPos.xyz, tmin, direction.xyz, tmax, 0);
-				color = rayPayload.color;
-				//color = rayPayload.normal * 2.0 - 1.0;
-						
-			} else {
-				//color += hitColor;
-				break;
-			}	
-		}*/
+		const vec4 hitPos = origin + direction * rayPayload.distance;
+		origin.xyz = hitPos.xyz + rayPayload.normal * 0.001f;
+		direction.xyz = reflect(direction.xyz, rayPayload.normal);
+		rayPayload.done = 1;
 	}
+	
+	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(color, 0));
+	//imageStore(image2, ivec2(gl_LaunchIDEXT.xy), vec4(1, 0, 1, 0));
 
-	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(color, 0.0));
+	
+	//traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
+	mousepickData.i[0] = rayPayload.instanceIndex;
+	mousepickData.i[1] = rayPayload.primitiveIndex;
 }

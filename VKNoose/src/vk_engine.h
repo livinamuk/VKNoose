@@ -78,16 +78,12 @@ struct MeshPushConstants {
 	glm::mat4 render_matrix;
 };
 
-/*
-struct Material {
-	VkDescriptorSet textureSet{ VK_NULL_HANDLE };
-	VkPipeline pipeline;
-	VkPipelineLayout pipelineLayout;
-};*/
+struct LineShaderPushConstants {
+	glm::mat4 transformation;
+};
 
 struct RenderObject {
 	Mesh* mesh;
-	//Material* material;
 	Transform transform;
 	bool spin = false;
 };
@@ -102,7 +98,6 @@ struct FrameData {
 	DeletionQueue _frameDeletionQueue;
 
 	VkCommandPool _commandPool;
-	//VkCommandBuffer _mainCommandBuffer;
 	VkCommandBuffer _commandBuffer;
 
 	AllocatedBuffer cameraBuffer;
@@ -160,14 +155,23 @@ public:
 
 
 	VkSampler _sampler; 
+	//VkSampler _blitterSampler;
 	VkDescriptorSetLayout _textureArrayDescriptorLayout;
 	VkDescriptorSet	_textureArrayDescriptorSet;
 
+
 	bool _shouldClose{ false };
 
+	// Render target shit
 	VkExtent2D _windowExtent{ 1700 , 900 };
-	VkExtent3D _renderTargetExtent = { 512, 288, 1 };
-//	VkExtent3D _renderTargetExtent = { 512 * 2, 288 * 2, 1 };
+	VkExtent3D _renderTargetPresentExtent = { 512, 288, 1 };
+	VkExtent3D _renderTargetExtent = { _renderTargetPresentExtent.width * 4, _renderTargetPresentExtent.height * 4, 1 };
+	VkImageView    _renderTargetImageView;
+	AllocatedImage _renderTargetImage;
+
+	RenderTarget _presentTarget;
+	RenderTarget _rtTarget;
+	//RenderTarget _rtCenterPixelTarget;
 
 	GLFWwindow* _window;
 
@@ -202,8 +206,6 @@ public:
 	VmaAllocator _allocator; //vma lib allocator
 
 
-	VkImageView    _renderTargetImageView;
-	AllocatedImage _renderTargetImage;
 
 	//depth resources
 	VkImageView _depthImageView;
@@ -224,6 +226,8 @@ public:
 
 	UploadContext _uploadContext;
 
+	VkShaderModule _solid_color_vertex_shader;
+	VkShaderModule _solid_color_fragment_shader;
 	VkShaderModule _colorMeshShader;
 	VkShaderModule _texturedMeshShader;
 	VkShaderModule _meshVertShader;
@@ -242,8 +246,13 @@ public:
 	VkPipeline _textblitterPipeline;
 	VkPipelineLayout _textblitterPipelineLayout;
 
+	VkPipeline _linelistPipeline;
+	VkPipelineLayout _linelistPipelineLayout;
+
 	FrameData& get_current_frame();
 	FrameData& get_last_frame();
+
+	Mesh _lineListMesh;
 
 
 	float _cameraZoom = 1.0f;// glm::radians(70.f);
@@ -294,6 +303,8 @@ public:
 			//vks::Buffer indexBuffer;
 			AllocatedBuffer _rtVertexBuffer;
 			AllocatedBuffer _rtIndexBuffer;
+			AllocatedBuffer _mousePickResultBuffer;
+			AllocatedBuffer _mousePickResultCPUBuffer; // for mouse picking
 			//AllocatedBuffer _rtTransformBuffer;
 			uint32_t _rtIndexCount;
 			//vks::Buffer transformBuffer;
@@ -302,9 +313,9 @@ public:
 			VkPipeline _rtPipeline;
 			VkPipelineLayout _rtPipelineLayout;
 			VkDescriptorSet _rtDescriptorSet;
-			//VkDescriptorSet _rtDescriptorSet_1;
 			VkDescriptorSetLayout _rtDescriptorSetLayout;
-			//VkDescriptorSetLayout _rtDescriptorSetLayout_1;
+			//VkDescriptorSet _rtCenterPixelDescriptorSet;
+			//VkDescriptorSetLayout _rtCenterPixelDescriptorSetLayout;
 			VkShaderModule _rayGenShader;
 			VkShaderModule _rayMissShader;
 			VkShaderModule _closestHitShader;
@@ -329,13 +340,11 @@ public:
 			//vks::Buffer missShaderBindingTable;
 			//vks::Buffer hitShaderBindingTable;
 
-			struct StorageImage {
-				VkDeviceMemory memory;
+			/*struct StorageImage {
 				AllocatedImage image;
-				//VkImage image;
 				VkImageView view;
 				VkFormat format;
-			} _storageImage;
+			} _storageImage;*/
 
 			struct RTUniformData {
 				glm::mat4 viewInverse;
@@ -353,7 +362,6 @@ public:
 	//VkPipelineLayout pipelineLayout;
 	//VkDescriptorSet descriptorSet;
 	//VkDescriptorSetLayout descriptorSetLayout;
-
 
 
 
@@ -387,6 +395,9 @@ public:
 
 	//our draw function
 	//void draw_objects(VkCommandBuffer cmd, RenderObject* first, int count);
+
+
+	void blit_render_target(VkCommandBuffer commandBuffer, RenderTarget& source, RenderTarget& destination, VkFilter filter);
 
 	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
 
@@ -430,4 +441,5 @@ private:
 	void cleanup_raytracing();
 	uint64_t get_buffer_device_address(VkBuffer buffer);
 	void createAccelerationStructureBuffer(AccelerationStructure& accelerationStructure, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo);
+	void AddDebugText();
 };

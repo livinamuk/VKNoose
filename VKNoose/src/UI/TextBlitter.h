@@ -8,4 +8,6 @@ namespace TextBlitter {
 
 	void Update();
 	void Type(std::string text);
+	void AddDebugText(std::string text);
+	void Reset();
 }
