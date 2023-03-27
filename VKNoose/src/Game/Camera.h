@@ -4,7 +4,7 @@
 class Camera {
 
 public:
-	void Update(bool moving, bool crouching);
+	void Update(bool moving, bool crouching, float deltaTime);
 	glm::mat4 GetViewMatrix();
 	glm::vec3 GetRotation();
 

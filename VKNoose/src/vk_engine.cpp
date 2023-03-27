@@ -166,16 +166,9 @@ void VulkanEngine::cleanup()
 		vmaDestroyBuffer(_allocator, mesh._accelerationStructure.buffer._buffer, mesh._accelerationStructure.buffer._allocation);
 		vkDestroyAccelerationStructureKHR(_device, mesh._accelerationStructure.handle, nullptr);
 	}
+
 	
-	//vmaDestroyBuffer(_allocator, _lineListMesh._transformBuffer._buffer, _lineListMesh._transformBuffer._allocation);
-	//vmaDestroyBuffer(_allocator, _lineListMesh._vertexBuffer._buffer, _lineListMesh._vertexBuffer._allocation);
-	/*if (_lineListMesh._indexCount > 0) {
-		vmaDestroyBuffer(_allocator, _lineListMesh._indexBuffer._buffer, _lineListMesh._indexBuffer._allocation);
-	}
-	vmaDestroyBuffer(_allocator, _lineListMesh._accelerationStructure.buffer._buffer, _lineListMesh._accelerationStructure.buffer._allocation);
-	vkDestroyAccelerationStructureKHR(_device, _lineListMesh._accelerationStructure.handle, nullptr);
-	*/
-	std::cout << "destryoing " << &_lineListMesh._vertexBuffer._buffer << "\n";
+	
 	vmaDestroyBuffer(_allocator, _lineListMesh._vertexBuffer._buffer, _lineListMesh._vertexBuffer._allocation);
 
 
@@ -229,6 +222,13 @@ void VulkanEngine::init_raytracing()
 	vkCmdTraceRaysKHR = reinterpret_cast<PFN_vkCmdTraceRaysKHR>(vkGetDeviceProcAddr(_device, "vkCmdTraceRaysKHR"));
 	vkGetRayTracingShaderGroupHandlesKHR = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(vkGetDeviceProcAddr(_device, "vkGetRayTracingShaderGroupHandlesKHR"));
 	vkCreateRayTracingPipelinesKHR = reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(vkGetDeviceProcAddr(_device, "vkCreateRayTracingPipelinesKHR"));
+	// Debug marker shit
+	vkSetDebugUtilsObjectNameEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(vkGetDeviceProcAddr(_device, "vkSetDebugUtilsObjectNameEXT"));
+	//pfnDebugMarkerSetObjectTag = reinterpret_cast<PFN_vkDebugMarkerSetObjectTagEXT>(vkGetDeviceProcAddr(_device, "vkDebugMarkerSetObjectTagEXT"));
+	//pfnDebugMarkerSetObjectName = reinterpret_cast<PFN_vkDebugMarkerSetObjectNameEXT>(vkGetDeviceProcAddr(_device, "vkDebugMarkerSetObjectNameEXT"));
+	//pfnCmdDebugMarkerBegin = reinterpret_cast<PFN_vkCmdDebugMarkerBeginEXT>(vkGetDeviceProcAddr(_device, "vkCmdDebugMarkerBeginEXT"));
+	//pfnCmdDebugMarkerEnd = reinterpret_cast<PFN_vkCmdDebugMarkerEndEXT>(vkGetDeviceProcAddr(_device, "vkCmdDebugMarkerEndEXT"));
+	//pfnCmdDebugMarkerInsert = reinterpret_cast<PFN_vkCmdDebugMarkerInsertEXT>(vkGetDeviceProcAddr(_device, "vkCmdDebugMarkerInsertEXT"));
 
 	// Get ray tracing pipeline properties, which will be used later on in the sample
 	rayTracingPipelineProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
@@ -302,7 +302,7 @@ void VulkanEngine::create_command_buffers()
 	VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_uploadContext._commandBuffer));
 }
 
-void VulkanEngine::update()
+void VulkanEngine::update(float deltaTime)
 {
 	for (int j = 0; j < _renderables.size(); j++) {
 		RenderObject& object = _renderables[j];
@@ -314,25 +314,18 @@ void VulkanEngine::update()
 		}
 	}
 
-	Scene::Update();
-
-
-	int width, height;
-
-	glfwGetFramebufferSize(_window, &width, &height);
-
-
-
-
 	//camera projection
 	if (Input::RightMouseDown()) {
-		_cameraZoom -= 0.085f;
+		_cameraZoom -= (5.3f * deltaTime);
 	}
 	else {
-		_cameraZoom += 0.085f;
+		_cameraZoom += (5.3f * deltaTime);
 	}
 	_cameraZoom = std::min(1.0f, _cameraZoom);
 	_cameraZoom = std::max(0.7f, _cameraZoom);
+
+	int width, height;
+	glfwGetFramebufferSize(_window, &width, &height);
 }
 
 void VulkanEngine::draw()
@@ -412,91 +405,152 @@ void VulkanEngine::run()
 {
 	auto currentTime = std::chrono::high_resolution_clock::now();
 
+	//double t = 0.0;
+	//double dt = 1 / 60.0;
+	//double accumulator = 0.0;
+	//double fixedStep = 1.0 / 60.0;
+	
+	float accumulator = 0;
+	const float DESIRED_FRAMETIME = 1.0f / 60.0f;
+	const float maxDeltaTime = DESIRED_FRAMETIME * 4;
+
 	while (!_shouldClose && !glfwWindowShouldClose(_window)) {
-		glfwPollEvents();
 
-		if (glfwGetKey(_window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-			_shouldClose = true;
-		}
 
-		if (glfwGetKey(_window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-			_selectedShader += 1;
-			if (_selectedShader > 1) {
-				_selectedShader = 0;
+
+
+			glfwPollEvents();
+
+			if (glfwGetKey(_window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+				_shouldClose = true;
 			}
-		}
 
-		Input::Update(_window);
-		Audio::Update();
-		Scene::Update();
-		TextBlitter::Update();
-
-		static double lastTime = glfwGetTime();
-		double deltaTime = glfwGetTime() - lastTime;
-		lastTime = glfwGetTime();
-
-		_gameData.player.UpdateMovement(deltaTime);
-		_gameData.player.UpdateMouselook();
-		_gameData.player.UpdateCamera();
-
-
-		auto newTime = std::chrono::high_resolution_clock::now();
-		float frameTime =
-			std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
-		currentTime = newTime;
-
-
-		int width, height;
-		glfwGetFramebufferSize(_window, &width, &height);
-		while (width == 0 || height == 0) {
-		//	return;
-		}
-
-
-		if (Input::KeyPressed(HELL_KEY_1)) {
-			//TextBlitter::Type("I don't feel comfortable in this place.");
-			TextBlitter::Type("I don't feel comfortable here.");
-			Audio::PlayAudio("UI_Select.wav", 0.9f);
-		}
-		if (Input::KeyPressed(HELL_KEY_2)) {
-			TextBlitter::Type("This can't be fucking happening.");
-			Audio::PlayAudio("UI_Select.wav", 0.9f);
-		}
-		if (Input::KeyPressed(HELL_KEY_3)) {
-			TextBlitter::Type("");
-		}
-
-		if (Input::KeyPressed(HELL_KEY_F)) {
-			static bool _windowed = true;
-			_windowed = !_windowed;
-			if (!_windowed) {
-				GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-				const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-				_windowExtent = { (unsigned int)mode->width , (unsigned int)mode->height };
-				glfwSetWindowMonitor(_window, monitor, 0, 0, mode->width, mode->width, mode->refreshRate);
-				glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-				recreate_dynamic_swapchain();
-				_frameBufferResized = false;
+			if (glfwGetKey(_window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+				_selectedShader += 1;
+				if (_selectedShader > 1) {
+					_selectedShader = 0;
+				}
 			}
-			else {
-				glfwSetWindowMonitor(_window, nullptr, 0, 0, 1700, 900, 0);
-				glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-				recreate_dynamic_swapchain();
-				_frameBufferResized = false;
+
+			Input::Update(_window);
+			Audio::Update();
+
+			static double lastTime = glfwGetTime();
+			float currenttime = glfwGetTime();
+			double deltaTime = currenttime - lastTime;
+
+			Scene::Update(deltaTime);
+			TextBlitter::Update(deltaTime);
+			_gameData.player.UpdateMovement(deltaTime);
+
+			lastTime = currenttime;
+
+
+
+			if (deltaTime > 0.25)
+				deltaTime = 0.25;
+
+
+			double dt = 0.01;
+			accumulator += deltaTime;
+
+			while (accumulator >= dt)
+			{
+				accumulator -= dt;
 			}
-		}
-
-		if (Input::KeyPressed(HELL_KEY_H)) {
-			hotload_shaders();
-		}
-
-		if (Input::KeyPressed(HELL_KEY_B)) {
-			_gameData.player.m_camera._disableHeadBob = !_gameData.player.m_camera._disableHeadBob;
-		}
 
 
-		update();
-		draw();
+			accumulator += deltaTime;
+
+			float DESIRED_UPDATE_TIME = 1.0f / 60.0f;
+
+			//while (accumulator > DESIRED_UPDATE_TIME)
+			{
+			//	accumulator -= DESIRED_UPDATE_TIME;
+			}
+
+
+			//float totalDeltaTime = frameTime / DESIRED_FRAMETIME;
+			//int i = 0;
+			//int MAX_PHYSICS_STEPS = 4;
+		/*	while (totalDeltaTime > 0.0f && i < MAX_PHYSICS_STEPS) {
+
+				float deltaTime = std::min(totalDeltaTime, maxDeltaTime);
+				
+				i++;
+				totalDeltaTime -= deltaTime;
+			}*/
+		//	std::cout << deltaTime << "   " << "\n";
+
+
+			_gameData.player.UpdateMouselook(deltaTime);
+			_gameData.player.UpdateCamera(deltaTime);
+
+
+
+
+
+			//auto newTime = std::chrono::high_resolution_clock::now();
+			//float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
+			//currentTime = newTime;
+
+
+			int width, height;
+			glfwGetFramebufferSize(_window, &width, &height);
+			while (width == 0 || height == 0) {
+				//	return;
+			}
+
+
+			if (Input::KeyPressed(HELL_KEY_1)) {
+				//TextBlitter::Type("I don't feel comfortable in this place.");
+				TextBlitter::Type("I don't feel comfortable here.");
+				Audio::PlayAudio("UI_Select.wav", 0.9f);
+			}
+			if (Input::KeyPressed(HELL_KEY_2)) {
+				TextBlitter::Type("This can't be fucking happening.");
+				Audio::PlayAudio("UI_Select.wav", 0.9f);
+			}
+			if (Input::KeyPressed(HELL_KEY_3)) {
+				TextBlitter::Type("");
+			}
+
+			if (Input::KeyPressed(HELL_KEY_F)) {
+				static bool _windowed = true;
+				_windowed = !_windowed;
+				if (!_windowed) {
+					GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+					const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+					_windowExtent = { (unsigned int)mode->width , (unsigned int)mode->height };
+					glfwSetWindowMonitor(_window, monitor, 0, 0, mode->width, mode->width, mode->refreshRate);
+					glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+					recreate_dynamic_swapchain();
+					_frameBufferResized = false;
+				}
+				else {
+					glfwSetWindowMonitor(_window, nullptr, 0, 0, 1700, 900, 0);
+					glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+					recreate_dynamic_swapchain();
+					_frameBufferResized = false;
+				}
+			}
+
+			if (Input::KeyPressed(HELL_KEY_H)) {
+				hotload_shaders();
+			}
+			if (Input::KeyPressed(HELL_KEY_B)) {
+				_showDebugText = !_showDebugText;
+				Audio::PlayAudio("UI_Select2.wav", 0.5f);
+			}
+			if (Input::KeyPressed(HELL_KEY_C)) {
+				_gameData.player.m_camera._disableHeadBob = !_gameData.player.m_camera._disableHeadBob;
+			}
+
+			// CORRECTION MULTIPLIER VALUE: 62.375249500998
+			update(deltaTime);
+
+			draw();
+		
 	}
 }
 
@@ -749,7 +803,9 @@ void VulkanEngine::init_swapchain()
 		//.use_default_format_selection()
 		//use vsync present mode
 		.set_desired_format(format)
+		.set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)
 		.set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
+		.set_desired_present_mode(VK_PRESENT_MODE_MAILBOX_KHR)
 		.set_desired_extent(_windowExtent.width, _windowExtent.height)
 		.set_image_usage_flags(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT) // added so you can blit into the swapchain
 		.build()
@@ -2280,7 +2336,6 @@ void VulkanEngine::updateTLASdescriptorSet() {
 
 	std::vector<VkWriteDescriptorSet> writeDescriptorSets = { accelerationStructureWrite };
 	vkUpdateDescriptorSets(_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
-
 	/* {
 		VkWriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo{};
 		descriptorAccelerationStructureInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
@@ -2688,6 +2743,92 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	}
 
 
+
+	// Line buffer creation if needed
+	//if (_lineListMesh._vertexBuffer._buffer != VK_NULL_HANDLE) {
+	//	vmaDestroyBuffer(_allocator, _lineListMesh._vertexBuffer._buffer, _lineListMesh._vertexBuffer._allocation);
+	//}
+
+	static bool runOnce = true;
+
+	if (runOnce) {
+		VkBufferCreateInfo vertexBufferInfo = {};
+		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		vertexBufferInfo.pNext = nullptr;
+		vertexBufferInfo.size = sizeof(Vertex) * 512; // number of max lines possible
+		vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		VmaAllocationCreateInfo vmaallocInfo = {};
+		vmaallocInfo.usage = VMA_MEMORY_USAGE_AUTO;;
+		VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo, &vmaallocInfo, &_lineListMesh._vertexBuffer._buffer, &_lineListMesh._vertexBuffer._allocation, nullptr));
+		runOnce = false;
+
+		VkDebugUtilsObjectNameInfoEXT nameInfo = {};
+		nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+		nameInfo.objectType = VK_OBJECT_TYPE_BUFFER;
+		nameInfo.objectHandle = (uint64_t)_lineListMesh._vertexBuffer._buffer;
+		nameInfo.pObjectName = "Line list mesh";
+		vkSetDebugUtilsObjectNameEXT(_device, &nameInfo);
+	}
+
+	std::vector<Vertex> vertices;
+
+	Vertex v;
+	Vertex v2;
+	v.position = glm::vec3(0, 0, 0);
+	v2.position = glm::vec3(0, 0.2f, 0);
+	//vertices.push_back(v);
+	//vertices.push_back(v2);
+
+	{
+		if (Scene::_hitTriangleVertices.size() == 3) {
+			vertices.push_back(Scene::_hitTriangleVertices[0]);
+			vertices.push_back(Scene::_hitTriangleVertices[1]);
+			vertices.push_back(Scene::_hitTriangleVertices[1]);
+			vertices.push_back(Scene::_hitTriangleVertices[2]);
+			vertices.push_back(Scene::_hitTriangleVertices[2]);
+			vertices.push_back(Scene::_hitTriangleVertices[0]);
+		}
+
+		_lineListMesh._vertexCount = vertices.size();
+
+		if (vertices.size())
+		{
+			const size_t bufferSize = vertices.size() * sizeof(Vertex);
+			VkBufferCreateInfo stagingBufferInfo = {};
+			stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			stagingBufferInfo.pNext = nullptr;
+			stagingBufferInfo.size = bufferSize;
+			stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+			VmaAllocationCreateInfo vmaallocInfo = {};
+			vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+			AllocatedBuffer stagingBuffer;
+			VK_CHECK(vmaCreateBuffer(_allocator, &stagingBufferInfo, &vmaallocInfo, &stagingBuffer._buffer, &stagingBuffer._allocation, nullptr));
+
+			void* data;
+			vmaMapMemory(_allocator, stagingBuffer._allocation, &data);
+			memcpy(data, vertices.data(), vertices.size() * sizeof(Vertex));
+			vmaUnmapMemory(_allocator, stagingBuffer._allocation);
+
+			immediate_submit([=](VkCommandBuffer cmd) {
+				VkBufferCopy copy;
+				copy.dstOffset = 0;
+				copy.srcOffset = 0;
+				copy.size = bufferSize;
+				vkCmdCopyBuffer(cmd, stagingBuffer._buffer, _lineListMesh._vertexBuffer._buffer, 1, &copy);
+				});
+
+			vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
+		}
+	}
+
+
+
+
+
+
+
 	// Now fill your command buffer
 	int32_t frameIndex = _frameNumber % FRAME_OVERLAP;
 	VkCommandBuffer commandBuffer = _frames[frameIndex]._commandBuffer;
@@ -2698,55 +2839,7 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &cmdBufInfo));
 
 
-	if (_lineListMesh._vertexBuffer._buffer != VK_NULL_HANDLE) {
-		vmaDestroyBuffer(_allocator, _lineListMesh._vertexBuffer._buffer, _lineListMesh._vertexBuffer._allocation);
-	}
-
-		{		
-			Vertex vertA, vertB, vertC, vertD;
-			vertA.position = Scene::_worldPosOfHitObject;// { -2, 0, 0 };
-			vertB.position = Scene::_worldPosOfHitObject + glm::vec3(0, 1, 0);//{ -2,1, 0};
-			std::vector<Vertex> vertices;
-			vertices.push_back(vertA);
-			vertices.push_back(vertB);
-			_lineListMesh._vertexCount = vertices.size();
-
-			{
-				const size_t bufferSize = vertices.size() * sizeof(Vertex);
-				VkBufferCreateInfo stagingBufferInfo = {};
-				stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-				stagingBufferInfo.pNext = nullptr;
-				stagingBufferInfo.size = bufferSize;
-				stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
-				VmaAllocationCreateInfo vmaallocInfo = {};
-				vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-				AllocatedBuffer stagingBuffer;
-				VK_CHECK(vmaCreateBuffer(_allocator, &stagingBufferInfo, &vmaallocInfo, &stagingBuffer._buffer, &stagingBuffer._allocation, nullptr));
-
-				void* data;
-				vmaMapMemory(_allocator, stagingBuffer._allocation, &data);
-				memcpy(data, vertices.data(), vertices.size() * sizeof(Vertex));
-				vmaUnmapMemory(_allocator, stagingBuffer._allocation);
-
-				VkBufferCreateInfo vertexBufferInfo = {};
-				vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-				vertexBufferInfo.pNext = nullptr;
-				vertexBufferInfo.size = bufferSize;
-				vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-				vmaallocInfo.usage = VMA_MEMORY_USAGE_AUTO;;
-				VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo, &vmaallocInfo, &_lineListMesh._vertexBuffer._buffer, &_lineListMesh._vertexBuffer._allocation, nullptr));
-				VkBufferCopy copy;
-				copy.dstOffset = 0;
-				copy.srcOffset = 0;
-				copy.size = bufferSize;
-				vkCmdCopyBuffer(commandBuffer, stagingBuffer._buffer, _lineListMesh._vertexBuffer._buffer, 1, &copy);				
-				vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
-			}
-		}
 	
-
 
 
 
@@ -2864,8 +2957,12 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	}
 
 	// Add the crosshair
-	//RasterRenderer::DrawQuad("CrosshairDot", 512 / 2, 288 / 2, true);
-	RasterRenderer::DrawQuad("CrosshairSquare", 512 / 2, 288 / 2, true);
+	if (Scene::_hoveredGameObject && Scene::_hoveredGameObject->IsInteractable()) {
+		RasterRenderer::DrawQuad("CrosshairSquare", 512 / 2, 288 / 2, true);
+	} else
+	{
+		RasterRenderer::DrawQuad("CrosshairDot", 512 / 2, 288 / 2, true);
+	}
 
 	// Upload raster instance data
 	void* objectData;
@@ -2892,14 +2989,18 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	RasterRenderer::ClearQueue();
 
 	// Draw lines
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _linelistPipeline);
-	glm::mat4 projection = glm::perspective(_cameraZoom, 1700.f / 900.f, 0.01f, 100.0f);
-	glm::mat4 view = _gameData.player.m_camera.GetViewMatrix();
-	projection[1][1] *= -1;
-	LineShaderPushConstants constants;
-	constants.transformation = projection * view;;
-	vkCmdPushConstants(commandBuffer, _linelistPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(LineShaderPushConstants), &constants);
-	_lineListMesh.draw(commandBuffer, 0);
+	if (_lineListMesh._vertexCount > 0 && _showDebugText) {
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _linelistPipeline);
+		glm::mat4 projection = glm::perspective(_cameraZoom, 1700.f / 900.f, 0.01f, 100.0f);
+		glm::mat4 view = _gameData.player.m_camera.GetViewMatrix();
+		projection[1][1] *= -1;
+		LineShaderPushConstants constants;
+		constants.transformation = projection * view;;
+		vkCmdPushConstants(commandBuffer, _linelistPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(LineShaderPushConstants), &constants);
+		_lineListMesh.draw(commandBuffer, 0);
+	}
+
+
 	vkCmdEndRendering(commandBuffer);
 
 	// now prepare for to blit from storage image to swapchain
@@ -2975,73 +3076,18 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 
 	VK_CHECK(vkEndCommandBuffer(commandBuffer));
 
-	/*
-	//memcpy(&mousePickResult, _mousePickResultBuffer._mapped, sizeof(uint32_t) * 2);
-
-	uint32_t bufferSize = sizeof(uint32_t) * 2;
-	VkBufferCreateInfo stagingBufCreateInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-	stagingBufCreateInfo.size = bufferSize;
-	stagingBufCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-
-	VmaAllocationCreateInfo stagingAllocCreateInfo = {};
-	stagingAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_TO_CPU;
-	stagingAllocCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
-
-	VkBuffer stagingBuf;
-	VmaAllocation stagingAlloc;
-	VmaAllocationInfo stagingAllocInfo;
-	vmaCreateBuffer(_allocator, &stagingBufCreateInfo, &stagingAllocCreateInfo, &stagingBuf, &stagingAlloc, &stagingAllocInfo);
-
-	// [Executed in runtime]:
-	memcpy(stagingAllocInfo.pMappedData, mousePickResult, bufferSize);
-	vmaFlushAllocation(_allocator, stagingAlloc, 0, VK_WHOLE_SIZE);
-	//vkCmdPipelineBarrier: VK_ACCESS_HOST_WRITE_BIT --> VK_ACCESS_TRANSFER_READ_BIT
-	VkBufferCopy bufCopy = {
-		0, // srcOffset
-		0, // dstOffset,
-		bufferSize }; // size
-	//vkCmdCopyBuffer(commandBuffer, stagingBuf, _mousePickResultBuffer._buffer, 1, &bufCopy);
-	vkCmdCopyBuffer(commandBuffer, _mousePickResultBuffer._buffer, stagingBuf, 1, &bufCopy);
-	vmaDestroyBuffer(_allocator, stagingBuf, stagingAlloc);
-
-
-	Scene::StoreMousePickResult(mousePickResult[0], mousePickResult[1]);
-
-
-	/*VkMemoryBarrier2KHR memoryBarrier = {};
-	memoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR;
-	memoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT_KHR;
-	memoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR;
-	memoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT_KHR;;
-
-	VkDependencyInfoKHR dependencyInfo = {};
-	dependencyInfo.
-		1,              // memoryBarrierCount
-		&memoryBarrier, // pMemoryBarriers
-		...
-	}
-	*/
-	//vkCmdPipelineBarrier2KHR(commandBuffer, &dependencyInfo);
-	
 	uint32_t mousePickResult[2] = {2,0};
-
 	void* data;
-	//vmaMapMemory(_allocator, _mousePickResultCPUBuffer._allocation, &data);
-	//std::cout << mousePickResult[0] << " " << mousePickResult[1] << " \n";
 	memcpy(mousePickResult, _mousePickResultCPUBuffer._mapped, sizeof(uint32_t) * 2);
-	//std::cout << mousePickResult[0] << " " << mousePickResult[1] << " \n";
-	//vmaUnmapMemory(_allocator, _mousePickResultCPUBuffer._allocation);
-
-	//Scene::StoreMousePickResult(mousePickResult[0], mousePickResult[1]);
-	//memcpy(&mousePickResult, _mousePickResultBuffer._mapped, sizeof(uint32_t) * 2);
 	Scene::StoreMousePickResult(mousePickResult[0], mousePickResult[1]);
 }
 
 void VulkanEngine::AddDebugText() {
 	TextBlitter::Reset();
-	TextBlitter::AddDebugText("Cam pos: " + Util::Vec3ToString(_gameData.player.m_camera.m_viewPos));
-	TextBlitter::AddDebugText("Rayhit BLAS index: " + std::to_string(Scene::_instanceIndex));
-	TextBlitter::AddDebugText("Rayhit triangle index: " + std::to_string(Scene::_primitiveIndex));
-	TextBlitter::AddDebugText("Rayhit model name: " + Scene::_hitModelName);
-	TextBlitter::AddDebugText("Rayhit game object position " + Util::Vec3ToString(Scene::_worldPosOfHitObject));
+	if (_showDebugText) {
+		TextBlitter::AddDebugText("Cam pos: " + Util::Vec3ToString(_gameData.player.m_camera.m_viewPos));
+		TextBlitter::AddDebugText("Rayhit BLAS index: " + std::to_string(Scene::_instanceIndex));
+		TextBlitter::AddDebugText("Rayhit triangle index: " + std::to_string(Scene::_primitiveIndex));
+		//TextBlitter::AddDebugText("Rayhit model: " + Scene::_hitModelName);
+	}
 }

@@ -6,8 +6,8 @@ class Player
 {
 public:
 	void UpdateMovement(float deltaTime);
-	void UpdateMouselook();
-	void UpdateCamera();
+	void UpdateMouselook(float deltaTime);
+	void UpdateCamera(float deltaTime);
 	bool IsCrouching();
 
 public:

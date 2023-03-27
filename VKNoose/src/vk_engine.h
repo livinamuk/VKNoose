@@ -239,7 +239,7 @@ public:
 	void init();
 	void cleanup();
 	void draw();
-	void update();
+	void update(float deltaTime);
 	void run();
 
 	// Pipelines
@@ -256,6 +256,7 @@ public:
 
 
 	float _cameraZoom = 1.0f;// glm::radians(70.f);
+	bool _showDebugText = false;
 
 			// Ray tracing
 
@@ -273,6 +274,12 @@ public:
 			PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR;
 			PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR;
 			PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR;
+			PFN_vkDebugMarkerSetObjectTagEXT pfnDebugMarkerSetObjectTag;
+			PFN_vkDebugMarkerSetObjectNameEXT pfnDebugMarkerSetObjectName;
+			PFN_vkCmdDebugMarkerBeginEXT pfnCmdDebugMarkerBegin;
+			PFN_vkCmdDebugMarkerEndEXT pfnCmdDebugMarkerEnd;
+			PFN_vkCmdDebugMarkerInsertEXT pfnCmdDebugMarkerInsert; 
+			PFN_vkSetDebugUtilsObjectNameEXT vkSetDebugUtilsObjectNameEXT;
 
 			VkPhysicalDeviceRayTracingPipelinePropertiesKHR  rayTracingPipelineProperties{};
 			VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{};

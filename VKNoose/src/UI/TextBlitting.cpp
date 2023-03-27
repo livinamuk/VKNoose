@@ -10,14 +10,15 @@ namespace TextBlitter {
 	int _charSpacing = 0;
 	int _spaceWidth = 6;
 	std::string _charSheet = "•!\"#$%&\'••*+,-./0123456789:;<=>?_ABCDEFGHIJKLMNOPQRSTUVWXYZ\\^_`abcdefghijklmnopqrstuvwxyz";
-	std::string _textToBilt = "Fuck the world, is full of idiots.";
+	std::string _textToBilt = "";// "Fuck the world, is full of idiots.";
 	std::string _debugTextToBilt = "";
 	int _charCursorIndex = 0;
-	int _textSpeed = 2;
+	float _textTime = 0;
+	float _textSpeed = 124.75f;
 
 
 	void TextBlitter::Type(std::string text) {
-		_charCursorIndex = 0;
+		_textTime = 0;
 		_textToBilt = text;
 	}
 
@@ -29,9 +30,10 @@ namespace TextBlitter {
 		_debugTextToBilt = "";
 	}
 
-	void TextBlitter::Update() {
+	void TextBlitter::Update(float deltaTime) {
 		_objectData.clear();
-		_charCursorIndex += _textSpeed;
+		_textTime += (_textSpeed * deltaTime);
+		_charCursorIndex = (int)_textTime;
 
 		float xcursor = _xMargin;
 		float ycursor = _yMargin;

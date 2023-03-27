@@ -6,6 +6,7 @@
 #include "Common.h"
 #include <sstream>
 #include <iomanip> // setprecision
+#include <filesystem>
 
 namespace Util {
 
@@ -48,6 +49,64 @@ namespace Util {
 	inline glm::vec3 NormalFromTriangle(glm::vec3 pos0, glm::vec3 pos1, glm::vec3 pos2)
 	{
 		return glm::normalize(glm::cross(pos1 - pos0, pos2 - pos0));
+	}
+
+	inline FileInfo GetFileInfo(const std::filesystem::directory_entry filepath)
+	{
+		std::stringstream ss;
+		ss << filepath.path();
+		std::string fullpath = ss.str();
+		// remove quotes at beginning and end
+		fullpath = fullpath.substr(1);
+		fullpath = fullpath.substr(0, fullpath.length() - 1);
+		// isolate name
+		std::string filename = fullpath.substr(fullpath.rfind("/") + 1);
+		filename = filename.substr(0, filename.length() - 4);
+		// isolate filetype
+		std::string filetype = fullpath.substr(fullpath.length() - 3);
+		// isolate direcetory
+		std::string directory = fullpath.substr(0, fullpath.rfind("/") + 1);
+		// material name
+		std::string materialType = "NONE";
+		if (filename.length() > 5) {
+			std::string query = filename.substr(filename.length() - 3);
+			if (query == "ALB" || query == "RMA" || query == "NRM")
+				materialType = query;
+		}
+		// RETURN IT
+		FileInfo info;
+		info.fullpath = fullpath;
+		info.filename = filename;
+		info.filetype = filetype;
+		info.directory = directory;
+		info.materialType = materialType;
+		return info;
+	}
+
+	inline FileInfo GetFileInfo(std::string filepath)
+	{
+		// isolate name
+		std::string filename = filepath.substr(filepath.rfind("/") + 1);
+		filename = filename.substr(0, filename.length() - 4);
+		// isolate filetype
+		std::string filetype = filepath.substr(filepath.length() - 3);
+		// isolate direcetory
+		std::string directory = filepath.substr(0, filepath.rfind("/") + 1);
+		// material name
+		std::string materialType = "NONE";
+		if (filename.length() > 5) {
+			std::string query = filename.substr(filename.length() - 3);
+			if (query == "ALB" || query == "RMA" || query == "NRM")
+				materialType = query;
+		}
+		// RETURN IT
+		FileInfo info;
+		info.fullpath = filepath;
+		info.filename = filename;
+		info.filetype = filetype;
+		info.directory = directory;
+		info.materialType = materialType;
+		return info;
 	}
 
 	inline VkTransformMatrixKHR GetIdentiyVkTransformMatrixKHR() {

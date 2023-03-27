@@ -16,7 +16,7 @@ do                                                              \
 } while (0)
 
 struct AllocatedBuffer {
-	VkBuffer _buffer;
+	VkBuffer _buffer = VK_NULL_HANDLE;
 	VmaAllocation _allocation;
 	void* _mapped = nullptr;
 };

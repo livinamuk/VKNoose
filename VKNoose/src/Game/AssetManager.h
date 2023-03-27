@@ -16,16 +16,20 @@ namespace AssetManager
 
 	void* GetVertexPointer(int offset);
 	void* GetIndexPointer(int offset);
+	Vertex GetVertex(int offset);
+	uint32_t GetIndex(int offset);
 
 	std::vector<Vertex>& GetVertices_TEMPORARY();
 	std::vector<uint32_t>& GetIndices_TEMPORARY();
 
 	//int CreateModel(std::vector<int> meshIndices);
-	Mesh* GetMesh(int index);
 	void AddTexture(Texture& texture);
+	int GetTextureIndex(const std::string& name);
+	int GetMaterialIndex(const std::string& name);
+	Mesh* GetMesh(int index);
 	Texture* GetTexture(int index);
 	Texture* GetTexture(const std::string& filename);
-	int GetTextureIndex(const std::string& filename);
+	Material* GetMaterial(int index);
 	Material* GetMaterial(const std::string& filename);
 	Model* GetModel(const std::string& name);
 	//std::vector<Model*> GetAllModels();

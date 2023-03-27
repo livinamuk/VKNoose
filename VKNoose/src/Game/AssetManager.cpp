@@ -1,5 +1,4 @@
 #include "AssetManager.h"
-#include <filesystem>
 #include "../Util.h"
 #include "../vk_initializers.h"
 #define STB_IMAGE_IMPLEMENTATION
@@ -8,8 +7,9 @@
 
 namespace AssetManager {
 	std::unordered_map<std::string, Model> _models;
-	std::unordered_map<std::string, Material> _materials;
+	//std::unordered_map<std::string, Material> _materials;
 	std::vector<Mesh> _meshes;
+	std::vector<Material> _materials;
 	std::vector<Texture> _textures;
 	std::vector<Vertex> _vertices;		// ALL of em
 	std::vector<uint32_t> _indices;		// ALL of em
@@ -26,8 +26,16 @@ void* AssetManager::GetVertexPointer(int offset) {
 	return &_vertices[offset];
 }
 
+Vertex AssetManager::GetVertex(int offset) {
+	return _vertices[offset];
+}
+
 void* AssetManager::GetIndexPointer(int offset) {
 	return &_indices[offset];
+}
+
+uint32_t AssetManager::GetIndex(int offset) {
+	return _indices[offset];
 }
 
 std::vector<Vertex>& AssetManager::GetVertices_TEMPORARY() {
@@ -281,6 +289,16 @@ int AssetManager::GetTextureIndex(const std::string& filename) {
 	return -1;
 }
 
+int AssetManager::GetMaterialIndex(const std::string& _name) {
+	for (int i = 0; i < _materials.size(); i++) {
+		if (_materials[i]._name == _name) {
+			return i;
+		}
+	}
+	std::cout << "Could not get material with name \"" << _name << "\", it does not exist\n";
+	return -1;
+}
+
 int AssetManager::GetNumberOfTextures() {
 	return _textures.size();
 }
@@ -293,45 +311,7 @@ void AssetManager::AddTexture(Texture& texture) {
 	_models.push_back(model);
 }*/
 
-struct FileInfo {
-	std::string fullpath;
-	std::string directory;
-	std::string filename;
-	std::string filetype;
-	std::string materialType;
-};
 
-FileInfo GetFileInfo(const std::filesystem::directory_entry filepath)
-{
-	std::stringstream ss;
-	ss << filepath.path();
-	std::string fullpath = ss.str();
-	// remove quotes at beginning and end
-	fullpath = fullpath.substr(1);
-	fullpath = fullpath.substr(0, fullpath.length() - 1);
-	// isolate name
-	std::string filename = fullpath.substr(fullpath.rfind("/") + 1);
-	filename = filename.substr(0, filename.length() - 4);
-	// isolate filetype
-	std::string filetype = fullpath.substr(fullpath.length() - 3);
-	// isolate direcetory
-	std::string directory = fullpath.substr(0, fullpath.rfind("/") + 1);
-	// material name
-	std::string materialType = "NONE";
-	if (filename.length() > 5) {
-		std::string query = filename.substr(filename.length() - 3);
-		if (query == "ALB" || query == "RMA" || query == "NRM")
-			materialType = query;
-	}
-	// RETURN IT
-	FileInfo info;
-	info.fullpath = fullpath;
-	info.filename = filename;
-	info.filetype = filetype;
-	info.directory = directory;
-	info.materialType = materialType;
-	return info;
-}
 
 bool AssetManager::TextureExists(const std::string& filename) {
 	for (Texture& texture : _textures)
@@ -342,7 +322,7 @@ bool AssetManager::TextureExists(const std::string& filename) {
 
 void AssetManager::LoadTextures(VulkanEngine& engine) {
 	for (const auto& entry : std::filesystem::directory_iterator("res/textures/")) {
-		FileInfo info = GetFileInfo(entry);
+		FileInfo info = Util::GetFileInfo(entry);
 		if (info.filetype == "png" || info.filetype == "tga" || info.filetype == "jpg") {
 			if (!TextureExists(info.filename)) {
 				Texture texture;
@@ -360,12 +340,11 @@ void AssetManager::LoadTextures(VulkanEngine& engine) {
 void AssetManager::BuildMaterials() {
 	for (auto& texture : _textures) {
 		if (texture._filename.substr(texture._filename.length() - 3) == "ALB") {
-			std::string materialName = texture._filename.substr(0, texture._filename.length() - 4);
-			Material& material = _materials[materialName] = Material();
-			material._basecolor = GetTextureIndex(materialName + "_ALB");
-			material._normal = GetTextureIndex(materialName + "_NRM");
-			material._rma = GetTextureIndex(materialName + "_RMA");
-			//std::cout << "Created material \"" << materialName << "\"\n";
+			Material& material = _materials.emplace_back(Material());
+			material._name = texture._filename.substr(0, texture._filename.length() - 4);
+			material._basecolor = GetTextureIndex(material._name + "_ALB");
+			material._normal = GetTextureIndex(material._name + "_NRM");
+			material._rma = GetTextureIndex(material._name + "_RMA");
 		}
 	}
 }
@@ -404,8 +383,17 @@ void AssetManager::LoadAssets() {
 	_models["trims_ceiling"] = Model("res/models/TrimCeiling.obj");
 	_models["flowers"] = Model("res/models/Flowers.obj");
 	_models["vase"] = Model("res/models/Vase.obj");
-	_models["chest_of_drawers"] = Model("res/models/ChestOfDrawers.obj");
+	//_models["chest_of_drawers"] = Model("res/models/ChestOfDrawers.obj");
 	_models["light_switch"] = Model("res/models/LightSwitchOn.obj");
+
+	_models["DrawerFrame"] = Model("res/models/DrawerFrame.obj");
+	_models["DrawerTopLeft"] = Model("res/models/DrawerTopLeft.obj");
+	_models["DrawerTopRight"] = Model("res/models/DrawerTopRight.obj");
+	_models["DrawerSecond"] = Model("res/models/DrawerSecond.obj");
+	_models["DrawerThird"] = Model("res/models/DrawerThird.obj");
+	_models["DrawerFourth"] = Model("res/models/DrawerFourth.obj");
+	_models["Diary"] = Model("res/models/Diary.obj");
+
 
 	{
 		// Floor 
@@ -433,6 +421,7 @@ void AssetManager::LoadAssets() {
 		Util::SetTangentsFromVertices(vertices, indices);
 		Model model;
 		model._meshIndices.push_back(CreateMesh(vertices, indices));
+		model._filename = "Floor";
 		_models["floor"] = model;
 	} 
 	{
@@ -485,21 +474,15 @@ Model* AssetManager::GetModel(const std::string & name) {
 }
 
 Material* AssetManager::GetMaterial(const std::string& name) {
-	auto it = _materials.find(name);
-	if (it == _materials.end()) {
-		std::cout << "Could not get material \"" << name << "\", it does not exist\n";
-		return nullptr;
+	for (int i = 0; i < _materials.size(); i++) {
+		if (_materials[i]._name == name) {
+			return &_materials[i];
+		}
 	}
-	else {
-		return &(*it).second;
-	}
+	std::cout << "Could not get material with name \"" << name << "\", it does not exist\n";
+	return nullptr;
 }
 
-/*
-std::vector<Model*> AssetManager::GetAllModels() {
-	std::vector<Model*> models;
-	for (auto& it : _models) {
-		models.push_back(&it.second);
-	}
-	return models;
-}*/
+Material* AssetManager::GetMaterial(int index) {
+	return &_materials[index];
+}

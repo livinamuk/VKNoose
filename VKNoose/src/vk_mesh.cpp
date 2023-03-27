@@ -25,6 +25,9 @@
 
 void Mesh::draw(VkCommandBuffer commandBuffer, uint32_t firstInstance)
 {
+	if (_vertexCount <= 0)
+		return;
+
 	VkDeviceSize offset = 0;
 	if (_indexCount > 0) {
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &_vertexBuffer._buffer, &offset);
@@ -38,7 +41,7 @@ void Mesh::draw(VkCommandBuffer commandBuffer, uint32_t firstInstance)
 }
 
 
-Model::Model(const char* filename) {
+Model::Model(const char* filepath) {
 
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
@@ -46,16 +49,15 @@ Model::Model(const char* filename) {
 	std::string warn;
 	std::string err;
 
-	_filename = filename;
+	FileInfo fileinfo = Util::GetFileInfo(filepath);
+	_filename = fileinfo.filename;
 
-	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename)) {
-		std::cout << "Crashed loading model: " << filename << "\n";
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filepath)) {
+		std::cout << "Crashed loading model: " << filepath << "\n";
 		return;
 	}
 
 	std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
-
-
 
 	for (const auto& shape : shapes)
 	{

@@ -16,6 +16,16 @@
 
 #define CEILING_HEIGHT 2.5f
 
+enum class OpenState { CLOSED, CLOSING, OPEN, OPENING, STOPPED };
+
+struct FileInfo {
+	std::string fullpath;
+	std::string directory;
+	std::string filename;
+	std::string filetype;
+	std::string materialType;
+};
+
 struct VertexInputDescription {
 	std::vector<VkVertexInputBindingDescription> bindings;
 	std::vector<VkVertexInputAttributeDescription> attributes;
@@ -124,7 +134,6 @@ struct IntersectionResult {
 
 enum class RaycastObjectType { NONE, FLOOR, WALLS, ENTITY};
 
-enum class OpenState { CLOSED, CLOSING, OPEN, OPENING, STOPPED };
 
 struct CameraRayData {
 	bool found = false;

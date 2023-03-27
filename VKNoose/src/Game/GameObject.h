@@ -4,57 +4,45 @@
 
 struct GameObject {
 
-	Transform _worldTransform;
 	Model* _model = nullptr;
-	std::vector<Material*> _meshMaterials;
-	
-	GameObject() {
-	}
+	//std::vector<Material*> _meshMaterials; 
+	std::vector<int> _meshMaterialIndices;
+private:
+	std::string _name = "undefined";
+	std::string _parentName = "undefined";
+	std::string _scriptName = "undefined";
+	Transform _transform;
+	OpenState _openState = OpenState::CLOSED;
+	float _maxOpenAmount = 0;
+	float _minOpenAmount = 0;
+	float _openSpeed = 0;
 
-	void SetModel(const std::string& name) 	
-	{
-		_model = AssetManager::GetModel(name);
-
-		if (_model) {
-			_meshMaterials.resize(_model->_meshIndices.size()); 
-		}
-		else {
-			std::cout << "Failed to set model '" << name << "', it does not exist.\n";
-		}
-	}
-
-	VkTransformMatrixKHR GetVkTransformMatrixKHR() {
-		VkTransformMatrixKHR transformMatrix = {
-		1.0f, 0.0f, 0.0f, 0.0f,
-		0.0f, 1.0f, 0.0f, 0.0f,
-		0.0f, 0.0f, 1.0f, 0.0f };
-
-		glm::mat4 modelMatrix = _worldTransform.to_mat4();
-		modelMatrix = glm::transpose(modelMatrix);
-
-		for (int x = 0; x < 3; x++) {
-			for (int y = 0; y < 4; y++) {
-				transformMatrix.matrix[x][y] = modelMatrix[x][y];
-			}
-		}
-		return transformMatrix;
-	}
-	
-	void SetMeshMaterial(int meshIndex, const char* name) {
-		if (meshIndex < 0 || meshIndex > _meshMaterials.size() || !_meshMaterials.size()) {
-			std::cout << "Index " << meshIndex << " is out of range, GameObject has _meshMaterials size " << _meshMaterials.size() << "\n";
-			return;
-		}
-
-		Material* material = AssetManager::GetMaterial(name);
-		if (material) {
-			_meshMaterials[meshIndex] = material;
-
-			if (meshIndex == 0) {
-				for (int i = 0; i < _meshMaterials.size(); i++) {
-					_meshMaterials[i] = material;
-				}
-			}
-		}
-	}
+public:
+	GameObject();
+	glm::mat4 GetModelMatrix();
+	std::string GetName();
+	void SetOpenState(OpenState openState, float speed, float min, float max);
+	void SetPosition(glm::vec3 position);
+	void SetPositionX(float position);
+	void SetPositionY(float position);
+	void SetPositionZ(float position);
+	void SetPosition(float x, float y, float z);
+	void SetRotationX(float rotation);
+	void SetRotationY(float rotation);
+	void SetRotationZ(float rotation);
+	float GetRotationX();
+	float GetRotationY();
+	float GetRotationZ();
+	void SetScale(float scale);
+	void SetScaleX(float scale);
+	void SetName(std::string name);
+	void SetParentName(std::string name);
+	void SetScriptName(std::string name);
+	bool IsInteractable();
+	void Interact();
+	void Update(float deltaTime);
+	void SetModel(const std::string& name);
+	VkTransformMatrixKHR GetVkTransformMatrixKHR();
+	void SetMeshMaterial(const char* name, int meshIndex = -1);
+	Material* GetMaterial(int meshIndex);
 };

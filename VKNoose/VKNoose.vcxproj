@@ -93,6 +93,7 @@
     <ClCompile Include="src\Audio\Audio.cpp" />
     <ClCompile Include="src\Game\AssetManager.cpp" />
     <ClCompile Include="src\Game\Camera.cpp" />
+    <ClCompile Include="src\Game\GameObject.cpp" />
     <ClCompile Include="src\Game\House\Wall.cpp" />
     <ClCompile Include="src\Game\Player.cpp" />
     <ClCompile Include="src\Game\Scene.cpp" />

@@ -36,7 +36,7 @@ void main()
 	
 
 	// Initial ray settings
-	rayPayload.done = 1000000;
+	rayPayload.done = -1; // first ray
 	rayPayload.attenuation = vec3(1, 1, 1);	
 	rayPayload.instanceIndex = 5;
 	rayPayload.primitiveIndex = 6;
@@ -45,7 +45,7 @@ void main()
 
     vec3 color = vec3(0.0);
 
-	int MAX_RECURSION = 1;// 2;
+	int MAX_RECURSION = 2;// 2;
 	
 	float mult = 1.0f;
 
@@ -71,7 +71,7 @@ void main()
 		direction.xyz = reflect(direction.xyz, rayPayload.normal);
 		rayPayload.done = 1;
 	}
-	
+
 	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(color, 0));
 	//imageStore(image2, ivec2(gl_LaunchIDEXT.xy), vec4(1, 0, 1, 0));
 

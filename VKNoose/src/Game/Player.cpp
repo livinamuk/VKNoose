@@ -4,8 +4,8 @@
 #include "../IO/Input.h"
 #include "../Util.h"
 
-float _walkingSpeed = 3.0f * 0.01;
-float _crouchingSpeed = 2.125f * 0.01;
+float _walkingSpeed = 2.25f ;
+float _crouchingSpeed = _walkingSpeed * 0.75f;
 float _viewHeightCrouching = 1.15f;
 float _viewHeightStanding = 1.65f;;
 float _crouchDownSpeed = 17.5f;
@@ -22,11 +22,11 @@ void Player::UpdateMovement(float deltaTime)
 	glm::vec3 forward = glm::normalize(glm::vec3(m_camera.m_front.x, 0, m_camera.m_front.z));
 
 	float amt = 0.025f;
-	if (Input::KeyDown(HELL_KEY_Q)) {
+	if (Input::KeyDown(HELL_KEY_Z)) {
 		_viewHeightCrouching += amt;
 		_viewHeightStanding += amt;
 	}
-	if (Input::KeyDown(HELL_KEY_E)) {
+	if (Input::KeyDown(HELL_KEY_X)) {
 		_viewHeightCrouching -= amt;
 		_viewHeightStanding -= amt;
 	}
@@ -59,7 +59,7 @@ void Player::UpdateMovement(float deltaTime)
 		_viewHeight = Util::FInterpTo(_viewHeight, target, deltaTime, _crouchDownSpeed);
 
 	// Move player
-	m_position += (displacement * glm::vec3(speed));
+	m_position += (displacement * deltaTime * glm::vec3(speed));
 
 	static float m_footstepAudioTimer = 0;
 	static float footstepAudioLoopLength = 0.5;
@@ -83,24 +83,24 @@ void Player::UpdateMovement(float deltaTime)
 	}
 }
 
-void Player::UpdateMouselook()
+void Player::UpdateMouselook(float deltaTime)
 {
 	//if (m_mouselookDisabled || GameData::inventoryOpen)
 	//	return;
 
 	float mouseSensitivity = 0.005f;
-	float xoffset = Input::GetMouseOffsetY() * mouseSensitivity * Input::_sensitivity * 0.01f;
-	float yoffset = Input::GetMouseOffsetX() * mouseSensitivity * Input::_sensitivity * 0.01f;
+	float xoffset = Input::GetMouseOffsetY() * mouseSensitivity * Input::_sensitivity * 0.62375f * deltaTime;
+	float yoffset = Input::GetMouseOffsetX() * mouseSensitivity * Input::_sensitivity * 0.62375f * deltaTime;
 	float yLimit = 1.5f;	
 	m_camera.m_transform.rotation += glm::vec3(-xoffset, -yoffset, 0.0);
 	m_camera.m_transform.rotation.x = std::min(m_camera.m_transform.rotation.x, yLimit);
 	m_camera.m_transform.rotation.x = std::max(m_camera.m_transform.rotation.x, -yLimit);
 }
 
-void Player::UpdateCamera()
+void Player::UpdateCamera(float deltaTime)
 {
 	m_camera.m_transform.position = glm::vec3(m_position.x, m_position.y + _viewHeight, m_position.z);
-	m_camera.Update(m_moving, IsCrouching());
+	m_camera.Update(m_moving, IsCrouching(), deltaTime);
 }
 
 bool Player::IsCrouching()

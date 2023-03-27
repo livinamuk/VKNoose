@@ -405,6 +405,12 @@ void main()
 	const vec3 nrm      = nrm0 * barycentrics.x + nrm1 * barycentrics.y + nrm2 * barycentrics.z;
 	const vec3 worldNrm = normalize(vec3(nrm * gl_WorldToObjectEXT));  
 
+	// If first bounce, the record the hit
+	if (rayPayload.done == -1) {
+		rayPayload.instanceIndex = gl_InstanceCustomIndexEXT;
+		rayPayload.primitiveIndex = gl_PrimitiveID;
+	}
+
 	if (rayPayload.done == 1) {
 		rayPayload.color = rayPayload.color * vec3(0.3025);
 	}
@@ -416,6 +422,7 @@ void main()
 	rayPayload.attenuation = vec3(1,1,1);
 
 	//rayPayload.color = vec3(texCoord, 0);
+	
 
     if (gl_InstanceCustomIndexEXT == 1 || 
 	gl_InstanceCustomIndexEXT == 2 || 
@@ -424,8 +431,6 @@ void main()
 	gl_InstanceCustomIndexEXT == 5 ){//|| metallic > 0.9|| roughness > 0.1) {
 		rayPayload.done = 0;		
     }
-	//	rayPayload.done = 0;
-	// rayPayload.color += vec3(0.1);
-	rayPayload.instanceIndex = gl_InstanceCustomIndexEXT;
-	rayPayload.primitiveIndex = gl_PrimitiveID;
+
+//rayPayload.color = normal;
 }
