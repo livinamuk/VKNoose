@@ -55,7 +55,7 @@ hitAttributeEXT vec2 attribs;
 
 const float PI = 3.14159265359;  
 //const vec3 lightPos = vec3(-2.2, 2, -3.5);
-const vec3 lightPos = vec3(0, 2, -0);
+const vec3 lightPosition = vec3(0, 2, -0);
 float lightStrength = 1.0;
 const vec3 lightColor = vec3(1, 0.95, 0.8);
 
@@ -85,23 +85,148 @@ float calculateDoomFactor(vec3 fragPos, vec3 camPos, float fallOff)
 }
 
 
+struct Light {
+	vec3 position;
+	vec3 color;
+	float strength;
+	float radius;
+	float magic;
+};
+
+float CalculateAttenuation(Light light, vec3 worldPos) {
+	float radius = light.radius;
+	float magic = light.magic;
+    float dist2 = length(worldPos - light.position);
+    float num = saturate(1 - (dist2 / radius) * (dist2 / radius) * (dist2 / radius) * (dist2 / radius));
+	
+	float attenuation2 = num * num / (dist2 * dist2 + magic * 2.5);
+    // attenuation
+	float att = 1.0 / (1.0 + 0.1*dist2 + 0.01*dist2*dist2);
+	//att *= 1.5;
+	float strength = light.strength;
+	float lumance = att * att * att * att * att * att * att  * att * strength;
+	return min(lumance, 1);
+}
 
 // PHONG
 
-vec3 CalculatePhong(vec3 fragPos, vec3 baseColor, vec3 normal, vec3 camPos) {
+vec3 CalculatePhong(vec3 worldPos, vec3 baseColor, vec3 normal, vec3 camPos, Light light) {
     vec3 viewPos = camPos;
     float ambientStrength = 0.8;
     vec3 ambient = ambientStrength * lightColor;  	
     vec3 norm = normalize(normal.rgb);
-    vec3 lightDir = normalize(lightPos - fragPos);
+    vec3 lightDir = normalize(light.position - worldPos);
     float diff = max(dot(norm, lightDir), 0.0);
     vec3 diffuse = diff * lightColor * lightStrength;    
     float specularStrength = 1.5;
-    vec3 viewDir = normalize(viewPos - fragPos);
+    vec3 viewDir = normalize(viewPos - worldPos);
     vec3 reflectDir = reflect(-lightDir, norm);  
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
     vec3 specular = specularStrength * spec * lightColor ;        
-    return (ambient + diffuse + specular) * baseColor;
+
+	float attenuation = CalculateAttenuation(light, worldPos);
+    return (ambient + diffuse + specular) * baseColor * attenuation;
+}
+
+
+// PBR
+
+vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic, float ao, vec3 worldPos, vec3 camPos, Light light) {
+	
+	vec3 lightPos = light.position;
+	vec3 albedo = baseColor;
+	float perceptualRoughness = roughness;
+	vec3 diffuseColor;
+    vec3 viewPos = camPos.xyz;
+
+    perceptualRoughness = min(perceptualRoughness, 0.99);
+    metallic = min(metallic, 0.99);
+    perceptualRoughness = max(perceptualRoughness, 0.01);
+    metallic = max(metallic, 0.01);
+	vec3 f0 = vec3(0.04);
+	diffuseColor = baseColor.rgb * (vec3(1.0) - f0);
+	diffuseColor *= 1.0 - metallic;
+	float alphaRoughness = perceptualRoughness * perceptualRoughness;
+	vec3 specularColor = mix(f0, baseColor.rgb, metallic);
+	float reflectance = max(max(specularColor.r, specularColor.g), specularColor.b);
+	float reflectance90 = clamp(reflectance * 25.0, 0.0, 1.0);
+	vec3 specularEnvironmentR0 = specularColor.rgb;
+	vec3 specularEnvironmentR90 = vec3(1.0, 1.0, 1.0) * reflectance90;
+	vec3 n = normalize(normal);
+	vec3 v = normalize(viewPos - worldPos);    // Vector from surface point to camera
+	vec3 l = normalize(lightPos - worldPos);     // Vector from surface point to light
+	vec3 h = normalize(l+v);                        // Half vector between both l and v
+	vec3 reflection = -normalize(reflect(v, n));
+	reflection.y *= -1.0f;
+	float NdotL = clamp(dot(n, l), 0.001, 1.0);
+	float NdotV = clamp(abs(dot(n, v)), 0.001, 1.0);
+	float NdotH = clamp(dot(n, h), 0.0, 1.0);
+	float LdotH = clamp(dot(l, h), 0.0, 1.0);
+	float VdotH = clamp(dot(v, h), 0.0, 1.0);    
+
+	PBRInfo pbrInputs = PBRInfo(
+		NdotL,
+		NdotV,
+		NdotH,
+		LdotH,
+		VdotH,
+		perceptualRoughness,
+		metallic,
+		specularEnvironmentR0,
+		specularEnvironmentR90,
+		alphaRoughness,
+		diffuseColor,
+		specularColor
+	);
+	vec3 F = specularReflection(pbrInputs);
+	float G = geometricOcclusion(pbrInputs);
+	float D = microfacetDistribution(pbrInputs);
+	vec3 diffuseContrib = (1.0 - F) * diffuse(pbrInputs);
+	vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
+	vec3 color = NdotL * lightColor * (diffuseContrib + specContrib);
+	vec3 diffuse = pbrInputs.diffuseColor;        
+
+	float attenuation2  = CalculateAttenuation(light, worldPos);
+
+	vec3 radiance = lightColor * attenuation2;  
+	vec3 diffuseColor2 = albedo * (vec3(1.0) - f0);
+	color *= radiance;
+	
+    // HDR tonemapping
+	//color = color / (color + vec3(1.0));
+    // gamma correct
+    color = pow(color, vec3(1.0/2.2)); 
+
+	vec3 lightVector = normalize(lightPos - worldPos);
+
+	vec3 pbr = color;
+    vec3 phong = CalculatePhong(worldPos, baseColor, normal, camPos, light);
+	//vec3 finalColor = mix(phong, pbr, 0.45);
+	vec3 finalColor = mix(phong, pbr, 0.05);
+
+	float tMin   = 0.001;
+    float tMax   = length(lightPos - worldPos);;
+    vec3  origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+    vec3  rayDir = lightVector;
+    uint  flags  = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+    isShadowed   = true;
+    traceRayEXT(topLevelAS,  // acceleration structure
+                flags,       // rayFlags
+                0xFF,        // cullMask
+                0,           // sbtRecordOffset
+                0,           // sbtRecordStride
+                1,           // missIndex
+                origin,      // ray origin
+                tMin,        // ray min range
+                rayDir,      // ray direction
+                tMax,        // ray max range
+                1            // payload (location = 1)
+    );
+    if(isShadowed)
+    {
+      finalColor *= 0.25;
+    }
+	return finalColor;
 }
 
 
@@ -161,45 +286,59 @@ void main()
 	vec4 modelSpaceHitPos = vec4(pos0 * barycentrics.x + pos1 * barycentrics.y + pos2 * barycentrics.z, 1.0);
 	vec3 worldPos = (worldMatrix * modelSpaceHitPos).xyz;
 
-	//normal = bitangent;
-	
 	  // Adjusting normal
 	  const vec3 V = -gl_WorldRayDirectionEXT;
 	  if(dot(geonrm, V) < 0)  // Flip if back facing
 		geonrm = -geonrm;
 
-	  // If backface
-	  if(dot(geonrm, normal) < 0)  // Make Normal and GeoNormal on the same side
-	  {
+	// If backface
+	if(dot(geonrm, normal) < 0) { // Make Normal and GeoNormal on the same side
 		normal    = -normal;
 		tangent   = -tangent;
 		bitangent = -bitangent;
-	  }
-
-
-	/*mat3 tbn = mat3(normalize(tangent), normalize(bitangent), normalize(normal));
-	normal = normalize(tbn * normalize(normalMap * 2.0 - 1.0));
-
-	vec3 vertexNormal = (v0.normal * barycentrics.x + v1.normal * barycentrics.y + v2.normal * barycentrics.z);
-	vec3 vertexTangent = (v0.tangent * barycentrics.x + v1.tangent * barycentrics.y + v2.tangent * barycentrics.z);
-	vec3 vertexBiTangent = (v0.bitangent * barycentrics.x + v1.bitangent * barycentrics.y + v2.bitangent * barycentrics.z);
+	}
 	
-	vec3 attrNormal = mat3( transpose( inverse( worldMatrix ) ) ) * vertexNormal;
-	vec3 attrTangent = mat3( transpose( inverse( worldMatrix ) ) ) * vertexTangent;
-	vec3 attrBiTangent = mat3( transpose( inverse( worldMatrix ) ) ) * vertexBiTangent;
-
-	tbn = mat3(normalize(attrBiTangent), normalize(attrTangent), normalize(attrNormal));
-	normal = normalize(tbn * normalize(normalMap * 2.0 - 1.0));*/
-
-    //vec3 hitPos = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+	float roughness = rma.r;
+	float metallic = rma.g;
+	float ao = rma.b;
     vec3 camPos = cam.viewPos.rgb;
 
-	    
 
 
 
-    vec3 phong = CalculatePhong(worldPos.rgb, baseColor.rgb, normal.rgb, camPos.rgb);
-    
+
+	Light light;
+	light.position = lightPosition;
+	light.color = vec3(1,1,1);
+	light.strength = 2.5;
+	light.radius = 5;
+	light.magic = 88;
+	
+	Light light2;
+	light2.position = vec3(-2,1,-1.5);
+	light2.color = vec3(1,1,1);
+	light2.strength = 3;
+	light2.radius = 7;
+	light2.magic = 88;
+
+	Light light3;
+	light3.position = vec3(-2,1,1.5);
+	light3.color = vec3(1,1,1);
+	light3.strength = 3;
+	light3.radius = 7;
+	light3.magic = 88;
+
+		
+	//vec3 lightPosition2 = ;
+	//vec3 lightPosition3 = vec3(-2,1,-1.5);
+	
+	vec3 finalColor1 = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light);
+	vec3 finalColor2 = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light2);
+	vec3 finalColor3 = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light3);
+
+
+	//finalColor = finalColor + finalColor2 + finalColor3;
+    vec3 finalColor =  finalColor1 + finalColor2 + finalColor3;
 	
     // HDR tonemapping
 	//phong = phong / (phong + vec3(1.0));
@@ -209,164 +348,15 @@ void main()
 
 
      
-    vec3 albedo = baseColor.rgb;
-    float roughness = rma.r;
-    float metallic = rma.g;
-    float ao = rma.b;
-      
-
-
-    //vec3 worldPos = hitPos;
-
-    // Get textures
-	//baseColor.rgb = pow(baseColor.rgb, vec3(2.2));
-	vec3 RMA = rma;
-    vec3 n = normal;
-
-
-	float perceptualRoughness = RMA.r;
-	vec3 diffuseColor;
-    vec3 viewPos = camPos.xyz;
-
-    perceptualRoughness = min(perceptualRoughness, 0.99);
-    metallic = min(metallic, 0.99);
-    perceptualRoughness = max(perceptualRoughness, 0.01);
-    metallic = max(metallic, 0.01);
-   //
     
-	vec3 f0 = vec3(0.04);
-
-	diffuseColor = baseColor.rgb * (vec3(1.0) - f0);
-	diffuseColor *= 1.0 - metallic;
-
-	float alphaRoughness = perceptualRoughness * perceptualRoughness;
-	vec3 specularColor = mix(f0, baseColor.rgb, metallic);
-	float reflectance = max(max(specularColor.r, specularColor.g), specularColor.b);
-	float reflectance90 = clamp(reflectance * 25.0, 0.0, 1.0);
-	vec3 specularEnvironmentR0 = specularColor.rgb;
-	vec3 specularEnvironmentR90 = vec3(1.0, 1.0, 1.0) * reflectance90;
-
-	n = normalize(n);
-	vec3 v = normalize(viewPos - worldPos);    // Vector from surface point to camera
-	vec3 l = normalize(lightPos - worldPos);     // Vector from surface point to light
-	vec3 h = normalize(l+v);                        // Half vector between both l and v
-	vec3 reflection = -normalize(reflect(v, n));
-	reflection.y *= -1.0f;
-
-	float NdotL = clamp(dot(n, l), 0.001, 1.0);
-	float NdotV = clamp(abs(dot(n, v)), 0.001, 1.0);
-	float NdotH = clamp(dot(n, h), 0.0, 1.0);
-	float LdotH = clamp(dot(l, h), 0.0, 1.0);
-	float VdotH = clamp(dot(v, h), 0.0, 1.0);    
-
-	PBRInfo pbrInputs = PBRInfo(
-		NdotL,
-		NdotV,
-		NdotH,
-		LdotH,
-		VdotH,
-		perceptualRoughness,
-		metallic,
-		specularEnvironmentR0,
-		specularEnvironmentR90,
-		alphaRoughness,
-		diffuseColor,
-		specularColor
-	);
-	vec3 F = specularReflection(pbrInputs);
-	float G = geometricOcclusion(pbrInputs);
-	float D = microfacetDistribution(pbrInputs);
-	vec3 diffuseContrib = (1.0 - F) * diffuse(pbrInputs);
-	vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
-	vec3 color = NdotL * lightColor * (diffuseContrib + specContrib);
-   
-	//vec3 brdf = (texture(BRDF_LUT, vec2(pbrInputs.NdotV, 1.0 - metallic))).rgb;
-	vec3 diffuse = pbrInputs.diffuseColor;
-        
-	//float strength = 100;
-	float radius =1;
-	float magic = 0.025;
-    float dist2 = length(worldPos - lightPos);
-    float num = saturate(1 - (dist2 / radius) * (dist2 / radius) * (dist2 / radius) * (dist2 / radius));
-	float attenuation2 = num * num / (dist2 * dist2 + magic * 2.5);
-    // attenuation
-	float att = 1.0 / (1.0 + 0.1*dist2 + 0.01*dist2*dist2);
-	//att *= 1.5;
-	float strength = lightStrength * 1000;
-	float lumance = att * att * att * att * att * att * att  * att * strength;
-	attenuation2 = min(lumance, 1);
-	vec3 radiance = lightColor * attenuation2;  
-	vec3 diffuseColor2 = albedo * (vec3(1.0) - f0);
-	color *= radiance;
-	
-    // HDR tonemapping
-	//color = color / (color + vec3(1.0));
-    // gamma correct
-    color = pow(color, vec3(1.0/2.2)); 
-
- //   finalColor = color;
-
-
-
-
-
-	vec3 lightVector = normalize(lightPos - worldPos);
-	//float tmin = 0.001;
-//	float tmax = length(lightPos - worldPos);
-	//vec3 origin = worldPos;//vec3(worldMatrix * vec4(hitPos, 1));//gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
-//	origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
-//	shadowed = true;  
-
-	vec3 pbr = color;
-
-	vec3 finalColor = mix(phong, pbr, 0.45);
-	
-	// Trace shadow ray and offset indices to match shadow hit/miss shader group indices
-	//traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 1, 0, 1, origin, tmin, lightVector, tmax, 2);
-	
-	//if (baseColor.a > 0.99) 
-	{		
-	//	traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 1, 0, 1, origin, tmin, lightVector, tmax, 2);
-	//	shadowed = false;
-		//if (shadowed) {
-		//	finalColor *= 0.25;
-	//		rayPayload.done = 1;			
-	//	}
-	//}
-	}
-
-
-	float tMin   = 0.001;
-    float tMax   = length(lightPos - worldPos);;
-    vec3  origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
-    vec3  rayDir = lightVector;
-    uint  flags  = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
-    isShadowed   = true;
-    traceRayEXT(topLevelAS,  // acceleration structure
-                flags,       // rayFlags
-                0xFF,        // cullMask
-                0,           // sbtRecordOffset
-                0,           // sbtRecordStride
-                1,           // missIndex
-                origin,      // ray origin
-                tMin,        // ray min range
-                rayDir,      // ray direction
-                tMax,        // ray max range
-                1            // payload (location = 1)
-    );
-
-    if(isShadowed)
-    {
-      finalColor *= 0.25;
-    }
 
 
 
 
 	
-	if (baseColor.a < 0.5) 
+	if (baseColor.a < 0.5)  {
 		finalColor = vec3(0,0,0);
-    
+    }
 	//firstHitColor
 		
     float doom = calculateDoomFactor(worldPos, camPos, 1.0);

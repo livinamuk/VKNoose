@@ -46,6 +46,18 @@ std::vector<uint32_t> compile_file(const std::string& source_name, shaderc_shade
 
 	if (module.GetCompilationStatus() != shaderc_compilation_status_success) {
 		std::cerr << module.GetErrorMessage();
+
+		// print line by line
+		if (true) {
+			std::istringstream f(source);
+			std::string line;
+			int i = 0;
+			while (std::getline(f, line)) {
+				std::cout << i << " " << line << std::endl;
+				i++;
+			}
+		}
+
 		return std::vector<uint32_t>();
 	}
 	return { module.cbegin(), module.cend() };
