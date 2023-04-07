@@ -1,7 +1,9 @@
 #include "Wall.h"
 #include "../AssetManager.h"
 
-Wall::Wall(glm::vec3 begin, glm::vec3 end) {
+Wall::Wall(glm::vec3 begin, glm::vec3 end, std::string materialName) {
+
+	_material = AssetManager::GetMaterial(materialName);
 
 	_begin = begin;
 	_end = end;

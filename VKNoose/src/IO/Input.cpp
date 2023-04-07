@@ -140,3 +140,8 @@ void Input::PreventRightMouseHold()
 {
     _preventRightMouseHoldTillNextClick = true;
 }
+
+void Input::ForceSetStoredMousePosition(int x, int y) {
+    _mouseX = x;
+    _mouseY = y;
+}

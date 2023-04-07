@@ -1,6 +1,7 @@
 #pragma once
 #include "GameObject.h"
 #include "Scene.h"
+#include "Callbacks.hpp"
 
 GameObject::GameObject() {
 }
@@ -49,6 +50,17 @@ float GameObject::GetRotationZ() {
 	return _transform.rotation.z;
 }
 
+glm::vec3 GameObject::GetPosition() {
+	return _transform.position;
+}
+
+
+glm::mat4 GameObject::GetRotationMatrix() {
+	Transform transform;
+	transform.rotation = _transform.rotation;
+	return transform.to_mat4();
+}
+
 void GameObject::SetScale(float scale) {
 	_transform.scale = glm::vec3(scale);
 }
@@ -57,6 +69,12 @@ void GameObject::SetScaleX(float scale) {
 }
 
 glm::mat4 GameObject::GetModelMatrix() {
+	// If this is an item that has been collected, move if way below the world.
+	if (_collected) {
+		Transform t;
+		t.position.y = -100;
+		return t.to_mat4();
+	}
 
 	GameObject* parent = Scene::GetGameObjectByName(_parentName);
 	if (parent) {
@@ -73,6 +91,14 @@ void GameObject::SetName(std::string name) {
 	_name = name;
 }
 
+void GameObject::SetInteractText(std::string text) {
+	_interactText = text;
+}
+
+void GameObject::SetPickUpText(std::string text) {
+	_pickUpText = text;
+}
+
 void GameObject::SetParentName(std::string name) {
 	_parentName = name;
 }
@@ -82,7 +108,12 @@ void GameObject::SetScriptName(std::string name) {
 }
 bool GameObject::IsInteractable() {
 	if (_scriptName == "OpenableDoor" ||
-		_scriptName == "OpenableDrawer")
+		_scriptName == "OpenableDrawer" ||
+		_scriptName == "OpenableCabinet" ||
+		_scriptName == "OpenCabinetDoor" || 
+		_pickUpText != "" ||
+		_interactText != "" ||
+		_questionText != "")
 		return true;
 	return false;
 }
@@ -98,7 +129,7 @@ void GameObject::Interact() {
 			Audio::PlayAudio("Door_Open.wav", 0.25f);
 		}
 	}    
-	if (_scriptName == "OpenableDrawer") {
+	else if (_scriptName == "OpenableDrawer") {
 		if (_openState == OpenState::CLOSED) {
 			_openState = OpenState::OPENING;
 			Audio::PlayAudio("DrawerOpen.wav", 0.5f);
@@ -107,6 +138,33 @@ void GameObject::Interact() {
 			_openState = OpenState::CLOSING;
 			Audio::PlayAudio("DrawerOpen.wav", 0.5f);
 		}
+	}
+	else if (_scriptName == "OpenableCabinet") {
+		if (_openState == OpenState::CLOSED) {
+			_openState = OpenState::OPENING;
+			Audio::PlayAudio("CabinetOpen.wav", 0.75f);
+		}
+		if (_openState == OpenState::OPEN) {
+			_openState = OpenState::CLOSING;
+			Audio::PlayAudio("CabinetClose.wav", 0.5f);
+		}
+	}
+	else if (_scriptName == "OpenCabinetDoor") {
+		Scene::GetGameObjectByName("CabinetDoor")->Interact();
+	}
+	// Pick up
+	//else if (_pickUpText != "") {
+	//	TextBlitter::AskQuestion(_pickUpText, this->PickUp);
+	//}
+	// Interact text
+	else if (_interactText != "") {
+		TextBlitter::Type(_interactText);
+		Audio::PlayAudio("RE_type.wav", 0.9f);
+	}
+	// Question text
+	else if (_questionText != "") {
+		TextBlitter::AskQuestion(_questionText, this->_questionCallback);
+		Audio::PlayAudio("RE_type.wav", 0.9f);
 	}
 }
 
@@ -127,7 +185,7 @@ void GameObject::Update(float deltaTime) {
 			_openState = OpenState::CLOSED;
 		}
 	}    
-	if (_scriptName == "OpenableDrawer") {
+	else if (_scriptName == "OpenableDrawer") {
 		if (_openState == OpenState::OPENING) {
 			_transform.position.z += _openSpeed * deltaTime;
 		}
@@ -143,9 +201,27 @@ void GameObject::Update(float deltaTime) {
 			_openState = OpenState::CLOSED;
 		}
 	}
+	else if (_scriptName == "OpenableCabinet") {
+		if (_openState == OpenState::OPENING) {
+			_transform.rotation.y += _openSpeed * deltaTime;
+		}
+		if (_openState == OpenState::CLOSING) {
+			_transform.rotation.y -= _openSpeed * deltaTime;
+		}
+		if (_transform.rotation.y > _maxOpenAmount) {
+			_transform.rotation.y = _maxOpenAmount;
+			_openState = OpenState::OPEN;
+		}
+		if (_transform.rotation.y < _minOpenAmount) {
+			_transform.rotation.y = _minOpenAmount;
+			_openState = OpenState::CLOSED;
+		}
+	}
+
 }
 
 void GameObject::SetOpenState(OpenState openState, float speed, float min, float max) {
+	_initalOpenState = openState;
 	_openState = openState;
 	_openSpeed = speed;
 	_minOpenAmount = min;
@@ -205,4 +281,62 @@ void GameObject::SetMeshMaterial(const char* name, int meshIndex) {
 Material* GameObject::GetMaterial(int meshIndex) {
 	int materialIndex = _meshMaterialIndices[meshIndex];
 	return AssetManager::GetMaterial(materialIndex);
+}
+
+void GameObject::PickUp() {
+	//if (_pickupCallback != nullptr)
+	//	_pickupCallback();
+	Audio::PlayAudio("ItemPickUp.wav", 0.5f);
+	_collected = true;
+	std::cout << "Picked up \"" << GetName() << "\"\n";
+	std::cout << "_collected \"" << _collected << "\"\n";
+	//std::cout << "Picked up \"" << _transform.position.x << " " <<_transform.position.y << " " << _transform.position.z << " " << "\"\n";
+}
+
+void GameObject::SetPickUpCallback(callback_function callback) {
+	_pickupCallback = callback;
+}
+
+
+void GameObject::SetQuestion(std::string text, std::function<void(void)> callback) {
+	_questionText = text;
+	_questionCallback = callback;
+	//_questionCallback();
+}
+
+void GameObject::ResetToInitialState() {
+	_collected = false;
+	if (_initalOpenState == OpenState::CLOSED && _openState != OpenState::CLOSED)
+		_openState = OpenState::CLOSING;
+	if (_initalOpenState == OpenState::OPEN && _openState != OpenState::OPEN)
+		_openState = OpenState::OPENING;
+}
+
+
+void GameObject::SetBoundingBoxFromMesh(int meshIndex) {
+
+	Mesh* mesh = AssetManager::GetMesh(_model->_meshIndices[meshIndex]);	
+	std::vector<Vertex> vertices = AssetManager::GetVertices_TEMPORARY();
+
+	int firstIndex = mesh->_vertexOffset;
+	int lastIndex = firstIndex + (int)mesh->_vertexCount;
+
+	for (int i = firstIndex; i < lastIndex; i++) {
+		_boundingBox.xLow = std::min(_boundingBox.xLow, vertices[i].position.x);
+		_boundingBox.xHigh = std::max(_boundingBox.xHigh, vertices[i].position.x);
+		_boundingBox.zLow = std::min(_boundingBox.zLow, vertices[i].position.z);
+		_boundingBox.zHigh = std::max(_boundingBox.zHigh, vertices[i].position.z);
+	}
+}
+
+BoundingBox GameObject::GetBoundingBox() {
+	return _boundingBox;
+}
+
+void GameObject::EnableCollision() {
+	_collisionEnabled = true;
+}
+
+bool GameObject::HasCollisionsEnabled() {
+	return _collisionEnabled;
 }

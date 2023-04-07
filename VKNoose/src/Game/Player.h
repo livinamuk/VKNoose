@@ -8,6 +8,7 @@ public:
 	void UpdateMovement(float deltaTime);
 	void UpdateMouselook(float deltaTime);
 	void UpdateCamera(float deltaTime);
+	void EvaluateCollsions(std::vector<Vertex>& lines);
 	bool IsCrouching();
 
 public:
@@ -18,6 +19,7 @@ public:
 	bool m_collisionFound = false;
 	bool m_mouselookDisabled = false;
 	bool m_movementDisabled = false;;
+	bool m_interactDisabled = false;
 
 public:
 	//bool EvaluateCollision(glm::vec3 lineStart, glm::vec3 lineEnd);

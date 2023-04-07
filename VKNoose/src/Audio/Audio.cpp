@@ -61,21 +61,21 @@ void Audio::Init()
 	Audio::LoadAudio("pl_dirt3.wav");
 	Audio::LoadAudio("pl_dirt4.wav"); 
 
-	Audio::LoadAudio("UI_Select.wav");
-	Audio::LoadAudio("UI_Select2.wav");
+	Audio::LoadAudio("RE_type.wav");
+	Audio::LoadAudio("RE_bleep.wav");
 	Audio::LoadAudio("Rope.wav");
 	Audio::LoadAudio("Door_Open.wav");
 	Audio::LoadAudio("DrawerOpen.wav");
+	Audio::LoadAudio("ItemPickUp.wav");
+	Audio::LoadAudio("CabinetOpen.wav");
+	Audio::LoadAudio("CabinetClose.wav");
 	//gSoloud.init();
 	/*
 	Audio::LoadAudio("DrawerClose.wav");
-	Audio::LoadAudio("UI_Select3.wav");
-	Audio::LoadAudio("UI_Select4.wav");
-	Audio::LoadAudio("UI_Select5.wav");
-	Audio::LoadAudio("ItemPickUp.wav");
+	Audio::LoadAudio("RE_type3.wav");
+	Audio::LoadAudio("RE_type4.wav");
+	Audio::LoadAudio("RE_type5.wav");
 	Audio::LoadAudio("Music2.wav");
-	Audio::LoadAudio("CabinetOpen.wav");
-	Audio::LoadAudio("CabinetClose.wav");
 	Audio::LoadAudio("ToiletLidUp.wav");
 	Audio::LoadAudio("ToiletLidDown.wav");
 	Audio::LoadAudio("ToiletSeatUp.wav");

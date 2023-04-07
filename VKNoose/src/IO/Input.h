@@ -17,6 +17,7 @@ namespace Input
 	bool MouseWheelUp();
 	bool MouseWheelDown();
 	void PreventRightMouseHold();
+	void ForceSetStoredMousePosition(int x, int y);
 	inline int _mouseWheelValue = 0;
 	inline int _sensitivity = 100;
 }

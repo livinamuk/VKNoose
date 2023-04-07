@@ -2,6 +2,7 @@
 #include "AssetManager.h"
 #include "../Audio/Audio.h"
 #include "House/wall.h"
+#include "Callbacks.hpp"
 
 namespace Scene {
 	std::vector<GameObject> _gameObjects;
@@ -10,19 +11,45 @@ namespace Scene {
 
 AudioHandle _ropeAudioHandle;
 
-
+struct CollsionLine {
+	glm::vec3 begin;
+	glm::vec3 end;
+};
 
 void Scene::Init()
 {
+	_gameObjects.clear();
+	_gameObjects.reserve(1000);
+
 	GameObject& chair = _gameObjects.emplace_back(GameObject());
-	chair.SetModel("chair");
+	chair.SetModel("FallenChairBottom");
 	chair.SetPosition(glm::vec3(0.8f, 0, 1.1f));
 	chair.SetRotationY(3.7f);
 	chair.SetMeshMaterial("FallenChair");
+	chair.EnableCollision();
+	chair.SetBoundingBoxFromMesh(0);
+
+	GameObject& chair1 = _gameObjects.emplace_back(GameObject());
+	chair1.SetModel("FallenChairTop");
+	chair1.SetPosition(glm::vec3(0.8f, 0, 1.1f));
+	chair1.SetRotationY(3.7f);
+	chair1.SetMeshMaterial("FallenChair");
 
 	GameObject& floor = _gameObjects.emplace_back(GameObject());
 	floor.SetModel("floor");
 	floor.SetMeshMaterial("FloorBoards");
+
+	GameObject& bathroomfloor = _gameObjects.emplace_back(GameObject());
+	bathroomfloor.SetModel("bathroom_floor");
+	bathroomfloor.SetMeshMaterial("BathroomFloor");
+
+	GameObject& ceiling = _gameObjects.emplace_back(GameObject());
+	ceiling.SetModel("ceiling");
+	ceiling.SetMeshMaterial("Ceiling");
+
+	GameObject& bathroom_ceiling = _gameObjects.emplace_back(GameObject());
+	bathroom_ceiling.SetModel("bathroom_ceiling");
+	bathroom_ceiling.SetMeshMaterial("Ceiling");
 
 	GameObject& skull = _gameObjects.emplace_back(GameObject());
 	skull.SetModel("skull");
@@ -39,6 +66,8 @@ void Scene::Init()
 		drawers.SetRotationY(-NOOSE_PI / 2);
 		drawers.SetMeshMaterial("Drawers");
 		drawers.SetName("ChestOfDrawers");
+		drawers.SetBoundingBoxFromMesh(0); 
+		drawers.EnableCollision();
 
 		GameObject& topLeftDrawer = _gameObjects.emplace_back(GameObject());
 		topLeftDrawer.SetModel("DrawerTopLeft");
@@ -83,8 +112,9 @@ void Scene::Init()
 		diary.SetRotationY(0.4f);
 		diary.SetScale(0.75f);
 		diary.SetMeshMaterial("Diary");
+		diary.SetPickUpText("Take your [g]WIFE'S DIARY[w]?");
+		diary.SetQuestion("Take the [g]WIFE'S DIARY[w]?", [&diary]()mutable { diary.PickUp(); });
 		//diary.m_pickUpName = "Wife's Diary";
-		//diary.m_pickUpText = "Take your [r]WIFE'S DIARY[w]?";
 
 	}
 
@@ -96,10 +126,10 @@ void Scene::Init()
 	skull2.SetMeshMaterial("BlackSkull");
 	skull2.SetScale(0.1f);
 	skull2.SetParentName("ChestOfDrawers");
-
-	GameObject& ceiling = _gameObjects.emplace_back(GameObject());
-	ceiling.SetModel("ceiling");
-	ceiling.SetMeshMaterial("Ceiling");
+	skull2.SetName("SKULLLL");
+	//skull2.SetPickUpText("Take the [g]BLACK SKULL[w]?");
+	skull2.SetQuestion("Take the [g]BLACK SKULL[w]?", [&skull2]()mutable { skull2.PickUp(); });
+	
 
 	GameObject& wife = _gameObjects.emplace_back(GameObject());
 	wife.SetModel("wife");
@@ -117,29 +147,56 @@ void Scene::Init()
 	wife.SetMeshMaterial("Noose", 7);
 	wife.SetMeshMaterial("Noose", 8);
 
+
 	float DOOR_WIDTH = 0.8f;
 
 	float roomZmin = -1.8f;
 	float roomZmax = 1.8f;
 	float roomXmin = -2.75f;
 	float roomXmax = 1.6f;
+
+	float bathroomXmin = -2.715f;
+	float bathroomXmax = -0.76f;
+	float bathroomZmin = 1.9f;
+	float bathroomZmax = 3.8f;
+
 	float bathroomDoorX = -1.6f;
 	float doorWidth = 0.9;
 	float hallDoorX = 0.5f;
 
 	GameObject& door0 = _gameObjects.emplace_back(GameObject());
 	door0.SetModel("door");
+	door0.SetName("Door");
 	door0.SetMeshMaterial("Door");
 	door0.SetRotationY(NOOSE_HALF_PI);
-	door0.SetPosition(hallDoorX + 0.39550f, 0, -2.05 + 0.2f + 0.058520 - 0.1);
+	door0.SetPosition(hallDoorX + 0.39550f, 0, -1.85 - 0.058520);
 	door0.SetScriptName("OpenableDoor");
 	door0.SetOpenState(OpenState::CLOSED, 5.208f, NOOSE_HALF_PI, NOOSE_HALF_PI - 1.9f);
 
 	GameObject& doorFrame0 = _gameObjects.emplace_back(GameObject());
-	doorFrame0.SetModel("door_frame");
+	doorFrame0.SetModel("door_frame"); 
+	doorFrame0.SetName("DoorFrame");
 	doorFrame0.SetMeshMaterial("Door");
 	doorFrame0.SetRotationY(NOOSE_HALF_PI);
 	doorFrame0.SetPosition(hallDoorX, 0, -2.05 + 0.2f);
+
+	GameObject& door1 = _gameObjects.emplace_back(GameObject());
+	door1.SetModel("door");
+	door1.SetName("Door");
+	door1.SetMeshMaterial("Door");
+	door1.SetRotationY(NOOSE_HALF_PI);
+	door1.SetPosition(bathroomDoorX - 0.39550f, 0, bathroomZmin - 0.05f + 0.058520);
+	door1.SetScriptName("OpenableDoor");
+	door1.SetOpenState(OpenState::CLOSED, 5.208f, -NOOSE_HALF_PI, -1.9f -NOOSE_HALF_PI); 
+
+
+	GameObject& doorFrame1 = _gameObjects.emplace_back(GameObject());
+	doorFrame1.SetModel("door_frame");
+	doorFrame1.SetName("DoorFrame");
+	doorFrame1.SetMeshMaterial("Door");
+	doorFrame1.SetRotationY(-NOOSE_HALF_PI);
+	doorFrame1.SetPosition(bathroomDoorX, 0, bathroomZmin - 0.05f);
+
 
 	GameObject& lightSwitch = _gameObjects.emplace_back(GameObject());
 	lightSwitch.SetModel("light_switch");
@@ -151,35 +208,143 @@ void Scene::Init()
 	GameObject& vase = _gameObjects.emplace_back(GameObject());
 	vase.SetModel("vase");
 	vase.SetRotationY(-0.6f - NOOSE_HALF_PI);
-	vase.SetPosition(1.6f -0.4f, 1.49f, 0.395f);
+	vase.SetPosition(1.6f - 0.4f, 1.49f, 0.395f);
 	vase.SetMeshMaterial("Vase");
-
+	vase.SetName("Vase");
+	
+	GameObject& keyInVase = _gameObjects.emplace_back(GameObject());
+	keyInVase.SetModel("KeyInVase");
+	keyInVase.SetRotationY(-0.6f - NOOSE_HALF_PI);
+	keyInVase.SetPosition(1.6f - 0.4f, 1.49f, 0.395f);
+	keyInVase.SetMeshMaterial("SmallKey");
+	keyInVase.SetName("Key");
+	//keyInVase.SetPickUpText("Take the [g]SMALL KEY[w]?");
+	keyInVase.SetBoundingBoxFromMesh(0);
+	keyInVase.EnableCollision();
+	keyInVase.SetQuestion("Take the [g]SMALL KEY[w]?", [&keyInVase]()mutable { keyInVase.PickUp(); } );
+	
 	GameObject& flowers = _gameObjects.emplace_back(GameObject());
 	flowers.SetModel("flowers");
 	flowers.SetRotationY(-0.6f - NOOSE_HALF_PI);
 	flowers.SetPosition(1.6f - 0.4f, 1.49f, 0.395f);
 	flowers.SetMeshMaterial("Flowers");
+	flowers.SetName("Flowers");
+	flowers.SetQuestion("Take the [g]FLOWERS[w]?", Callbacks::TakeFlowers);
+	//flowers.SetPickUpCallback(Callbacks::PrimeVaseForFlowerReturn);
+
+	//flowers.SetQuestion("Take the [g]FLOWERS[w]?", [flowers]()mutable { flowers.PickUp(); } );
+
+	GameObject& _toilet = _gameObjects.emplace_back(GameObject());
+	_toilet.SetModel("Toilet");
+	_toilet.SetMeshMaterial("Toilet");
+	_toilet.SetName("Toilet");
+	_toilet.SetPosition(-1.4, 0.0f, 3.8f);
+
+	GameObject& toiletLid = _gameObjects.emplace_back(GameObject());
+	toiletLid.SetModel("ToiletLid");
+	toiletLid.SetMeshMaterial("Toilet");
+	toiletLid.SetPosition(0, 0.40727, -0.2014);
+	toiletLid.SetScriptName("OpenableToiletLid");
+	toiletLid.SetParentName("Toilet");
+	//toiletLid.SetOpenState("OpenableToiletLid");
+	//toiletLid.m_openState = OpenState::OPENING;
+
+	GameObject& toiletSeat = _gameObjects.emplace_back(GameObject());
+	toiletSeat.SetModel("ToiletSeat");
+	toiletSeat.SetMeshMaterial("Toilet");
+	toiletSeat.SetPosition(0, 0.40727, -0.2014);
+	toiletSeat.SetScriptName("OpenableToiletSeat");
+	toiletSeat.SetParentName("Toilet");
+
+	GameObject& bathroomHeater = _gameObjects.emplace_back(GameObject());
+	bathroomHeater.SetModel("Heater");
+	bathroomHeater.SetMeshMaterial("Heater");
+	bathroomHeater.SetPosition(-0.76f, 0.0f, 3.3f);
+
+	GameObject& toiletPaper = _gameObjects.emplace_back(GameObject());
+	toiletPaper.SetModel("ToiletPaper");
+	toiletPaper.SetMeshMaterial("Toilet");
+	toiletPaper.SetPosition(-1.8, 0.7f, 3.8f);
+
+	GameObject& basin = _gameObjects.emplace_back(GameObject());
+	basin.SetModel("Basin");
+	basin.SetMeshMaterial("Basin");
+	basin.SetPosition(-0.76f, 0.0f, 2.55f);
+
+	GameObject& towel = _gameObjects.emplace_back(GameObject());
+	towel.SetModel("Towel");
+	towel.SetMeshMaterial("Basin");
+	towel.SetPosition(-0.76f, 1.8f, 3.3f);
+
+	GameObject& bin = _gameObjects.emplace_back(GameObject());
+	bin.SetModel("BathroomBin");
+	bin.SetMeshMaterial("BathroomBin");
+	bin.SetName("BathroomBin");
+	bin.SetPosition(-0.81, 0.0f, 2.15f);
+
+	GameObject& bathroomBinPedal = _gameObjects.emplace_back(GameObject());
+	bathroomBinPedal.SetModel("BathroomBinPedal");
+	bathroomBinPedal.SetMeshMaterial("BathroomBin");
+	bathroomBinPedal.SetParentName("BathroomBin");
+
+	GameObject& bathroomBinLid = _gameObjects.emplace_back(GameObject());
+	bathroomBinLid.SetModel("BathroomBinLid");
+	bathroomBinLid.SetMeshMaterial("BathroomBin");
+	bathroomBinLid.SetParentName("BathroomBin");
+	bathroomBinLid.SetPositionY(0.22726f);
+
+	GameObject& cabinet = _gameObjects.emplace_back(GameObject());
+	cabinet.SetModel("CabinetBody");
+	cabinet.SetMeshMaterial("Cabinet");
+	cabinet.SetName("Cabinet");
+	cabinet.SetPosition(-0.76f, 1.25f, 2.55f);
+
+	GameObject& cabinetDoor = _gameObjects.emplace_back(GameObject());
+	cabinetDoor.SetModel("CabinetDoor");
+	cabinetDoor.SetMeshMaterial("Cabinet");
+	cabinetDoor.SetName("CabinetDoor");
+	cabinetDoor.SetParentName("Cabinet");
+	cabinetDoor.SetPosition(-0.10763f, 0, 0.24941);
+	cabinetDoor.SetScriptName("OpenableCabinet");
+	cabinetDoor.SetOpenState(OpenState::CLOSED, 9, 0, NOOSE_HALF_PI);
+
+	GameObject& cabinetMirror = _gameObjects.emplace_back(GameObject());
+	cabinetMirror.SetModel("CabinetMirror");
+	cabinetMirror.SetMeshMaterial("NumGrid");
+	cabinetMirror.SetParentName("CabinetDoor");
+	cabinetMirror.SetScriptName("OpenCabinetDoor");
+
 
 	/*	X		   C  
 	 	|	  ___________
 		|	 |	     Wife|	
-		|	 |			 |
-		|	 |			 |
-		|  B |			 | A
-		|	 |			 |
-		|	 |			 |
-		|	 |___________|
+		|	 |			 |A
+		|	 |			 |   E
+		|  B |			 |______
+		|	 |			 |      |
+		|	 |			 |______| G  
+		|	 |___________|H  I
 	    |    
-		|		   D 
+		|		   D        F
 	    (0,0)----------------- Z
 	*/
-	Wall& wallA = _walls.emplace_back(glm::vec3(roomXmax, 0, roomZmax), glm::vec3(roomXmin, 0, roomZmax));
-	Wall& wallB = _walls.emplace_back(glm::vec3(roomXmin, 0, roomZmin), glm::vec3(hallDoorX - doorWidth / 2, 0, -roomZmax));
-	Wall& wallB2 = _walls.emplace_back(glm::vec3(hallDoorX + doorWidth / 2, 0, roomZmin), glm::vec3(roomXmax, 0, roomZmin));
-	Wall& wallBC = _walls.emplace_back(glm::vec3(hallDoorX - doorWidth / 2, 2, -roomZmax), glm::vec3(hallDoorX + doorWidth / 2, 2, roomZmin));
-	Wall& wallC = _walls.emplace_back(glm::vec3(roomXmax, 0, roomZmin), glm::vec3(roomXmax, 0, roomZmax));
-	Wall& wallD = _walls.emplace_back(glm::vec3(roomXmin, 0, roomZmax), glm::vec3(roomXmin, 0, roomZmin));
+	Wall& wallA = _walls.emplace_back(glm::vec3(roomXmax, 0, roomZmax), glm::vec3(bathroomDoorX + doorWidth / 2, 0, roomZmax), "WallPaper");
+	Wall& wallH = _walls.emplace_back(glm::vec3(bathroomDoorX - doorWidth / 2, 0, roomZmax), glm::vec3(roomXmin, 0, roomZmax), "WallPaper");
+	Wall& wallAboveBathroomDoor = _walls.emplace_back(glm::vec3(bathroomDoorX + doorWidth / 2, 2, roomZmax), glm::vec3(bathroomDoorX - doorWidth / 2, 2, roomZmax), "WallPaper");
+	Wall& wallB = _walls.emplace_back(glm::vec3(roomXmin, 0, roomZmin), glm::vec3(hallDoorX - doorWidth / 2, 0, -roomZmax), "WallPaper");
+	Wall& wallB2 = _walls.emplace_back(glm::vec3(hallDoorX + doorWidth / 2, 0, roomZmin), glm::vec3(roomXmax, 0, roomZmin), "WallPaper");
+	Wall& wallBC = _walls.emplace_back(glm::vec3(hallDoorX - doorWidth / 2, 2, -roomZmax), glm::vec3(hallDoorX + doorWidth / 2, 2, roomZmin), "WallPaper");
+	Wall& wallC = _walls.emplace_back(glm::vec3(roomXmax, 0, roomZmin), glm::vec3(roomXmax, 0, roomZmax), "WallPaper");
+	Wall& wallD = _walls.emplace_back(glm::vec3(roomXmin, 0, roomZmax), glm::vec3(roomXmin, 0, roomZmin), "WallPaper");
 
+	
+	Wall& wallE = _walls.emplace_back(glm::vec3(bathroomXmax, 0, bathroomZmin), glm::vec3(bathroomXmax, 0, bathroomZmax), "BathroomWall");
+	Wall& wallG = _walls.emplace_back(glm::vec3(bathroomXmax, 0, bathroomZmax), glm::vec3(bathroomXmin, 0, bathroomZmax), "BathroomWall");
+	Wall& wallI = _walls.emplace_back(glm::vec3(bathroomXmin, 0, bathroomZmax), glm::vec3(bathroomXmin, 0, bathroomZmin), "BathroomWall");
+	Wall& wallHI2DOOR = _walls.emplace_back(glm::vec3(bathroomXmin, 0, bathroomZmin), glm::vec3(bathroomDoorX - doorWidth / 2, 0, bathroomZmin), "BathroomWall");
+	Wall& otherGapNextToBathroomDoor = _walls.emplace_back(glm::vec3(bathroomDoorX + doorWidth/2, 0, bathroomZmin), glm::vec3(bathroomXmax, 0, bathroomZmin), "BathroomWall");
+	Wall& aboveBathroomDoor = _walls.emplace_back(glm::vec3(bathroomDoorX - doorWidth / 2, 2, bathroomZmin), glm::vec3(bathroomDoorX + doorWidth / 2, 2, bathroomZmin), "BathroomWall");
+	
 	for (auto& wall : _walls) {
 		GameObject& trim = _gameObjects.emplace_back(GameObject());
 		trim.SetPosition(wall._begin.x, CEILING_HEIGHT - 2.4f, wall._begin.z);
@@ -198,13 +363,18 @@ GameObject* Scene::GetGameObjectByName(std::string name) {
 			return &gameObject;
 		}
 	}
+	std::cout << "Scene::GetGameObjectByName() failed, no object with name \"" << name << "\"\n";
 	return nullptr;
 }
 
-void Scene::Update(float deltaTime) {
+void Scene::Update(GameData& gamedata, float deltaTime) {
 
 	// Player pressed E to interact?
-	if (_hoveredGameObject && _hoveredGameObject->IsInteractable() && Input::KeyPressed(HELL_KEY_E)) {
+	if (_hoveredGameObject && 
+		_hoveredGameObject->IsInteractable() && 
+		Input::KeyPressed(HELL_KEY_E) &&
+		!gamedata.player.m_interactDisabled) {
+
 		_hoveredGameObject->Interact();
 	}
 
@@ -274,20 +444,28 @@ std::vector<MeshRenderInfo> Scene::GetMeshRenderInfos() {
 	}
 	for (Wall& wall: _walls) {		
 		Mesh* mesh = AssetManager::GetMesh(wall._meshIndex);
-		Material* material = AssetManager::GetMaterial("WallPaper");
 		MeshRenderInfo info;
 		info._vkTransform = Util::GetIdentiyVkTransformMatrixKHR();
 		info._deviceAddress = mesh->_accelerationStructure.deviceAddress;
 		info._modelMatrix = glm::mat4(1);
-		info._basecolor = material->_basecolor;
-		info._normal = material->_normal;
-		info._rma = material->_rma;
+		info._basecolor = wall._material->_basecolor;
+		info._normal = wall._material->_normal;
+		info._rma = wall._material->_rma;
 		info._vertexOffset = mesh->_vertexOffset;
 		info._indexOffset = mesh->_indexOffset;
 		info._parent = &wall;
 		info._mesh = mesh;
 		infos.push_back(info);
 	}
+
+	static bool runOnce = true;
+	if (runOnce) {
+		for (int i = 0; i < infos.size(); i++) {
+			//std::cout << i << " " << infos[i]._mesh->_name << " " << "\n";
+		}
+	}
+	runOnce = false;
+
 	return infos;
 }
 
@@ -347,6 +525,80 @@ void Scene::StoreMousePickResult(int instanceIndex, int primitiveIndex)
 			_hitTriangleVertices.push_back(v2);
 		}
 	}
+}
+
+void Scene::ResetCollectedItems() {
+
+	for (GameObject& gameObject : _gameObjects) {
+		gameObject.ResetToInitialState();
+	}
+}
+
+std::vector<Vertex> Scene::GetCollisionLineVertices() {
+
+	std::vector<Vertex> vertices;
+	for (Wall& wall : _walls) {
+		if (wall._begin.y < 1) {
+			vertices.push_back(Vertex(wall._begin));
+			vertices.push_back(Vertex(wall._end));
+		}
+	}
+	for (GameObject& gameObject : _gameObjects) {
+
+		if (gameObject.GetName() == "Door") {
+			glm::mat4 rotationMatrix = gameObject.GetRotationMatrix();
+			const float doorWidth = -0.794f;
+			const float doorDepth = -0.0379f;
+			// Front
+			glm::vec3 pos0 = gameObject.GetPosition();
+			glm::vec3 pos1 = gameObject.GetPosition() + Util::Translate(rotationMatrix, glm::vec3(0.0, 0, doorWidth));
+			// Back
+			glm::vec3 pos2 = gameObject.GetPosition() + Util::Translate(rotationMatrix, glm::vec3(doorDepth, 0, 0));
+			glm::vec3 pos3 = gameObject.GetPosition() + Util::Translate(rotationMatrix, glm::vec3(doorDepth, 0, doorWidth));
+			vertices.push_back(Vertex(pos0));
+			vertices.push_back(Vertex(pos1));
+			vertices.push_back(Vertex(pos2));
+			vertices.push_back(Vertex(pos3));
+			vertices.push_back(Vertex(pos0));
+			vertices.push_back(Vertex(pos2));
+			vertices.push_back(Vertex(pos1));
+			vertices.push_back(Vertex(pos3));
+		}
+
+		else if (gameObject.GetName() == "DoorFrame") {
+			glm::mat4 rotationMatrix = gameObject.GetRotationMatrix();
+			// Front
+			glm::vec3 pos0 = gameObject.GetPosition() +Util::Translate(rotationMatrix, glm::vec3(-0.05, 0, -0.45));
+			glm::vec3 pos1 = gameObject.GetPosition() + Util::Translate(rotationMatrix, glm::vec3(0.05, 0, -0.45));
+			// Back
+			glm::vec3 pos2 = gameObject.GetPosition() + Util::Translate(rotationMatrix, glm::vec3(-0.05, 0, +0.45));
+			glm::vec3 pos3 = gameObject.GetPosition() + Util::Translate(rotationMatrix, glm::vec3(0.05, 0, +0.45));
+			vertices.push_back(Vertex(pos0));
+			vertices.push_back(Vertex(pos1));
+			vertices.push_back(Vertex(pos2));
+			vertices.push_back(Vertex(pos3));
+		}
+
+		else if (gameObject.HasCollisionsEnabled()) {
+			glm::mat4 rotationMatrix = gameObject.GetRotationMatrix();
+			BoundingBox box = gameObject.GetBoundingBox();
+			// Front
+			glm::vec3 pos0 = gameObject.GetPosition() + Util::Translate(rotationMatrix, glm::vec3(box.xLow, 0, box.zLow));
+			glm::vec3 pos1 = gameObject.GetPosition() + Util::Translate(rotationMatrix, glm::vec3(box.xHigh, 0, box.zLow));
+			// Back
+			glm::vec3 pos2 = gameObject.GetPosition() + Util::Translate(rotationMatrix, glm::vec3(box.xLow, 0, box.zHigh));
+			glm::vec3 pos3 = gameObject.GetPosition() + Util::Translate(rotationMatrix, glm::vec3(box.xHigh, 0, box.zHigh));
+			vertices.push_back(Vertex(pos0));
+			vertices.push_back(Vertex(pos1));
+			vertices.push_back(Vertex(pos2));
+			vertices.push_back(Vertex(pos3));
+			vertices.push_back(Vertex(pos0));
+			vertices.push_back(Vertex(pos2));
+			vertices.push_back(Vertex(pos1));
+			vertices.push_back(Vertex(pos3));
+		}
+	}
+	return vertices;
 }
 
 /*

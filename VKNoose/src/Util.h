@@ -13,6 +13,10 @@ namespace Util {
 	#define SMALL_NUMBER		(float)9.99999993922529e-9
 	#define KINDA_SMALL_NUMBER	(float)0.00001
 
+	inline glm::vec3 Translate(glm::mat4& translation, glm::vec3 position) {
+		return translation  * glm::vec4(position, 1.0);
+	}
+
 	inline float FInterpTo(float Current, float Target, float DeltaTime, float InterpSpeed)
 	{
 		// If no interp speed, jump to target value
@@ -136,13 +140,9 @@ namespace Util {
 				glm::vec2 deltaUV2 = uv2 - uv0;
 				float r = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
 				glm::vec3 tangent = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y) * r;
-				glm::vec3 bitangent = (deltaPos2 * deltaUV1.x - deltaPos1 * deltaUV2.x) * r;
 				vert0->tangent = tangent;
 				vert1->tangent = tangent;
 				vert2->tangent = tangent;
-				vert0->bitangent = bitangent;
-				vert1->bitangent = bitangent;
-				vert2->bitangent = bitangent;
 			}
 		}
 	}
@@ -183,17 +183,10 @@ namespace Util {
 		tangentAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
 		tangentAttribute.offset = offsetof(Vertex, tangent);
 
-		VkVertexInputAttributeDescription bitangentAttribute = {};
-		bitangentAttribute.binding = 0;
-		bitangentAttribute.location = 4;
-		bitangentAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
-		bitangentAttribute.offset = offsetof(Vertex, bitangent);
-
 		description.attributes.push_back(positionAttribute);
 		description.attributes.push_back(normalAttribute);
 		description.attributes.push_back(uvAttribute);
 		description.attributes.push_back(tangentAttribute);
-		description.attributes.push_back(bitangentAttribute);
 		return description;
 	}
 
@@ -249,6 +242,23 @@ namespace Util {
 		float theta_radians = atan2(delta_y, delta_x);
 		return -theta_radians;
 	}
+
+	inline glm::vec3 ClosestPointOnLine(glm::vec3 point, glm::vec3 start, glm::vec3 end)
+	{
+		glm::vec2 p(point.x, point.z);
+		glm::vec2 v(start.x, start.z);
+		glm::vec2 w(end.x, end.z);
+
+		const float l2 = ((v.x - w.x) * (v.x - w.x)) + ((v.y - w.y) * (v.y - w.y));
+		if (l2 == 0.0)
+			return glm::vec3(0);
+
+		const float t = std::max(0.0f, std::min(1.0f, dot(p - v, w - v) / l2));
+		const glm::vec2 projection = v + t * (w - v);
+
+		return glm::vec3(projection.x, 0, projection.y);
+	}
+
 	/*
 
 
@@ -386,22 +396,7 @@ namespace Util {
 		return (stat(name.c_str(), &buffer) == 0);
 	}
 
-	inline glm::vec3 ClosestPointOnLine(glm::vec3 point, glm::vec3 start, glm::vec3 end)
-	{
-		glm::vec2 p(point.x, point.z);
-		glm::vec2 v(start.x, start.z);
-		glm::vec2 w(end.x, end.z);
-
-		const float l2 = ((v.x - w.x) * (v.x - w.x)) + ((v.y - w.y) * (v.y - w.y));
-		if (l2 == 0.0)
-			return glm::vec3(0);
-
-		const float t = std::max(0.0f, std::min(1.0f, dot(p - v, w - v) / l2));
-		const glm::vec2 projection = v + t * (w - v);
-
-		return glm::vec3(projection.x, 0, projection.y);
-	}
-
+	
 
 
 	

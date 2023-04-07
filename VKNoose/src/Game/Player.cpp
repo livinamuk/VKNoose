@@ -15,8 +15,8 @@ void Player::UpdateMovement(float deltaTime)
 {
 	m_moving = false;
 
-	//if (m_movementDisabled || GameData::inventoryOpen)
-	//	return;	
+	if (m_movementDisabled)
+		return;	
 
 	glm::vec3 displacement = glm::vec3(0);
 	glm::vec3 forward = glm::normalize(glm::vec3(m_camera.m_front.x, 0, m_camera.m_front.z));
@@ -85,8 +85,8 @@ void Player::UpdateMovement(float deltaTime)
 
 void Player::UpdateMouselook(float deltaTime)
 {
-	//if (m_mouselookDisabled || GameData::inventoryOpen)
-	//	return;
+	if (m_mouselookDisabled)
+		return;
 
 	float mouseSensitivity = 0.005f;
 	float xoffset = Input::GetMouseOffsetY() * mouseSensitivity * Input::_sensitivity * 0.62375f * deltaTime;
@@ -108,26 +108,27 @@ bool Player::IsCrouching()
 	return _crouching;
 }
 
-glm::vec3 ClosestPointOnLine(glm::vec3 point, glm::vec3 start, glm::vec3 end);
-bool CircleIntersectsLine(glm::vec3 center, glm::vec3 point1, glm::vec3 point2, float radius);
+void Player::EvaluateCollsions(std::vector<Vertex>& lines) {
 
-/*bool Player::EvaluateCollision(glm::vec3 lineStart, glm::vec3 lineEnd)
-{
-	float radius = m_radius;
-	glm::vec3 playerPos = m_position;
-	playerPos.y = 0;
+	for (int i = 0; i < lines.size(); i += 2) {
 
-	glm::vec3 closestPointOnLine = Util::ClosestPointOnLine(playerPos, lineStart, lineEnd);
+		glm::vec3 lineStart = lines[i].position;
+		glm::vec3 lineEnd = lines[i+1].position;
+		float radius = 0.125f;// m_radius;
+		glm::vec3 playerPos = m_position;
+		playerPos.y = 0;
 
-	glm::vec3 dir = glm::normalize(closestPointOnLine - playerPos);
-	float distToLine = glm::length(closestPointOnLine - playerPos);
-	float correctionFactor = radius - distToLine;
+		glm::vec3 closestPointOnLine = Util::ClosestPointOnLine(playerPos, lineStart, lineEnd);
 
-	if (glm::length(closestPointOnLine - playerPos) < radius) {
-		m_position -= dir * correctionFactor;
-		m_position.y = 0;
-		m_collisionFound = true;
-		return true;
+		glm::vec3 dir = glm::normalize(closestPointOnLine - playerPos);
+		float distToLine = glm::length(closestPointOnLine - playerPos);
+		float correctionFactor = radius - distToLine;
+
+		if (glm::length(closestPointOnLine - playerPos) < radius) {
+			m_position -= dir * correctionFactor;
+			m_position.y = 0;
+			//_collisionFound = true;
+			//return true;
+		}
 	}
-	return false;
-}*/
+}

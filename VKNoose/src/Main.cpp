@@ -9,11 +9,14 @@ int main()
 
 	engine.init();
 
+
+	//engine.load_content();
+
 	engine.run();
 
-	std::cout << "Cleaning up...\n";
+	//std::cout << "Cleaning up...\n";
 	engine.cleanup();
-	std::cout << "Goodbye!\n";
+	//std::cout << "Goodbye!\n";
 
 	return 0;
 }

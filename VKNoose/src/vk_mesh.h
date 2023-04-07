@@ -30,6 +30,7 @@ struct Mesh {
 	Transform _transform;
 	AccelerationStructure _accelerationStructure;
 	std::string _name = "undefined";
+	bool _uploadedToGPU = false;
 
 	void draw(VkCommandBuffer commandBuffer, uint32_t firstInstance);
 };

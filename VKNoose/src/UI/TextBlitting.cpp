@@ -1,4 +1,7 @@
 #include "TextBlitter.h"
+#include "../IO/Input.h"
+#include "../Audio/Audio.h"
+#include "../Game/Scene.h"
 
 namespace TextBlitter {
 
@@ -14,20 +17,36 @@ namespace TextBlitter {
 	std::string _debugTextToBilt = "";
 	int _charCursorIndex = 0;
 	float _textTime = 0;
-	float _textSpeed = 124.75f;
+	float _textSpeed = 200.0f;
+	float _countdownTimer = 0;
 
+	enum QuestionState { CLOSED, TYPING_QUESTION, SELECTED_YES, SELECTED_NO } _questionState;
+	std::string _questionText = "";
+	//GameObject* _pickUpItemInQuestion = nullptr;
+	std::function<void(void)> _questionCallback;
 
 	void TextBlitter::Type(std::string text) {
-		_textTime = 0;
+		ResetBlitter();
 		_textToBilt = text;
+		_countdownTimer = 2;
 	}
 
 	void TextBlitter::AddDebugText(std::string text) {
 		_debugTextToBilt += text + "\n";
 	}
 
-	void TextBlitter::Reset() {
+	void TextBlitter::ResetDebugText() {
 		_debugTextToBilt = "";
+	}
+
+	void TextBlitter::ResetBlitter() {
+		_textTime = 0;
+		_textToBilt = "";
+		_questionText = "";
+		_questionCallback = nullptr;
+		_questionState = QuestionState::CLOSED;
+		_charCursorIndex = 0;
+		_countdownTimer = 0;
 	}
 
 	void TextBlitter::Update(float deltaTime) {
@@ -37,13 +56,74 @@ namespace TextBlitter {
 
 		float xcursor = _xMargin;
 		float ycursor = _yMargin;
+		int color = 0; // 0 for white, 1 for green
 
+		// Decrement timer
+		if (_countdownTimer > 0)
+			_countdownTimer -= deltaTime; 
+		// Wipe the text if timer equals zero  
+		if (_countdownTimer < 0) {
+			ResetBlitter();
+		}
+
+		// If a quesiton is active, shift the Y margin, and set _textToBlit to the question
+		if (_questionState != QuestionState::CLOSED) {
+			_textToBilt = _questionText;
+			ycursor += _lineHeight;
+
+			// If the question has finished typing then select yes by default
+			if (_questionState == QuestionState::TYPING_QUESTION && _charCursorIndex >= _textToBilt.length()) {
+				_questionState = QuestionState::SELECTED_YES;
+			}
+			// Show the YES/NO arrow
+			if (_questionState == QuestionState::SELECTED_YES) {
+				_textToBilt += "\n" + std::string(">YES  NO");
+			}
+			else if (_questionState == QuestionState::SELECTED_NO) {
+				_textToBilt += "\n" + std::string(" YES >NO");
+			}
+			// Move the arrow left
+			if (Input::KeyPressed(HELL_KEY_A) && _questionState == QuestionState::SELECTED_NO) {
+				_questionState = QuestionState::SELECTED_YES;
+				Audio::PlayAudio("RE_bleep.wav", 0.5f);
+			}
+			// Move the arrow right
+			else if (Input::KeyPressed(HELL_KEY_D) && _questionState == QuestionState::SELECTED_YES) {
+				_questionState = QuestionState::SELECTED_NO;
+				Audio::PlayAudio("RE_bleep.wav", 0.5f);
+			}
+			// Confirm YES
+			else if (Input::KeyPressed(HELL_KEY_E) && _questionState == QuestionState::SELECTED_YES) {
+				Audio::PlayAudio("RE_type.wav", 1.0f);
+				if (_questionCallback)
+					_questionCallback();
+				ResetBlitter();
+				return;
+			}
+			// Confirm NO
+			else if (Input::KeyPressed(HELL_KEY_E) && _questionState == QuestionState::SELECTED_NO) {
+				Audio::PlayAudio("RE_type.wav", 1.0f);
+				ResetBlitter();
+				return;
+			}
+		}
+
+		// Type blitting
 		for (int i = 0; i < _textToBilt.length() && i < _charCursorIndex; i++)
 		{
 			char character = _textToBilt[i];
 			if (_textToBilt[i] == '[' &&
+				_textToBilt[(size_t)i + 1] == 'w' &&
 				_textToBilt[(size_t)i + 2] == ']') {
 				i += 2;
+				color = 0;
+				continue;
+			}
+			if (_textToBilt[i] == '[' &&
+				_textToBilt[(size_t)i + 1] == 'g' &&
+				_textToBilt[(size_t)i + 2] == ']') {
+				i += 2;
+				color = 1;
 				continue;
 			}
 			if (character == ' ') {
@@ -55,6 +135,9 @@ namespace TextBlitter {
 				ycursor -= _lineHeight;
 				continue;
 			}
+
+			//std::cout << i << ": " << color << "\n";
+
 			size_t charPos = _charSheet.find(character);
 
 			float texWidth = _charExtents[charPos].width;
@@ -75,6 +158,7 @@ namespace TextBlitter {
 			GPUObjectData data;
 			data.modelMatrix = transform.to_mat4();
 			data.index_basecolor = charPos;
+			data.index_normals = color; // color stored in normals
 			_objectData.push_back(data);
 
 			xcursor += texWidth + _charSpacing;
@@ -120,9 +204,22 @@ namespace TextBlitter {
 			GPUObjectData data;
 			data.modelMatrix = transform.to_mat4();
 			data.index_basecolor = charPos;
+			data.index_normals = 0;
 			_objectData.push_back(data);
 
 			xcursor += texWidth + _charSpacing;
 		}
+	}
+
+	void TextBlitter::AskQuestion(std::string question, std::function<void(void)> callback) {
+		Audio::PlayAudio("RE_type.wav", 1.0f);
+		ResetBlitter();
+		_questionState = QuestionState::TYPING_QUESTION;	
+		_questionText = question;
+		_questionCallback = callback;
+	}
+
+	bool TextBlitter::QuestionIsOpen() {
+		return (_questionState != QuestionState::CLOSED);
 	}
 }

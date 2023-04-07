@@ -20,11 +20,13 @@ struct MeshRenderInfo {
 
 namespace Scene {
 	void Init();
-	void Update(float deltaTime);
+	void Update(GameData& gamedata, float deltaTime);
 	std::vector<GameObject>& GetGameObjects();	
 	std::vector<MeshRenderInfo> GetMeshRenderInfos();
 	void StoreMousePickResult(int instanceIndex, int primitiveIndex);
+	void ResetCollectedItems();
 	GameObject* GetGameObjectByName(std::string);
+	std::vector<Vertex> GetCollisionLineVertices();
 
 	inline uint32_t _instanceIndex = 0;
 	inline uint32_t _primitiveIndex = 0;

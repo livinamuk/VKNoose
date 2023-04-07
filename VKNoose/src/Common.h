@@ -16,7 +16,10 @@
 
 #define CEILING_HEIGHT 2.5f
 
+enum class DebugMode { NONE, RAY, COLLISION, DEBUG_MODE_COUNT };
 enum class OpenState { CLOSED, CLOSING, OPEN, OPENING, STOPPED };
+
+typedef void (*callback_function)(void); // type for conciseness
 
 struct FileInfo {
 	std::string fullpath;
@@ -34,20 +37,22 @@ struct VertexInputDescription {
 
 struct Vertex {
 
-	glm::vec3 position;
-	float pad;
+	glm::vec3 position = glm::vec3(0);
+	float pad = 0;
 
-	glm::vec3 normal;
-	float pad2;
+	glm::vec3 normal = glm::vec3(0);
+	float pad2 = 0;
 
-	glm::vec2 uv;
-	glm::vec2 pad3;
+	glm::vec2 uv = glm::vec2(0);
+	glm::vec2 pad3 = glm::vec2(0);
 
-	glm::vec3 tangent;
-	float pad4;
+	glm::vec3 tangent = glm::vec3(0);
+	float pad4 = 0;
 
-	glm::vec3 bitangent;
-	float pad5;
+	Vertex() {};
+	Vertex(glm::vec3 pos) {
+		position = pos;
+	}
 
 	bool operator==(const Vertex& other) const {
 		return position == other.position && normal == other.normal && uv == other.uv;

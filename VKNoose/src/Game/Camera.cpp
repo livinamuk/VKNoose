@@ -31,7 +31,7 @@ void Camera::Update(bool moving, bool crouching, float deltaTime)
 	{
 		breatheBobTime += deltaTime;
 		float breatheAmplitude = 0.000515f;
-		float breatheFrequency = 8;
+		float breatheFrequency = 3;
 		breatheBob.position.x = cos(breatheBobTime * breatheFrequency) * breatheAmplitude * 1;
 		breatheBob.position.y = sin(breatheBobTime * breatheFrequency) * breatheAmplitude * 2;
 	}

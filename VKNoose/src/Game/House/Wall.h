@@ -7,7 +7,7 @@
 struct Wall {
 	// methods
 	Wall() {}
-	Wall(glm::vec3 begin, glm::vec3 end);
+	Wall(glm::vec3 begin, glm::vec3 end, std::string materialName);
 	// fields
 	int _meshIndex = 0;
 	Material* _material = nullptr;

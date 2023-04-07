@@ -5,6 +5,7 @@ layout (location = 1) in vec2 vTexCoord;
 
 layout (location = 1) out vec2 texCoord;
 layout (location = 2) out flat int textureIndex;
+layout (location = 3) out flat int colorIndex;
 
 struct ObjectData{
 	mat4 model;
@@ -23,6 +24,7 @@ void main()
 {	
 	mat4 modelMatrix = objectBuffer.objects[gl_InstanceIndex].model;
 	textureIndex = int(objectBuffer.objects[gl_InstanceIndex].index_basecolor);
+	colorIndex = int(objectBuffer.objects[gl_InstanceIndex].index_normals);
 	gl_Position = modelMatrix * vec4(vPosition, 1.0);
 	texCoord = vTexCoord;
 }

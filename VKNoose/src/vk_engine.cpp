@@ -13,6 +13,7 @@
 #include "Game/AssetManager.h"
 #include "Game/Scene.h"
 #include "Renderer/RasterRenderer.h"
+#include "Profiler.h"
 
 #define NOOSE_PI 3.14159265359f
 
@@ -39,8 +40,9 @@ using namespace std;
 	} while (0)
 
 void VulkanEngine::init()
-{	
-	_gameData.player.m_position = glm::vec3(0, 0, -2);
+{
+	_gameData.player.m_position = glm::vec3(-2.7f, 0, 0);
+	_gameData.player.m_camera.m_transform.rotation = glm::vec3(-0.25f, -NOOSE_HALF_PI, 0);
 
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -50,52 +52,99 @@ void VulkanEngine::init()
 	glfwSetWindowUserPointer(_window, this);
 	glfwSetFramebufferSizeCallback(_window, framebufferResizeCallback);
 
-	AssetManager::Init();
-	AssetManager::LoadAssets();
-
-	init_vulkan();
-	init_swapchain();
-	create_render_targets();
-	create_command_buffers();
-
-	init_sync_structures();
-	init_descriptors();
-	load_shaders();
-	create_pipelines();
-	create_pipelines_2();
-	load_images();
-	init_scene();
-
-	//std::cout << "rayTracingPipelineProperties.shaderGroupBaseAlignment is: " << rayTracingPipelineProperties.shaderGroupBaseAlignment << "\n";
-
-	Scene::Init();
-	upload_meshes();
-	init_raytracing();
-
-
-
-
-
-
-	/*
-	VkDescriptorImageInfo	descriptorImageInfos[TEXTURE_ARRAY_SIZE];
-
-	for (uint32_t i = 0; i < TEXTURE_ARRAY_SIZE; ++i) {
-		descriptorImageInfos[i].sampler = nullptr;
-		descriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		descriptorImageInfos[i].imageView = AssetManager::GetTexture(0)->imageView; // fill with dummy
+	
+	{
+		Profiler profiler("init_vulkan", true);
+		init_vulkan();
+	}
+	{
+		Profiler profiler("init_swapchain", true);
+		init_swapchain();
+	}
+	{
+		Profiler profiler("create_render_targets", true);
+		create_render_targets();
+	}
+	{
+		Profiler profiler("create_command_buffers", true);
+		create_command_buffers();
+	}
+	{
+		Profiler profiler("init_sync_structures", true);
+		init_sync_structures();
+	}
+	{
+		Profiler profiler("init_descriptors", true);
+		init_descriptors();
+	}
+	{
+		Profiler profiler("load_shaders", true);
+		load_shaders();
+	}
+	{
+		Profiler profiler("create_pipelines", true);
+		create_pipelines();
+	}
+	{
+		Profiler profiler("create_pipelines_2", true);
+		create_pipelines_2();
+	}
+	{
+		Profiler profiler("AssetManager::Init", true);
+		AssetManager::Init();
+	}
+	{
+		Profiler profiler("AssetManager::LoadFont()", true);
+		AssetManager::LoadFont(*this);
+	}
+	{
+		Profiler profiler("upload_textures()", true);
+		upload_textures();
+	}
+	{
+		Profiler profiler("AssetManager::LoadBlitterQuad()", true);
+		AssetManager::LoadBlitterQuad();
+	}
+	{
+		Profiler profiler("upload_meshes()", true);
+		upload_meshes();
+	}
+	{
+		Profiler profiler("LoadTextures()", true);
+		AssetManager::LoadTextures(*this);	// Loads everything in res/textures, excluding the already loaded font characters 
 	}
 
-	for (uint32_t i = 0; i < AssetManager::GetNumberOfTextures(); ++i) {
-		descriptorImageInfos[i].sampler = nullptr;
-		descriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		descriptorImageInfos[i].imageView = AssetManager::GetTexture(i)->imageView;
+	{
+		Profiler profiler("LoadModels()", true);
+		AssetManager::LoadModels();			// Loads the hardcoded models
 	}
-	*/
+	{
+		Profiler profiler("upload_textures()", true);
+		upload_textures();
+	}
+	AssetManager::BuildMaterials();
+	
+	Scene::Init();						// Scene::Init creates wall geometry, and thus must run before upload_meshes
+	{
+		Profiler profiler("upload_meshes()", true);
+		upload_meshes();
+	}
 
+	
 
 	Input::Init(_windowExtent.width, _windowExtent.height);
 	Audio::Init();
+
+
+	create_rt_buffers();
+	createTopLevelAccelerationStructure();
+	createStorageImage();
+	createUniformBuffer();
+
+	init_raytracing();
+
+
+	createShaderBindingTable();
 }
 
 void VulkanEngine::cleanup_shaders()
@@ -158,6 +207,7 @@ void VulkanEngine::cleanup()
 
 	// Mesh buffers
 	for (Mesh& mesh: AssetManager::GetMeshList()) {
+
 		vmaDestroyBuffer(_allocator, mesh._transformBuffer._buffer, mesh._transformBuffer._allocation);
 		vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
 		if (mesh._indexCount > 0) {
@@ -211,47 +261,7 @@ void VulkanEngine::cleanup()
 
 void VulkanEngine::init_raytracing()
 {
-	// Get the ray tracing and accelertion structure related function pointers required by this sample
-	vkGetBufferDeviceAddressKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(vkGetDeviceProcAddr(_device, "vkGetBufferDeviceAddressKHR"));
-	vkCmdBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(_device, "vkCmdBuildAccelerationStructuresKHR"));
-	vkBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(_device, "vkBuildAccelerationStructuresKHR"));
-	vkCreateAccelerationStructureKHR = reinterpret_cast<PFN_vkCreateAccelerationStructureKHR>(vkGetDeviceProcAddr(_device, "vkCreateAccelerationStructureKHR"));
-	vkDestroyAccelerationStructureKHR = reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(vkGetDeviceProcAddr(_device, "vkDestroyAccelerationStructureKHR"));
-	vkGetAccelerationStructureBuildSizesKHR = reinterpret_cast<PFN_vkGetAccelerationStructureBuildSizesKHR>(vkGetDeviceProcAddr(_device, "vkGetAccelerationStructureBuildSizesKHR"));
-	vkGetAccelerationStructureDeviceAddressKHR = reinterpret_cast<PFN_vkGetAccelerationStructureDeviceAddressKHR>(vkGetDeviceProcAddr(_device, "vkGetAccelerationStructureDeviceAddressKHR"));
-	vkCmdTraceRaysKHR = reinterpret_cast<PFN_vkCmdTraceRaysKHR>(vkGetDeviceProcAddr(_device, "vkCmdTraceRaysKHR"));
-	vkGetRayTracingShaderGroupHandlesKHR = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(vkGetDeviceProcAddr(_device, "vkGetRayTracingShaderGroupHandlesKHR"));
-	vkCreateRayTracingPipelinesKHR = reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(vkGetDeviceProcAddr(_device, "vkCreateRayTracingPipelinesKHR"));
-	// Debug marker shit
-	vkSetDebugUtilsObjectNameEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(vkGetDeviceProcAddr(_device, "vkSetDebugUtilsObjectNameEXT"));
-	//pfnDebugMarkerSetObjectTag = reinterpret_cast<PFN_vkDebugMarkerSetObjectTagEXT>(vkGetDeviceProcAddr(_device, "vkDebugMarkerSetObjectTagEXT"));
-	//pfnDebugMarkerSetObjectName = reinterpret_cast<PFN_vkDebugMarkerSetObjectNameEXT>(vkGetDeviceProcAddr(_device, "vkDebugMarkerSetObjectNameEXT"));
-	//pfnCmdDebugMarkerBegin = reinterpret_cast<PFN_vkCmdDebugMarkerBeginEXT>(vkGetDeviceProcAddr(_device, "vkCmdDebugMarkerBeginEXT"));
-	//pfnCmdDebugMarkerEnd = reinterpret_cast<PFN_vkCmdDebugMarkerEndEXT>(vkGetDeviceProcAddr(_device, "vkCmdDebugMarkerEndEXT"));
-	//pfnCmdDebugMarkerInsert = reinterpret_cast<PFN_vkCmdDebugMarkerInsertEXT>(vkGetDeviceProcAddr(_device, "vkCmdDebugMarkerInsertEXT"));
-
-	// Get ray tracing pipeline properties, which will be used later on in the sample
-	rayTracingPipelineProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
-	VkPhysicalDeviceProperties2 deviceProperties2{};
-	deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-	deviceProperties2.pNext = &rayTracingPipelineProperties;
-	vkGetPhysicalDeviceProperties2(_chosenGPU, &deviceProperties2);
-
-	// Get acceleration structure properties, which will be used later on in the sample
-	accelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
-	VkPhysicalDeviceFeatures2 deviceFeatures2{};
-	deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-	deviceFeatures2.pNext = &accelerationStructureFeatures;
-	vkGetPhysicalDeviceFeatures2(_chosenGPU, &deviceFeatures2);
-
-	init_rt_scene();
-//	createBottomLevelAccelerationStructure();
-	createTopLevelAccelerationStructure();
-
-	createStorageImage();
-	createUniformBuffer();
 	createRayTracingPipeline();
-	createShaderBindingTable();
 	createDescriptorSets();
 }
 
@@ -304,16 +314,6 @@ void VulkanEngine::create_command_buffers()
 
 void VulkanEngine::update(float deltaTime)
 {
-	for (int j = 0; j < _renderables.size(); j++) {
-		RenderObject& object = _renderables[j];
-		float a = 0.05;
-		if (object.spin) {
-			object.transform.rotation.x += a;
-			object.transform.rotation.y += a;
-			object.transform.rotation.z += a;
-		}
-	}
-
 	//camera projection
 	if (Input::RightMouseDown()) {
 		_cameraZoom -= (5.3f * deltaTime);
@@ -425,13 +425,6 @@ void VulkanEngine::run()
 				_shouldClose = true;
 			}
 
-			if (glfwGetKey(_window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-				_selectedShader += 1;
-				if (_selectedShader > 1) {
-					_selectedShader = 0;
-				}
-			}
-
 			Input::Update(_window);
 			Audio::Update();
 
@@ -439,9 +432,8 @@ void VulkanEngine::run()
 			float currenttime = glfwGetTime();
 			double deltaTime = currenttime - lastTime;
 
-			Scene::Update(deltaTime);
-			TextBlitter::Update(deltaTime);
-			_gameData.player.UpdateMovement(deltaTime);
+			Scene::Update(_gameData, deltaTime);
+			TextBlitter::Update(deltaTime); 
 
 			lastTime = currenttime;
 
@@ -482,11 +474,24 @@ void VulkanEngine::run()
 			}*/
 		//	std::cout << deltaTime << "   " << "\n";
 
+			if (TextBlitter::QuestionIsOpen()) {
+				_gameData.player.m_interactDisabled = true;
+				_gameData.player.m_movementDisabled = true;
+				_gameData.player.m_mouselookDisabled = true;
+			}
+			else {
+				_gameData.player.m_interactDisabled = false;
+				_gameData.player.m_movementDisabled = false;
+				_gameData.player.m_mouselookDisabled = false;
+			}
+
+			_gameData.player.UpdateMovement(deltaTime);
+
+			std::vector collisionLines = Scene::GetCollisionLineVertices();
+			_gameData.player.EvaluateCollsions(collisionLines);
 
 			_gameData.player.UpdateMouselook(deltaTime);
 			_gameData.player.UpdateCamera(deltaTime);
-
-
 
 
 
@@ -502,18 +507,18 @@ void VulkanEngine::run()
 			}
 
 
-			if (Input::KeyPressed(HELL_KEY_1)) {
-				//TextBlitter::Type("I don't feel comfortable in this place.");
-				TextBlitter::Type("I don't feel comfortable here.");
-				Audio::PlayAudio("UI_Select.wav", 0.9f);
+			
+			if (Input::KeyPressed(HELL_KEY_R)) {
+				TextBlitter::ResetBlitter();
+				Audio::PlayAudio("RE_bleep.wav", 0.9f);
+				Scene::ResetCollectedItems();
 			}
-			if (Input::KeyPressed(HELL_KEY_2)) {
-				TextBlitter::Type("This can't be fucking happening.");
-				Audio::PlayAudio("UI_Select.wav", 0.9f);
-			}
-			if (Input::KeyPressed(HELL_KEY_3)) {
-				TextBlitter::Type("");
-			}
+			/*if (Input::KeyPressed(HELL_KEY_SPACE)) {
+				TextBlitter::AskQuestion("Take the [g]HANDGUN BULLETS[w]?");
+			}*/
+
+			static double lastXPositionWhenWindowed = 0;
+			static double lastYPositionWhenWindowed = 0;
 
 			if (Input::KeyPressed(HELL_KEY_F)) {
 				static bool _windowed = true;
@@ -526,12 +531,25 @@ void VulkanEngine::run()
 					glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 					recreate_dynamic_swapchain();
 					_frameBufferResized = false;
+
+					// Store the old mouse position
+					glfwGetCursorPos(_window, &lastXPositionWhenWindowed, &lastYPositionWhenWindowed);
+					// Prevent the camera jumping position from a large x,y mouse offset]
+					double centerX = mode->width / 2;
+					double centerY = mode->height / 2;
+					Input::ForceSetStoredMousePosition(centerX, centerY);
+					// Move cursor to that same position
+					glfwSetCursorPos(_window, centerX, centerY);
 				}
 				else {
 					glfwSetWindowMonitor(_window, nullptr, 0, 0, 1700, 900, 0);
 					glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 					recreate_dynamic_swapchain();
 					_frameBufferResized = false;
+					// Restore the old mouse position
+					glfwSetCursorPos(_window, lastXPositionWhenWindowed, lastYPositionWhenWindowed);
+					// Prevent the camera jumping position from a large x,y mouse offset]
+					Input::ForceSetStoredMousePosition(lastXPositionWhenWindowed, lastYPositionWhenWindowed);
 				}
 			}
 
@@ -539,8 +557,14 @@ void VulkanEngine::run()
 				hotload_shaders();
 			}
 			if (Input::KeyPressed(HELL_KEY_B)) {
-				_showDebugText = !_showDebugText;
-				Audio::PlayAudio("UI_Select2.wav", 0.5f);
+				Audio::PlayAudio("RE_bleep.wav", 0.5f);
+				int debugModeIndex = (int)_debugMode;
+				debugModeIndex++;
+				if (debugModeIndex == (int)DebugMode::DEBUG_MODE_COUNT) {
+					debugModeIndex = 0;
+				}
+				debugModeIndex;
+				_debugMode = (DebugMode)debugModeIndex;
 			}
 			if (Input::KeyPressed(HELL_KEY_C)) {
 				_gameData.player.m_camera._disableHeadBob = !_gameData.player.m_camera._disableHeadBob;
@@ -711,12 +735,6 @@ void VulkanEngine::init_vulkan()
 	_device = vkbDevice.device;
 	_chosenGPU = physicalDevice.physical_device;
 
-	rayTracingPipelineProperties = {};
-	rayTracingPipelineProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
-	VkPhysicalDeviceProperties2 deviceProperties2{};
-	deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-	deviceProperties2.pNext = &rayTracingPipelineProperties;
-	vkGetPhysicalDeviceProperties2(_chosenGPU, &deviceProperties2);
 
 	// use vkbootstrap to get a Graphics queue
 	_graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
@@ -782,6 +800,39 @@ void VulkanEngine::init_vulkan()
 		}
 		std::cout << "\n";
 	}
+
+	// Get the ray tracing and accelertion structure related function pointers required by this sample
+	vkGetBufferDeviceAddressKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(vkGetDeviceProcAddr(_device, "vkGetBufferDeviceAddressKHR"));
+	vkCmdBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(_device, "vkCmdBuildAccelerationStructuresKHR"));
+	vkBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(_device, "vkBuildAccelerationStructuresKHR"));
+	vkCreateAccelerationStructureKHR = reinterpret_cast<PFN_vkCreateAccelerationStructureKHR>(vkGetDeviceProcAddr(_device, "vkCreateAccelerationStructureKHR"));
+	vkDestroyAccelerationStructureKHR = reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(vkGetDeviceProcAddr(_device, "vkDestroyAccelerationStructureKHR"));
+	vkGetAccelerationStructureBuildSizesKHR = reinterpret_cast<PFN_vkGetAccelerationStructureBuildSizesKHR>(vkGetDeviceProcAddr(_device, "vkGetAccelerationStructureBuildSizesKHR"));
+	vkGetAccelerationStructureDeviceAddressKHR = reinterpret_cast<PFN_vkGetAccelerationStructureDeviceAddressKHR>(vkGetDeviceProcAddr(_device, "vkGetAccelerationStructureDeviceAddressKHR"));
+	vkCmdTraceRaysKHR = reinterpret_cast<PFN_vkCmdTraceRaysKHR>(vkGetDeviceProcAddr(_device, "vkCmdTraceRaysKHR"));
+	vkGetRayTracingShaderGroupHandlesKHR = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(vkGetDeviceProcAddr(_device, "vkGetRayTracingShaderGroupHandlesKHR"));
+	vkCreateRayTracingPipelinesKHR = reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(vkGetDeviceProcAddr(_device, "vkCreateRayTracingPipelinesKHR"));
+	// Debug marker shit
+	vkSetDebugUtilsObjectNameEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(vkGetDeviceProcAddr(_device, "vkSetDebugUtilsObjectNameEXT"));
+	//pfnDebugMarkerSetObjectTag = reinterpret_cast<PFN_vkDebugMarkerSetObjectTagEXT>(vkGetDeviceProcAddr(_device, "vkDebugMarkerSetObjectTagEXT"));
+	//pfnDebugMarkerSetObjectName = reinterpret_cast<PFN_vkDebugMarkerSetObjectNameEXT>(vkGetDeviceProcAddr(_device, "vkDebugMarkerSetObjectNameEXT"));
+	//pfnCmdDebugMarkerBegin = reinterpret_cast<PFN_vkCmdDebugMarkerBeginEXT>(vkGetDeviceProcAddr(_device, "vkCmdDebugMarkerBeginEXT"));
+	//pfnCmdDebugMarkerEnd = reinterpret_cast<PFN_vkCmdDebugMarkerEndEXT>(vkGetDeviceProcAddr(_device, "vkCmdDebugMarkerEndEXT"));
+	//pfnCmdDebugMarkerInsert = reinterpret_cast<PFN_vkCmdDebugMarkerInsertEXT>(vkGetDeviceProcAddr(_device, "vkCmdDebugMarkerInsertEXT"));
+
+	// Get ray tracing pipeline properties, which will be used later on in the sample
+	rayTracingPipelineProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
+	VkPhysicalDeviceProperties2 deviceProperties2{};
+	deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+	deviceProperties2.pNext = &rayTracingPipelineProperties;
+	vkGetPhysicalDeviceProperties2(_chosenGPU, &deviceProperties2);
+
+	// Get acceleration structure properties, which will be used later on in the sample
+	accelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+	VkPhysicalDeviceFeatures2 deviceFeatures2{};
+	deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+	deviceFeatures2.pNext = &accelerationStructureFeatures;
+	vkGetPhysicalDeviceFeatures2(_chosenGPU, &deviceFeatures2);
 }
 
 void VulkanEngine::init_swapchain()
@@ -914,18 +965,26 @@ void VulkanEngine::hotload_shaders()
 
 	vkDestroyPipeline(_device, _textblitterPipeline, nullptr);
 	vkDestroyPipelineLayout(_device, _textblitterPipelineLayout, nullptr);
+	vkDestroyPipeline(_device, _linelistPipeline, nullptr);
+	vkDestroyPipelineLayout(_device, _linelistPipelineLayout, nullptr);
+
+	// ray tracing
 	vkDestroyDescriptorSetLayout(_device, _rtDescriptorSetLayout, nullptr);
 	vkDestroyPipeline(_device, _rtPipeline, nullptr);
 	vkDestroyPipelineLayout(_device, _rtPipelineLayout, nullptr);
 	vkDestroyDescriptorSetLayout(_device, _rtObjectDescDescriptorSetLayout, nullptr);
+	vkDestroyDescriptorPool(_device, _rtDescriptorPool, nullptr);
+	vmaDestroyBuffer(_allocator, _rtObjectDescBuffer._buffer, _rtObjectDescBuffer._allocation);
+
+
 
 	load_shaders();
 	create_pipelines();
 	create_pipelines_2();
 
-	// ray tracing pipeline shit
-	createRayTracingPipeline();
-	init_scene();
+
+
+	init_raytracing();
 }
 
 
@@ -1273,40 +1332,15 @@ void VulkanEngine::draw_quad(Transform transform, Texture* texture)
 
 void VulkanEngine::upload_meshes() {
 	for (Mesh& mesh : AssetManager::GetMeshList()) {
-		//std::cout << "-verts " << mesh._vertexCount << " indices " << mesh._indexCount << "\n";
-		upload_mesh(mesh);
-	}
-	//std::cout << "Uploaded " << AssetManager::GetMeshList().size() << " meshes ";
-	//std::cout << "(" << AssetManager::GetVertices_TEMPORARY().size() << " vertices, ";
-	//std::cout << "" << AssetManager::GetIndices_TEMPORARY().size() << " indices)\n";
-}
-
-void VulkanEngine::build_bottom_level_acceleration_structures() {
-	for (Mesh& mesh : AssetManager::GetMeshList()) {
-		mesh._accelerationStructure = createBottomLevelAccelerationStructure(&mesh);
+		if (!mesh._uploadedToGPU) {
+			upload_mesh(mesh);
+			mesh._accelerationStructure = createBottomLevelAccelerationStructure(&mesh);
+		}
 	}
 }
 
-
-void VulkanEngine::load_texture(std::string filepath)
+void VulkanEngine::upload_textures()
 {
-	Texture texture;
-	AssetManager::load_image_from_file(*this, filepath.c_str(), texture, VkFormat::VK_FORMAT_R8G8B8A8_UNORM, true);
-	AssetManager::AddTexture(texture);
-}
-
-void VulkanEngine::load_images()
-{
-	// Get the width and height of each character, used for text blitting. Probably move this into TextBlitter::Init()
-	TextBlitter::_charExtents.clear();
-	for (size_t i = 1; i <= 90; i++) {
-		load_texture("res/textures/char_" + std::to_string(i) + ".png");
-		TextBlitter::_charExtents.push_back({ AssetManager::GetTexture(i - 1)->_width, AssetManager::GetTexture(i - 1)->_height });
-	}
-
-	AssetManager::LoadTextures(*this); // Loads everything in res/textures, excludes those already loaded above. Later you will use this.
-	AssetManager::BuildMaterials();
-
 	VkDescriptorImageInfo	descriptorImageInfos[TEXTURE_ARRAY_SIZE];
 
 	for (uint32_t i = 0; i < TEXTURE_ARRAY_SIZE; ++i) {
@@ -1347,8 +1381,6 @@ void VulkanEngine::load_images()
 	writes[1].pImageInfo = descriptorImageInfos;
 
 	vkUpdateDescriptorSets(_device, 2, writes, 0, nullptr);
-
-	//std::cout << "Loaded " << _loadedTextures.size() << " textures\n";
 }
 
 void VulkanEngine::upload_mesh(Mesh& mesh)
@@ -1483,106 +1515,10 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 			});
 		vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
 	}
+	mesh._uploadedToGPU = true;
 }
 
-
-
-void VulkanEngine::init_scene()
-{
-	_renderables.clear();
-	/*
-
-	_renderables.push_back(map);
-
-	for (int x = -15; x <= -4; x++) {
-		for (int y = -5; y <= 5; y++) {
-			for (int z = -10; z <= 10; z++) {
-
-				//if (abs(x) < 2 && abs(z) < 3 && y < 3)
-				//	continue;
-
-				RenderObject tri;
-				tri.mesh = get_mesh("triangle");
-				tri.material = get_material("defaultmesh");
-
-				tri.transform.position = glm::vec3(x * 3, y * 3, z * 3);
-				tri.transform.scale = glm::vec3(0.5);
-				tri.transform.rotation.x += Util::RandomFloat(-NOOSE_PI, NOOSE_PI);
-				tri.transform.rotation.y += Util::RandomFloat(-NOOSE_PI, NOOSE_PI);
-				tri.transform.rotation.z += Util::RandomFloat(-NOOSE_PI, NOOSE_PI);
-				tri.spin = true;
-				_renderables.push_back(tri);
-			}
-		}
-	}
-
-
-	Material* texturedMat = get_material("texturedmesh");
-
-	VkDescriptorSetAllocateInfo allocInfo = {};
-	allocInfo.pNext = nullptr;
-	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.descriptorPool = _descriptorPool;
-	allocInfo.descriptorSetCount = 1;
-	allocInfo.pSetLayouts = &_singleTextureSetLayout;
-
-	vkAllocateDescriptorSets(_device, &allocInfo, &texturedMat->textureSet);
-
-	VkDescriptorImageInfo imageBufferInfo;
-	imageBufferInfo.sampler = _sampler;
-	//imageBufferInfo.imageView = _loadedTextures["lost_empire-RGBA"].imageView;
-	imageBufferInfo.imageView = _loadedTextures[0].imageView;
-	imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-	VkWriteDescriptorSet texture1 = {};
-	texture1.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	texture1.pNext = nullptr;
-	texture1.dstBinding = 0;
-	texture1.dstSet = texturedMat->textureSet;
-	texture1.descriptorCount = 1;
-	texture1.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	texture1.pImageInfo = &imageBufferInfo;
-	vkUpdateDescriptorSets(_device, 1, &texture1, 0, nullptr);
-	*/
-
-
-
-
-
-
-	/*	VkDescriptorImageInfo	descriptorImageInfos[TEXTURE_ARRAY_SIZE];
-		for (uint32_t i = 0; i < TEXTURE_ARRAY_SIZE; ++i) {
-			descriptorImageInfos[i].sampler = nullptr;
-			descriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			descriptorImageInfos[i].imageView = _loadedTextures[i].imageView;
-		}
-
-		VkWriteDescriptorSet setWrites[2];
-		setWrites[1] = {};
-		setWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		setWrites[1].dstBinding = 1;
-		setWrites[1].dstArrayElement = 0;
-		setWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-		setWrites[1].descriptorCount = TEXTURE_ARRAY_SIZE;
-		setWrites[1].pBufferInfo = 0;
-		setWrites[1].dstSet = texturedMat->textureSet;//demoData.descriptorSet;
-		setWrites[1].pImageInfo = descriptorImageInfos;// demoData.descriptorImageInfos;
-
-
-		*/
-
-
-
-
-
-
-
-
-
-
-}
-
-AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
+AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags requiredFlags)
 {
 	//allocate vertex buffer
 	VkBufferCreateInfo bufferInfo = {};
@@ -1596,6 +1532,7 @@ AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags
 	//let the VMA library know that this data should be writeable by CPU, but also readable by GPU
 	VmaAllocationCreateInfo vmaallocInfo = {};
 	vmaallocInfo.usage = memoryUsage;
+	vmaallocInfo.requiredFlags = requiredFlags;
 
 	AllocatedBuffer newBuffer;
 
@@ -1606,6 +1543,15 @@ AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags
 		nullptr));
 
 	return newBuffer;
+}
+
+void VulkanEngine::add_debug_name(VkBuffer buffer, const char* name) {
+	VkDebugUtilsObjectNameInfoEXT nameInfo = {};
+	nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+	nameInfo.objectType = VK_OBJECT_TYPE_BUFFER;
+	nameInfo.objectHandle = (uint64_t)buffer;
+	nameInfo.pObjectName = name;
+	vkSetDebugUtilsObjectNameEXT(_device, &nameInfo);
 }
 
 size_t VulkanEngine::pad_uniform_buffer_size(size_t originalSize)
@@ -1870,6 +1816,12 @@ uint32_t VulkanEngine::getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags pr
 
 void VulkanEngine::createAccelerationStructureBuffer(AccelerationStructure& accelerationStructure, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo)
 {
+	// Free the memory if it already exists (which is the case if hotloading shaders causes BLAS for each mesh to be generated)
+	/*if (accelerationStructure.buffer._buffer != VK_NULL_HANDLE) {
+		vmaDestroyBuffer(_allocator, accelerationStructure.buffer._buffer, accelerationStructure.buffer._allocation);
+		vkDestroyAccelerationStructureKHR(_device, accelerationStructure.handle, nullptr);
+	}*/
+
 	VmaAllocationCreateInfo vmaallocInfo = {};
 	vmaallocInfo.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR;
 	vmaallocInfo.usage = VMA_MEMORY_USAGE_AUTO;
@@ -1879,25 +1831,7 @@ void VulkanEngine::createAccelerationStructureBuffer(AccelerationStructure& acce
 	bufferCreateInfo.size = buildSizeInfo.accelerationStructureSize;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 	VK_CHECK(vmaCreateBuffer(_allocator, &bufferCreateInfo, &vmaallocInfo, &accelerationStructure.buffer._buffer, &accelerationStructure.buffer._allocation, nullptr));
-
-	/*VkMemoryRequirements memoryRequirements{};
-	vkGetBufferMemoryRequirements(_device, accelerationStructure.buffer._buffer, &memoryRequirements);
-
-	VkMemoryAllocateFlagsInfo memoryAllocateFlagsInfo{};
-	memoryAllocateFlagsInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO;
-	memoryAllocateFlagsInfo.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR;
-
-	VkMemoryAllocateInfo memoryAllocateInfo{};
-	memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	memoryAllocateInfo.pNext = &memoryAllocateFlagsInfo;
-	memoryAllocateInfo.allocationSize = memoryRequirements.size;
-	memoryAllocateInfo.memoryTypeIndex = getMemoryType(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	VK_CHECK(vkAllocateMemory(_device, &memoryAllocateInfo, nullptr, &accelerationStructure.memory));
-	VK_CHECK(vkBindBufferMemory(_device, accelerationStructure.buffer._buffer, accelerationStructure.memory, 0));*/
-
-	//VmaAllocationCreateInfo vmaallocInfo = {};
-	//vmaallocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-	//vmaCreateBuffer(_allocator, &bufferCreateInfo, &vmaallocInfo, &accelerationStructure.buffer._buffer, &allocation, nullptr);
+	add_debug_name(accelerationStructure.buffer._buffer, "Acceleration Structure Buffer");
 }
 
 uint64_t VulkanEngine::get_buffer_device_address(VkBuffer buffer)
@@ -1931,10 +1865,8 @@ RayTracingScratchBuffer VulkanEngine::createScratchBuffer(VkDeviceSize size)
 	return scratchBuffer;
 }
 
-void VulkanEngine::init_rt_scene()
+void VulkanEngine::create_rt_buffers()
 {
-	build_bottom_level_acceleration_structures();
-
 	//std::vector<Mesh*> meshes = Scene::GetMeshList();
 	//std::vector<Mesh>& meshes = AssetManager::GetMeshList();
 	std::vector<Vertex>& vertices = AssetManager::GetVertices_TEMPORARY();
@@ -1949,22 +1881,12 @@ void VulkanEngine::init_rt_scene()
 		bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 		VmaAllocationCreateInfo vmaallocInfo = {};
 		vmaallocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-		//vmaallocInfo.memoryTypeBits = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-
 		vmaallocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-		//vmaallocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-			//VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT |
-		//	VMA_ALLOCATION_CREATE_MAPPED_BIT;
-
-		//vmaallocInfo.memoryTypeBits = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 		VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo, &_mousePickResultBuffer._buffer, &_mousePickResultBuffer._allocation, nullptr));
 		//vmaMapMemory(_allocator, _mousePickResultBuffer._allocation, &_mousePickResultBuffer._mapped);
 
 		// Copy in inital values of 0
 		uint32_t mousePickResult[2] = { 0, 0 };
-		//memcpy(&mousePickResult, _mousePickResultBuffer._mapped, sizeof(uint32_t) * 2);
-
-
 
 		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		bufferInfo.pNext = nullptr;
@@ -1975,36 +1897,6 @@ void VulkanEngine::init_rt_scene()
 		vmaallocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 		VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo, &_mousePickResultCPUBuffer._buffer, &_mousePickResultCPUBuffer._allocation, nullptr));
 		vmaMapMemory(_allocator, _mousePickResultCPUBuffer._allocation, &_mousePickResultCPUBuffer._mapped);
-
-
-
-		//memcpy(&mousePickResult, _mousePickResultBuffer._mapped, sizeof(uint32_t) * 2);
-
-	/*	uint32_t bufferSize = sizeof(uint32_t) * 2;
-		VkBufferCreateInfo stagingBufCreateInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-		stagingBufCreateInfo.size = bufferSize;
-		stagingBufCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-
-		VmaAllocationCreateInfo stagingAllocCreateInfo = {};
-		stagingAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_TO_CPU;
-		stagingAllocCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
-
-		VkBuffer stagingBuf;
-		VmaAllocation stagingAlloc;
-		VmaAllocationInfo stagingAllocInfo;
-		vmaCreateBuffer(_allocator, &stagingBufCreateInfo, &stagingAllocCreateInfo, &stagingBuf, &stagingAlloc, &stagingAllocInfo);
-
-		// [Executed in runtime]:
-		memcpy(stagingAllocInfo.pMappedData, mousePickResult, bufferSize);
-		vmaFlushAllocation(_allocator, stagingAlloc, 0, VK_WHOLE_SIZE);
-		//vkCmdPipelineBarrier: VK_ACCESS_HOST_WRITE_BIT --> VK_ACCESS_TRANSFER_READ_BIT
-		VkBufferCopy bufCopy = {
-			0, // srcOffset
-			0, // dstOffset,
-			bufferSize }; // size
-		//vkCmdCopyBuffer(commandBuffer, stagingBuf, _mousePickResultBuffer._buffer, 1, &bufCopy);
-		vkCmdCopyBuffer(commandBuffer, _mousePickResultBuffer._buffer, stagingBuf, 1, &bufCopy);
-		vmaDestroyBuffer(_allocator, stagingBuf, stagingAlloc);*/
 	}
 
 	// Vertices
@@ -2720,6 +2612,8 @@ void VulkanEngine::blit_render_target(VkCommandBuffer commandBuffer, RenderTarge
 
 void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 {
+	get_required_lines();
+
 	vmaDestroyBuffer(_allocator, _topLevelAS.buffer._buffer, _topLevelAS.buffer._allocation);
 	vkDestroyAccelerationStructureKHR(_device, _topLevelAS.handle, nullptr);
 	createTopLevelAccelerationStructure();
@@ -2749,79 +2643,8 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	//	vmaDestroyBuffer(_allocator, _lineListMesh._vertexBuffer._buffer, _lineListMesh._vertexBuffer._allocation);
 	//}
 
-	static bool runOnce = true;
+	
 
-	if (runOnce) {
-		VkBufferCreateInfo vertexBufferInfo = {};
-		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		vertexBufferInfo.pNext = nullptr;
-		vertexBufferInfo.size = sizeof(Vertex) * 512; // number of max lines possible
-		vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-		VmaAllocationCreateInfo vmaallocInfo = {};
-		vmaallocInfo.usage = VMA_MEMORY_USAGE_AUTO;;
-		VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo, &vmaallocInfo, &_lineListMesh._vertexBuffer._buffer, &_lineListMesh._vertexBuffer._allocation, nullptr));
-		runOnce = false;
-
-		VkDebugUtilsObjectNameInfoEXT nameInfo = {};
-		nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
-		nameInfo.objectType = VK_OBJECT_TYPE_BUFFER;
-		nameInfo.objectHandle = (uint64_t)_lineListMesh._vertexBuffer._buffer;
-		nameInfo.pObjectName = "Line list mesh";
-		vkSetDebugUtilsObjectNameEXT(_device, &nameInfo);
-	}
-
-	std::vector<Vertex> vertices;
-
-	Vertex v;
-	Vertex v2;
-	v.position = glm::vec3(0, 0, 0);
-	v2.position = glm::vec3(0, 0.2f, 0);
-	//vertices.push_back(v);
-	//vertices.push_back(v2);
-
-	{
-		if (Scene::_hitTriangleVertices.size() == 3) {
-			vertices.push_back(Scene::_hitTriangleVertices[0]);
-			vertices.push_back(Scene::_hitTriangleVertices[1]);
-			vertices.push_back(Scene::_hitTriangleVertices[1]);
-			vertices.push_back(Scene::_hitTriangleVertices[2]);
-			vertices.push_back(Scene::_hitTriangleVertices[2]);
-			vertices.push_back(Scene::_hitTriangleVertices[0]);
-		}
-
-		_lineListMesh._vertexCount = vertices.size();
-
-		if (vertices.size())
-		{
-			const size_t bufferSize = vertices.size() * sizeof(Vertex);
-			VkBufferCreateInfo stagingBufferInfo = {};
-			stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-			stagingBufferInfo.pNext = nullptr;
-			stagingBufferInfo.size = bufferSize;
-			stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
-			VmaAllocationCreateInfo vmaallocInfo = {};
-			vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-			AllocatedBuffer stagingBuffer;
-			VK_CHECK(vmaCreateBuffer(_allocator, &stagingBufferInfo, &vmaallocInfo, &stagingBuffer._buffer, &stagingBuffer._allocation, nullptr));
-
-			void* data;
-			vmaMapMemory(_allocator, stagingBuffer._allocation, &data);
-			memcpy(data, vertices.data(), vertices.size() * sizeof(Vertex));
-			vmaUnmapMemory(_allocator, stagingBuffer._allocation);
-
-			immediate_submit([=](VkCommandBuffer cmd) {
-				VkBufferCopy copy;
-				copy.dstOffset = 0;
-				copy.srcOffset = 0;
-				copy.size = bufferSize;
-				vkCmdCopyBuffer(cmd, stagingBuffer._buffer, _lineListMesh._vertexBuffer._buffer, 1, &copy);
-				});
-
-			vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
-		}
-	}
 
 
 
@@ -2953,7 +2776,10 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	// Queue all text characters for rendering
 	int quadMeshIndex = AssetManager::GetModel("blitter_quad")->_meshIndices[0];
 	for (auto& instanceInfo : TextBlitter::_objectData) {
-		RasterRenderer::SubmitUI(quadMeshIndex, instanceInfo.index_basecolor, instanceInfo.modelMatrix);
+		RasterRenderer::SubmitUI(quadMeshIndex, instanceInfo.index_basecolor, instanceInfo.index_normals, instanceInfo.modelMatrix);
+		// REPLACE INDEX_NORMALS MESS WITH A NEW UBO STRUCT THAT IS JUST MODEL MATRIX, TEXTURE, AND COLOR.
+		// REPLACE INDEX_NORMALS MESS WITH A NEW UBO STRUCT THAT IS JUST MODEL MATRIX, TEXTURE, AND COLOR.
+		// REPLACE INDEX_NORMALS MESS WITH A NEW UBO STRUCT THAT IS JUST MODEL MATRIX, TEXTURE, AND COLOR.
 	}
 
 	// Add the crosshair
@@ -2989,7 +2815,7 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	RasterRenderer::ClearQueue();
 
 	// Draw lines
-	if (_lineListMesh._vertexCount > 0 && _showDebugText) {
+	if (_lineListMesh._vertexCount > 0 && _debugMode != DebugMode::NONE) {
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _linelistPipeline);
 		glm::mat4 projection = glm::perspective(_cameraZoom, 1700.f / 900.f, 0.01f, 100.0f);
 		glm::mat4 view = _gameData.player.m_camera.GetViewMatrix();
@@ -3083,11 +2909,89 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 }
 
 void VulkanEngine::AddDebugText() {
-	TextBlitter::Reset();
-	if (_showDebugText) {
+	TextBlitter::ResetDebugText();
+	if (_debugMode == DebugMode::RAY) {
 		TextBlitter::AddDebugText("Cam pos: " + Util::Vec3ToString(_gameData.player.m_camera.m_viewPos));
+		TextBlitter::AddDebugText("Cam rot: " + Util::Vec3ToString(_gameData.player.m_camera.m_transform.rotation));
 		TextBlitter::AddDebugText("Rayhit BLAS index: " + std::to_string(Scene::_instanceIndex));
 		TextBlitter::AddDebugText("Rayhit triangle index: " + std::to_string(Scene::_primitiveIndex));
-		//TextBlitter::AddDebugText("Rayhit model: " + Scene::_hitModelName);
+	}	
+	if (_debugMode == DebugMode::COLLISION) {
+		TextBlitter::AddDebugText("Collision world");
+	}
+}
+
+void VulkanEngine::get_required_lines() {
+
+	// Generate buffer shit
+	static bool runOnce = true;
+	if (runOnce) {
+		VkBufferCreateInfo vertexBufferInfo = {};
+		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		vertexBufferInfo.pNext = nullptr;
+		vertexBufferInfo.size = sizeof(Vertex) * 512; // number of max lines possible
+		vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		VmaAllocationCreateInfo vmaallocInfo = {};
+		vmaallocInfo.usage = VMA_MEMORY_USAGE_AUTO;;
+		VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo, &vmaallocInfo, &_lineListMesh._vertexBuffer._buffer, &_lineListMesh._vertexBuffer._allocation, nullptr));
+		// Name the mesh
+		VkDebugUtilsObjectNameInfoEXT nameInfo = {};
+		nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+		nameInfo.objectType = VK_OBJECT_TYPE_BUFFER;
+		nameInfo.objectHandle = (uint64_t)_lineListMesh._vertexBuffer._buffer;
+		nameInfo.pObjectName = "Line list mesh";
+		vkSetDebugUtilsObjectNameEXT(_device, &nameInfo); 
+		runOnce = false;
+	}
+
+	std::vector<Vertex> vertices;
+
+	// Ray cast
+	if (_debugMode == DebugMode::RAY) {
+		if (Scene::_hitTriangleVertices.size() == 3) {
+			vertices.push_back(Scene::_hitTriangleVertices[0]);
+			vertices.push_back(Scene::_hitTriangleVertices[1]);
+			vertices.push_back(Scene::_hitTriangleVertices[1]);
+			vertices.push_back(Scene::_hitTriangleVertices[2]);
+			vertices.push_back(Scene::_hitTriangleVertices[2]);
+			vertices.push_back(Scene::_hitTriangleVertices[0]);
+		}
+	}
+	// Collision world
+	else if (_debugMode == DebugMode::COLLISION) {
+		vertices = Scene::GetCollisionLineVertices();
+	}
+
+	_lineListMesh._vertexCount = vertices.size();
+
+	if (vertices.size())
+	{
+		const size_t bufferSize = vertices.size() * sizeof(Vertex);
+		VkBufferCreateInfo stagingBufferInfo = {};
+		stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		stagingBufferInfo.pNext = nullptr;
+		stagingBufferInfo.size = bufferSize;
+		stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+		VmaAllocationCreateInfo vmaallocInfo = {};
+		vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+		AllocatedBuffer stagingBuffer;
+		VK_CHECK(vmaCreateBuffer(_allocator, &stagingBufferInfo, &vmaallocInfo, &stagingBuffer._buffer, &stagingBuffer._allocation, nullptr));
+
+		void* data;
+		vmaMapMemory(_allocator, stagingBuffer._allocation, &data);
+		memcpy(data, vertices.data(), vertices.size() * sizeof(Vertex));
+		vmaUnmapMemory(_allocator, stagingBuffer._allocation);
+
+		immediate_submit([=](VkCommandBuffer cmd) {
+			VkBufferCopy copy;
+			copy.dstOffset = 0;
+			copy.srcOffset = 0;
+			copy.size = bufferSize;
+			vkCmdCopyBuffer(cmd, stagingBuffer._buffer, _lineListMesh._vertexBuffer._buffer, 1, &copy);
+			});
+
+		vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
 	}
 }

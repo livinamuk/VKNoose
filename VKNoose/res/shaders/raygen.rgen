@@ -58,18 +58,29 @@ void main()
 	{
 		traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
 		
-		color += rayPayload.color.xyz * mult;//* rayPayload.attenuation;;
-
-		mult *= 0.75;
-
-		if (rayPayload.done == 1) {
-			break;
-		} 
-			
+		// Add the color if it is first bounce, or standard reflection bounce
+		if (rayPayload.done != 2) {
+			color += rayPayload.color.xyz * mult;
+			mult *= 0.75;
+		}
+				
 		const vec4 hitPos = origin + direction * rayPayload.distance;
 		origin.xyz = hitPos.xyz + rayPayload.normal * 0.001f;
 		direction.xyz = reflect(direction.xyz, rayPayload.normal);
-		rayPayload.done = 1;
+
+		// finished bounching
+		if (rayPayload.done == 1) {
+			break;
+		} 
+				
+		// Mirror
+		if (rayPayload.done == 2) {
+			i = -1;
+		}
+		// Reflection time now
+		else  {
+			rayPayload.done = 1;
+		}		
 	}
 
 	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(color, 0));

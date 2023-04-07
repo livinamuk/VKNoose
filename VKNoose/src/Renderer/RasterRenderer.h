@@ -9,10 +9,11 @@ namespace RasterRenderer {
 	inline std::vector<int> _UIToRender;
 	int instanceCount = 0;
 
-	inline void SubmitUI(int meshIndex, int textureIndex, glm::mat4 modelMatrix) {
+	inline void SubmitUI(int meshIndex, int textureIndex, int colorIndex, glm::mat4 modelMatrix) {
 		int instanceIndex = instanceCount;
 		_instanceData[instanceIndex].modelMatrix = modelMatrix;
 		_instanceData[instanceIndex].index_basecolor = textureIndex;
+		_instanceData[instanceIndex].index_normals = colorIndex;
 		_UIToRender.push_back(meshIndex);
 		instanceCount++;
 	}
@@ -51,7 +52,7 @@ namespace RasterRenderer {
 		transform.scale = glm::vec3(width, height * -1, 1);
 		int meshIndex = AssetManager::GetModel("blitter_quad")->_meshIndices[0];
 		int textureIndex = AssetManager::GetTextureIndex(textureName);
-		SubmitUI(meshIndex, textureIndex, transform.to_mat4());
+		SubmitUI(meshIndex, textureIndex, 0, transform.to_mat4());
 	}
 
 	/*inline void SubmitForRender(int meshIndex, Material* material, glm::mat4 modelMatrix) {

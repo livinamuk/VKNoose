@@ -19,8 +19,6 @@ struct Vertex {
 	vec2 pad3;
 	vec3 tangent;
 	float pad4;
-	vec3 bitangent;
-	float pad5;
 };
 
 struct ObjDesc {
@@ -55,9 +53,8 @@ hitAttributeEXT vec2 attribs;
 
 const float PI = 3.14159265359;  
 //const vec3 lightPos = vec3(-2.2, 2, -3.5);
-const vec3 lightPosition = vec3(0, 2, -0);
+const vec3 lightPosition = vec3(-0.1, 2, -0);
 float lightStrength = 1.0;
-const vec3 lightColor = vec3(1, 0.95, 0.8);
 
 float fog_exp2(const float dist, const float density) {
   const float LOG2 = -1.442695;
@@ -113,16 +110,16 @@ float CalculateAttenuation(Light light, vec3 worldPos) {
 vec3 CalculatePhong(vec3 worldPos, vec3 baseColor, vec3 normal, vec3 camPos, Light light) {
     vec3 viewPos = camPos;
     float ambientStrength = 0.8;
-    vec3 ambient = ambientStrength * lightColor;  	
+    vec3 ambient = ambientStrength * light.color;  	
     vec3 norm = normalize(normal.rgb);
     vec3 lightDir = normalize(light.position - worldPos);
     float diff = max(dot(norm, lightDir), 0.0);
-    vec3 diffuse = diff * lightColor * lightStrength;    
+    vec3 diffuse = diff * light.color * lightStrength;    
     float specularStrength = 1.5;
     vec3 viewDir = normalize(viewPos - worldPos);
     vec3 reflectDir = reflect(-lightDir, norm);  
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
-    vec3 specular = specularStrength * spec * lightColor ;        
+    vec3 specular = specularStrength * spec * light.color ;        
 
 	float attenuation = CalculateAttenuation(light, worldPos);
     return (ambient + diffuse + specular) * baseColor * attenuation;
@@ -183,12 +180,12 @@ vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic,
 	float D = microfacetDistribution(pbrInputs);
 	vec3 diffuseContrib = (1.0 - F) * diffuse(pbrInputs);
 	vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
-	vec3 color = NdotL * lightColor * (diffuseContrib + specContrib);
+	vec3 color = NdotL * light.color * (diffuseContrib + specContrib);
 	vec3 diffuse = pbrInputs.diffuseColor;        
 
 	float attenuation2  = CalculateAttenuation(light, worldPos);
 
-	vec3 radiance = lightColor * attenuation2;  
+	vec3 radiance = light.color * attenuation2 * 300;  
 	vec3 diffuseColor2 = albedo * (vec3(1.0) - f0);
 	color *= radiance;
 	
@@ -197,17 +194,23 @@ vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic,
     // gamma correct
     color = pow(color, vec3(1.0/2.2)); 
 
-	vec3 lightVector = normalize(lightPos - worldPos);
 
 	vec3 pbr = color;
     vec3 phong = CalculatePhong(worldPos, baseColor, normal, camPos, light);
 	//vec3 finalColor = mix(phong, pbr, 0.45);
 	vec3 finalColor = mix(phong, pbr, 0.05);
+	
+
+	float bias = 0.0;
+	//vec3 origin =  worldPos + normal * bias;	
+    vec3 origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+	vec3 lightVector = normalize(lightPos - origin);
 
 	float tMin   = 0.001;
-    float tMax   = length(lightPos - worldPos);;
-    vec3  origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
-    vec3  rayDir = lightVector;
+    float tMax   = distance(lightPos, origin);
+	
+    vec3 rayDir = lightVector;
+    //vec3  origin = worldPos;// + normal * 0.015;
     uint  flags  = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
     isShadowed   = true;
     traceRayEXT(topLevelAS,  // acceleration structure
@@ -224,7 +227,7 @@ vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic,
     );
     if(isShadowed)
     {
-      finalColor *= 0.25;
+      finalColor *= 0.0;//25;
     }
 	return finalColor;
 }
@@ -261,9 +264,6 @@ void main()
 	const vec4 tng0 = vec4(v0.tangent, 0);
 	const vec4 tng1 = vec4(v1.tangent, 0);
 	const vec4 tng2 = vec4(v2.tangent, 0);
-	const vec4 btng0 = vec4(v0.bitangent, 0);
-	const vec4 btng1 = vec4(v1.bitangent, 0);
-	const vec4 btng2 = vec4(v2.bitangent, 0);
 		
     vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y + v2.texCoord * barycentrics.z;
     vec4 baseColor = texture(sampler2D(textures[objResource.basecolorIndex], samp), texCoord).rgba;
@@ -277,8 +277,8 @@ void main()
 	geonrm = normalize(vec3(geonrm * gl_WorldToObjectEXT));
 	vec3 tangent = normalize(mixBary(tng0.xyz, tng1.xyz, tng2.xyz, barycentrics));
 	tangent    = normalize(vec3(tangent * gl_WorldToObjectEXT));
-	vec3 bitangent = normalize(mixBary(btng0.xyz, btng1.xyz, btng2.xyz, barycentrics));
-	bitangent    = normalize(vec3(bitangent * gl_WorldToObjectEXT));
+
+	vec3 bitangent = cross(normal, tangent);
 	
 	mat3 tbn = mat3(normalize(bitangent), normalize(tangent), normalize(normal));
 	normal = normalize(tbn * normalize(normalMap * 2.0 - 1.0));
@@ -303,30 +303,45 @@ void main()
 	float ao = rma.b;
     vec3 camPos = cam.viewPos.rgb;
 
-
+	
 
 
 
 	Light light;
 	light.position = lightPosition;
-	light.color = vec3(1,1,1);
+	light.color = vec3(1, 0.95, 0.8);
 	light.strength = 2.5;
 	light.radius = 5;
 	light.magic = 88;
 	
 	Light light2;
 	light2.position = vec3(-2,1,-1.5);
-	light2.color = vec3(1,1,1);
+	light2.color =  vec3(1, 0.95, 0.8);
 	light2.strength = 3;
 	light2.radius = 7;
 	light2.magic = 88;
 
 	Light light3;
 	light3.position = vec3(-2,1,1.5);
-	light3.color = vec3(1,1,1);
+	light3.color =  vec3(1, 0.95, 0.8);
 	light3.strength = 3;
 	light3.radius = 7;
 	light3.magic = 88;
+
+	Light light4;
+	light4.position = vec3(-1.7376, 2, 2.85);
+	light4.color =  vec3(1, 0, 0);
+	//light4.color =  vec3(1, 0.95, 0.8);
+	light4.strength = 1.5;
+	light4.radius = 10;
+	light4.magic = 88;
+
+	Light light5;
+	light5.position = vec3(-3.8, 2, -8.5);
+	light5.color =  vec3(1, 0.95, 0.8);
+	light5.strength = 20;
+	light5.radius = 7;
+	light5.magic = 88;
 
 		
 	//vec3 lightPosition2 = ;
@@ -335,10 +350,16 @@ void main()
 	vec3 finalColor1 = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light);
 	vec3 finalColor2 = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light2);
 	vec3 finalColor3 = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light3);
+	vec3 finalColor4 = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light4);
+	vec3 finalColor5 = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light5);
 
 
 	//finalColor = finalColor + finalColor2 + finalColor3;
-    vec3 finalColor =  finalColor1 + finalColor2 + finalColor3;
+    vec3 finalColor =  finalColor1 + finalColor2 + finalColor3 + finalColor4;
+   finalColor =  finalColor1 + finalColor4 + finalColor5;
+
+   finalColor += baseColor.rgb * vec3(0.0);
+   // finalColor =  finalColor4;;
 	
     // HDR tonemapping
 	//phong = phong / (phong + vec3(1.0));
@@ -349,7 +370,6 @@ void main()
 
      
     
-
 
 
 
@@ -389,6 +409,10 @@ void main()
 //rayPayload.color = vec4(1, 0, 1, 1);
 
 
+	
+//	rayPayload.color = vec3(CalculateAttenuation(light, worldPos));
+
+
 	const vec3 pos      = pos0 * barycentrics.x + pos1 * barycentrics.y + pos2 * barycentrics.z;
 	const vec3 worldPosition = vec3(gl_ObjectToWorldEXT * vec4(pos, 1.0)); 
 
@@ -414,13 +438,35 @@ void main()
 	//rayPayload.color = vec3(texCoord, 0);
 	
 
-    if (gl_InstanceCustomIndexEXT == 1 || 
-	gl_InstanceCustomIndexEXT == 2 || 
+	//rayPayload.color = normal;
+
+    if (gl_InstanceCustomIndexEXT == 2 || 
 	gl_InstanceCustomIndexEXT == 3 || 
-	gl_InstanceCustomIndexEXT == 4 || 
-	gl_InstanceCustomIndexEXT == 5 ){//|| metallic > 0.9|| roughness > 0.1) {
+	gl_InstanceCustomIndexEXT == 6 ||
+	gl_InstanceCustomIndexEXT == 7 || 
+	gl_InstanceCustomIndexEXT == 8 || 
+	gl_InstanceCustomIndexEXT == 9 || 
+	gl_InstanceCustomIndexEXT == 10 || 
+	gl_InstanceCustomIndexEXT == 11 || 
+	gl_InstanceCustomIndexEXT == 12|| 
+	gl_InstanceCustomIndexEXT == 13 || 
+	gl_InstanceCustomIndexEXT == 14 || 
+	//gl_InstanceCustomIndexEXT == 51 || // toilet seat
+	//gl_InstanceCustomIndexEXT == 50 || // toilet lid`
+	gl_InstanceCustomIndexEXT == 50 || // toilet 
+	gl_InstanceCustomIndexEXT == 58 ||  //basin 
+	gl_InstanceCustomIndexEXT == 57 ||  //basin
+	gl_InstanceCustomIndexEXT == 56 ||  //basin
+	gl_InstanceCustomIndexEXT == 66 ) // mirror
+	{//|| metallic > 0.9|| roughness > 0.1) {
 		rayPayload.done = 0;		
     }
+		 
+	if (gl_InstanceCustomIndexEXT == 66 ){
+		
+		rayPayload.done = 2;
+		//rayPayload.color = vec3(0, 1,1);
+    }
+	//	rayPayload.color = normal;
 
-//rayPayload.color = normal;
 }
