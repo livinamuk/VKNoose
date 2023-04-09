@@ -22,8 +22,8 @@ namespace TextBlitter {
 
 	enum QuestionState { CLOSED, TYPING_QUESTION, SELECTED_YES, SELECTED_NO } _questionState;
 	std::string _questionText = "";
-	//GameObject* _pickUpItemInQuestion = nullptr;
 	std::function<void(void)> _questionCallback;
+	void* _userPtr = nullptr;
 
 	void TextBlitter::Type(std::string text) {
 		ResetBlitter();
@@ -45,6 +45,7 @@ namespace TextBlitter {
 		_questionText = "";
 		_questionCallback = nullptr;
 		_questionState = QuestionState::CLOSED;
+		_userPtr = nullptr;
 		_charCursorIndex = 0;
 		_countdownTimer = 0;
 	}
@@ -95,8 +96,15 @@ namespace TextBlitter {
 			// Confirm YES
 			else if (Input::KeyPressed(HELL_KEY_E) && _questionState == QuestionState::SELECTED_YES) {
 				Audio::PlayAudio("RE_type.wav", 1.0f);
+				// Execute any callback
 				if (_questionCallback)
 					_questionCallback();
+				// If user pointer points to a pickup item then pick it up
+				for (int i = 0; i < Scene::GetGameObjectCount(); i++) {
+					if (Scene::GetGameObjectByIndex(i) == _userPtr && Scene::GetGameObjectByIndex(i)->GetInteractType() == InteractType::PICKUP) {
+						Scene::GetGameObjectByIndex(i)->PickUp();
+					}
+				}
 				ResetBlitter();
 				return;
 			}
@@ -165,14 +173,24 @@ namespace TextBlitter {
 		}
 
 		// Debug text
+		color = 0;
 		xcursor = _xDebugMargin;
 		ycursor = _yDebugMargin;
 		for (int i = 0; i < _debugTextToBilt.length(); i++)
 		{
 			char character = _debugTextToBilt[i];
 			if (_debugTextToBilt[i] == '[' &&
+				_debugTextToBilt[(size_t)i + 1] == 'w' &&
 				_debugTextToBilt[(size_t)i + 2] == ']') {
 				i += 2;
+				color = 0;
+				continue;
+			}
+			if (_debugTextToBilt[i] == '[' &&
+				_debugTextToBilt[(size_t)i + 1] == 'g' &&
+				_debugTextToBilt[(size_t)i + 2] == ']') {
+				i += 2;
+				color = 1;
 				continue;
 			}
 			if (character == ' ') {
@@ -204,19 +222,22 @@ namespace TextBlitter {
 			GPUObjectData data;
 			data.modelMatrix = transform.to_mat4();
 			data.index_basecolor = charPos;
-			data.index_normals = 0;
+			data.index_normals = color; // color stored in normals
 			_objectData.push_back(data);
 
 			xcursor += texWidth + _charSpacing;
 		}
 	}
 
-	void TextBlitter::AskQuestion(std::string question, std::function<void(void)> callback) {
+	void TextBlitter::AskQuestion(std::string question, std::function<void(void)> callback, void* userPtr) {
 		Audio::PlayAudio("RE_type.wav", 1.0f);
 		ResetBlitter();
 		_questionState = QuestionState::TYPING_QUESTION;	
 		_questionText = question;
 		_questionCallback = callback;
+		if (userPtr) {
+			_userPtr = userPtr;
+		}
 	}
 
 	bool TextBlitter::QuestionIsOpen() {

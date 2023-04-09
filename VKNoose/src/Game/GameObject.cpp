@@ -91,13 +91,9 @@ void GameObject::SetName(std::string name) {
 	_name = name;
 }
 
-void GameObject::SetInteractText(std::string text) {
-	_interactText = text;
-}
-
-void GameObject::SetPickUpText(std::string text) {
-	_pickUpText = text;
-}
+/*void GameObject::SetInteractText(std::string text) {
+	_interactTextOLD = text;
+}*/
 
 void GameObject::SetParentName(std::string name) {
 	_parentName = name;
@@ -107,84 +103,112 @@ void GameObject::SetScriptName(std::string name) {
 	_scriptName = name;
 }
 bool GameObject::IsInteractable() {
-	if (_scriptName == "OpenableDoor" ||
-		_scriptName == "OpenableDrawer" ||
-		_scriptName == "OpenableCabinet" ||
-		_scriptName == "OpenCabinetDoor" || 
-		_pickUpText != "" ||
-		_interactText != "" ||
-		_questionText != "")
+	if (_openState == OpenState::CLOSED ||
+		_openState == OpenState::OPEN ||
+		_openState == OpenState::CLOSING ||
+		_openState == OpenState::OPENING ||
+		_interactType == InteractType::PICKUP ||
+		_interactType == InteractType::TEXT || 
+		_interactType == InteractType::QUESTION)
 		return true;
 	return false;
 }
 
 void GameObject::Interact() {
-	if (_scriptName == "OpenableDoor") {
-		if (_openState == OpenState::CLOSED) {
-			_openState = OpenState::OPENING;
-			Audio::PlayAudio("Door_Open.wav", 0.25f);
-		}
-		if (_openState == OpenState::OPEN) {
-			_openState = OpenState::CLOSING;
-			Audio::PlayAudio("Door_Open.wav", 0.25f);
-		}
-	}    
-	else if (_scriptName == "OpenableDrawer") {
-		if (_openState == OpenState::CLOSED) {
-			_openState = OpenState::OPENING;
-			Audio::PlayAudio("DrawerOpen.wav", 0.5f);
-		}
-		if (_openState == OpenState::OPEN) {
-			_openState = OpenState::CLOSING;
-			Audio::PlayAudio("DrawerOpen.wav", 0.5f);
-		}
+	// Open
+	if (_openState == OpenState::CLOSED) {
+		_openState = OpenState::OPENING; 
+		Audio::PlayAudio(_audio.onOpen.c_str(), 0.5f);
 	}
-	else if (_scriptName == "OpenableCabinet") {
-		if (_openState == OpenState::CLOSED) {
-			_openState = OpenState::OPENING;
-			Audio::PlayAudio("CabinetOpen.wav", 0.75f);
-		}
-		if (_openState == OpenState::OPEN) {
-			_openState = OpenState::CLOSING;
-			Audio::PlayAudio("CabinetClose.wav", 0.5f);
-		}
+	// Close
+	else if (_openState == OpenState::OPEN) {
+		_openState = OpenState::CLOSING;
+		Audio::PlayAudio(_audio.onClose.c_str(), 0.5f);
 	}
-	else if (_scriptName == "OpenCabinetDoor") {
-		Scene::GetGameObjectByName("CabinetDoor")->Interact();
-	}
-	// Pick up
-	//else if (_pickUpText != "") {
-	//	TextBlitter::AskQuestion(_pickUpText, this->PickUp);
-	//}
 	// Interact text
-	else if (_interactText != "") {
+	else if (_interactType == InteractType::TEXT) {
+		// blit any text
 		TextBlitter::Type(_interactText);
-		Audio::PlayAudio("RE_type.wav", 0.9f);
+		// call any callback
+		if (_interactCallback)
+			_interactCallback();
+		// Audio
+		if (_audio.onInteract.length() > 0) {
+			Audio::PlayAudio(_audio.onInteract.c_str(), 0.5f);
+		}
+		// Default
+		else if (_interactText.length() > 0) {
+			Audio::PlayAudio("RE_type.wav", 1.0f);
+		}
 	}
 	// Question text
-	else if (_questionText != "") {
-		TextBlitter::AskQuestion(_questionText, this->_questionCallback);
-		Audio::PlayAudio("RE_type.wav", 0.9f);
+	else if (_interactType == InteractType::QUESTION) {
+		TextBlitter::AskQuestion(_interactText, this->_interactCallback, nullptr);
+		Audio::PlayAudio("RE_type.wav", 1.0f);
+	}
+	// Pick up
+	else if (_interactType == InteractType::PICKUP) {
+		TextBlitter::AskQuestion(_interactText, this->_interactCallback, this);
+		Audio::PlayAudio("RE_type.wav", 1.0f);
 	}
 }
 
 void GameObject::Update(float deltaTime) {
-	if (_scriptName == "OpenableDoor") {
-		if (_openState == OpenState::OPENING) {
-			_transform.rotation.y -= _openSpeed * deltaTime;
+	// Open/Close if applicable
+	if (_openState != OpenState::NONE) {
+		// Rotation
+		if (GetName() == "Door") {
+			if (_openState == OpenState::OPENING) {
+				_transform.rotation.y -= _openSpeed * deltaTime;
+			}
+			if (_openState == OpenState::CLOSING) {
+				_transform.rotation.y += _openSpeed * deltaTime;
+			}
+			if (_transform.rotation.y < _maxOpenAmount) {
+				_transform.rotation.y = _maxOpenAmount;
+				_openState = OpenState::OPEN;
+			}
+			if (_transform.rotation.y > _minOpenAmount) {
+				_transform.rotation.y = _minOpenAmount;
+				_openState = OpenState::CLOSED;
+			}
+		}   
+		else if (GetName() == "Cabinet Door") {
+			if (_openState == OpenState::OPENING) {
+				_transform.rotation.y += _openSpeed * deltaTime;
+			}
+			if (_openState == OpenState::CLOSING) {
+				_transform.rotation.y -= _openSpeed * deltaTime;
+			}
+			if (_transform.rotation.y > _maxOpenAmount) {
+				_transform.rotation.y = _maxOpenAmount;
+				_openState = OpenState::OPEN;
+			}
+			if (_transform.rotation.y < 0) {
+				_transform.rotation.y = 0;
+				_openState = OpenState::CLOSED;
+			}
 		}
-		if (_openState == OpenState::CLOSING) {
-			_transform.rotation.y += _openSpeed * deltaTime;
+		// Position
+		else {
+			if (_openState == OpenState::OPENING) {
+				_transform.position.z += _openSpeed * deltaTime;
+			}
+			if (_openState == OpenState::CLOSING) {
+				_transform.position.z -= _openSpeed * deltaTime;
+			}
+			if (_transform.position.z > _maxOpenAmount) {
+				_transform.position.z = _maxOpenAmount;
+				_openState = OpenState::OPEN;
+			}
+			if (_transform.position.z < 0) {
+				_transform.position.z = 0;
+				_openState = OpenState::CLOSED;
+			}
 		}
-		if (_transform.rotation.y < _maxOpenAmount) {
-			_transform.rotation.y = _maxOpenAmount;
-			_openState = OpenState::OPEN;
-		}
-		if (_transform.rotation.y > _minOpenAmount) {
-			_transform.rotation.y = _minOpenAmount;
-			_openState = OpenState::CLOSED;
-		}
-	}    
+	}
+
+	
 	else if (_scriptName == "OpenableDrawer") {
 		if (_openState == OpenState::OPENING) {
 			_transform.position.z += _openSpeed * deltaTime;
@@ -220,12 +244,19 @@ void GameObject::Update(float deltaTime) {
 
 }
 
-void GameObject::SetOpenState(OpenState openState, float speed, float min, float max) {
-	_initalOpenState = openState;
+
+void GameObject::SetOnInteractAudio(std::string filename) {
+	_audio.onInteract = filename;
+}
+
+void GameObject::SetOpenState(OpenState openState, float speed, float min, float max, std::string audioOnOpen, std::string audioOnClose) {
+	//_initalOpenState = openState;
 	_openState = openState;
 	_openSpeed = speed;
 	_minOpenAmount = min;
 	_maxOpenAmount = max;
+	_audio.onOpen = audioOnOpen;
+	_audio.onClose = audioOnClose;
 }
 
 void GameObject::SetModel(const std::string& name)
@@ -282,10 +313,10 @@ Material* GameObject::GetMaterial(int meshIndex) {
 	int materialIndex = _meshMaterialIndices[meshIndex];
 	return AssetManager::GetMaterial(materialIndex);
 }
+#include "GameData.h"
 
 void GameObject::PickUp() {
-	//if (_pickupCallback != nullptr)
-	//	_pickupCallback();
+	GameData::AddInventoryItem(GetName());
 	Audio::PlayAudio("ItemPickUp.wav", 0.5f);
 	_collected = true;
 	std::cout << "Picked up \"" << GetName() << "\"\n";
@@ -293,40 +324,40 @@ void GameObject::PickUp() {
 	//std::cout << "Picked up \"" << _transform.position.x << " " <<_transform.position.y << " " << _transform.position.z << " " << "\"\n";
 }
 
-void GameObject::SetPickUpCallback(callback_function callback) {
-	_pickupCallback = callback;
+void GameObject::SetCollectedState(bool value) {
+	_collected = value;
 }
 
-
-void GameObject::SetQuestion(std::string text, std::function<void(void)> callback) {
-	_questionText = text;
-	_questionCallback = callback;
-	//_questionCallback();
+void GameObject::SetInteract(InteractType type, std::string text, std::function<void(void)> callback) {
+	_interactType = type;
+	_interactText = text;
+	_interactCallback = callback;
 }
-
-void GameObject::ResetToInitialState() {
-	_collected = false;
-	if (_initalOpenState == OpenState::CLOSED && _openState != OpenState::CLOSED)
-		_openState = OpenState::CLOSING;
-	if (_initalOpenState == OpenState::OPEN && _openState != OpenState::OPEN)
-		_openState = OpenState::OPENING;
-}
-
 
 void GameObject::SetBoundingBoxFromMesh(int meshIndex) {
 
 	Mesh* mesh = AssetManager::GetMesh(_model->_meshIndices[meshIndex]);	
-	std::vector<Vertex> vertices = AssetManager::GetVertices_TEMPORARY();
+	std::vector<Vertex>& vertices = AssetManager::GetVertices_TEMPORARY();
+	std::vector<uint32_t>& indices = AssetManager::GetIndices_TEMPORARY();
 
-	int firstIndex = mesh->_vertexOffset;
-	int lastIndex = firstIndex + (int)mesh->_vertexCount;
+	int firstIndex = mesh->_indexOffset;
+	int lastIndex = firstIndex + (int)mesh->_indexCount;
 
 	for (int i = firstIndex; i < lastIndex; i++) {
-		_boundingBox.xLow = std::min(_boundingBox.xLow, vertices[i].position.x);
-		_boundingBox.xHigh = std::max(_boundingBox.xHigh, vertices[i].position.x);
-		_boundingBox.zLow = std::min(_boundingBox.zLow, vertices[i].position.z);
-		_boundingBox.zHigh = std::max(_boundingBox.zHigh, vertices[i].position.z);
-	}
+		_boundingBox.xLow = std::min(_boundingBox.xLow, vertices[indices[i] + mesh->_vertexOffset].position.x);
+		_boundingBox.xHigh = std::max(_boundingBox.xHigh, vertices[indices[i] + mesh->_vertexOffset].position.x);
+		_boundingBox.zLow = std::min(_boundingBox.zLow, vertices[indices[i] + mesh->_vertexOffset].position.z);
+		_boundingBox.zHigh = std::max(_boundingBox.zHigh, vertices[indices[i] + mesh->_vertexOffset].position.z);
+	}	
+	/*
+	std::cout << "\n" << GetName() << "\n";
+	std::cout << " meshIndex: " << meshIndex << "\n";
+	std::cout << " firstIndex: " << firstIndex << "\n";
+	std::cout << " lastIndex: " << lastIndex << "\n";
+	std::cout << " _boundingBox.xLow: " << _boundingBox.xLow << "\n";
+	std::cout << " _boundingBox.xHigh: " << _boundingBox.xHigh << "\n";
+	std::cout << " _boundingBox.zLow: " << _boundingBox.zLow << "\n";
+	std::cout << " _boundingBox.zHigh: " << _boundingBox.zHigh << "\n";*/
 }
 
 BoundingBox GameObject::GetBoundingBox() {
@@ -339,4 +370,12 @@ void GameObject::EnableCollision() {
 
 bool GameObject::HasCollisionsEnabled() {
 	return _collisionEnabled;
+}
+
+bool GameObject::IsCollected() {
+	return _collected;
+}
+
+const InteractType& GameObject::GetInteractType() {
+	return _interactType;
 }

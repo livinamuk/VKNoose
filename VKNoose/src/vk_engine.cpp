@@ -41,8 +41,8 @@ using namespace std;
 
 void VulkanEngine::init()
 {
-	_gameData.player.m_position = glm::vec3(-2.7f, 0, 0);
-	_gameData.player.m_camera.m_transform.rotation = glm::vec3(-0.25f, -NOOSE_HALF_PI, 0);
+	GameData::GetPlayer().m_position = glm::vec3(-2.7f, 0, 0);
+	GameData::GetPlayer().m_camera.m_transform.rotation = glm::vec3(-0.25f, -NOOSE_HALF_PI, 0);
 
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -432,7 +432,7 @@ void VulkanEngine::run()
 			float currenttime = glfwGetTime();
 			double deltaTime = currenttime - lastTime;
 
-			Scene::Update(_gameData, deltaTime);
+			Scene::Update(deltaTime);
 			TextBlitter::Update(deltaTime); 
 
 			lastTime = currenttime;
@@ -475,23 +475,23 @@ void VulkanEngine::run()
 		//	std::cout << deltaTime << "   " << "\n";
 
 			if (TextBlitter::QuestionIsOpen()) {
-				_gameData.player.m_interactDisabled = true;
-				_gameData.player.m_movementDisabled = true;
-				_gameData.player.m_mouselookDisabled = true;
+				GameData::GetPlayer().m_interactDisabled = true;
+				GameData::GetPlayer().m_movementDisabled = true;
+				GameData::GetPlayer().m_mouselookDisabled = true;
 			}
 			else {
-				_gameData.player.m_interactDisabled = false;
-				_gameData.player.m_movementDisabled = false;
-				_gameData.player.m_mouselookDisabled = false;
+				GameData::GetPlayer().m_interactDisabled = false;
+				GameData::GetPlayer().m_movementDisabled = false;
+				GameData::GetPlayer().m_mouselookDisabled = false;
 			}
 
-			_gameData.player.UpdateMovement(deltaTime);
+			GameData::GetPlayer().UpdateMovement(deltaTime);
 
 			std::vector collisionLines = Scene::GetCollisionLineVertices();
-			_gameData.player.EvaluateCollsions(collisionLines);
+			GameData::GetPlayer().EvaluateCollsions(collisionLines);
 
-			_gameData.player.UpdateMouselook(deltaTime);
-			_gameData.player.UpdateCamera(deltaTime);
+			GameData::GetPlayer().UpdateMouselook(deltaTime);
+			GameData::GetPlayer().UpdateCamera(deltaTime);
 
 
 
@@ -511,7 +511,10 @@ void VulkanEngine::run()
 			if (Input::KeyPressed(HELL_KEY_R)) {
 				TextBlitter::ResetBlitter();
 				Audio::PlayAudio("RE_bleep.wav", 0.9f);
-				Scene::ResetCollectedItems();
+				GameData::CleanInventory();
+				Scene::Init();
+
+
 			}
 			/*if (Input::KeyPressed(HELL_KEY_SPACE)) {
 				TextBlitter::AskQuestion("Take the [g]HANDGUN BULLETS[w]?");
@@ -567,7 +570,7 @@ void VulkanEngine::run()
 				_debugMode = (DebugMode)debugModeIndex;
 			}
 			if (Input::KeyPressed(HELL_KEY_C)) {
-				_gameData.player.m_camera._disableHeadBob = !_gameData.player.m_camera._disableHeadBob;
+				GameData::GetPlayer().m_camera._disableHeadBob = !GameData::GetPlayer().m_camera._disableHeadBob;
 			}
 
 			// CORRECTION MULTIPLIER VALUE: 62.375249500998
@@ -2304,11 +2307,11 @@ void VulkanEngine::createUniformBuffer()
 void VulkanEngine::updateUniformBuffers()
 {
 	glm::mat4 projection = glm::perspective(_cameraZoom, 1700.f / 900.f, 0.01f, 100.0f);
-	glm::mat4 view = _gameData.player.m_camera.GetViewMatrix();
+	glm::mat4 view = GameData::GetPlayer().m_camera.GetViewMatrix();
 
 	_uniformData.projInverse = glm::inverse(projection);
 	_uniformData.viewInverse = glm::inverse(view);
-	_uniformData.viewPos = glm::vec4(_gameData.player.m_camera.m_viewPos, 1.0);
+	_uniformData.viewPos = glm::vec4(GameData::GetPlayer().m_camera.m_viewPos, 1.0);
 	_uniformData.vertexSize = sizeof(Vertex);
 
 	void* data;
@@ -2621,13 +2624,13 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 
 	// First update the ubo matrices
 	{
-		glm::mat4 viewMatrix = _gameData.player.m_camera.GetViewMatrix();
+		glm::mat4 viewMatrix = GameData::GetPlayer().m_camera.GetViewMatrix();
 		glm::mat4 projectionMatrix = glm::perspective(_cameraZoom, 1700.f / 900.f, 0.01f, 100.0f);
 		projectionMatrix[1][1] *= -1;
 
 		_uniformData.projInverse = glm::inverse(projectionMatrix);
 		_uniformData.viewInverse = glm::inverse(viewMatrix);
-		_uniformData.viewPos = glm::vec4(_gameData.player.m_camera.m_viewPos, 1.0f);
+		_uniformData.viewPos = glm::vec4(GameData::GetPlayer().m_camera.m_viewPos, 1.0f);
 		_uniformData.vertexSize = sizeof(Vertex);
 
 		void* data;
@@ -2635,18 +2638,6 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 		memcpy(data, &_uniformData, sizeof(RTUniformData));
 		vmaUnmapMemory(_allocator, get_current_frame()._uboBuffer_rayTracing._allocation);
 	}
-
-
-
-	// Line buffer creation if needed
-	//if (_lineListMesh._vertexBuffer._buffer != VK_NULL_HANDLE) {
-	//	vmaDestroyBuffer(_allocator, _lineListMesh._vertexBuffer._buffer, _lineListMesh._vertexBuffer._allocation);
-	//}
-
-	
-
-
-
 
 
 
@@ -2660,15 +2651,6 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
 	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &cmdBufInfo));
-
-
-	
-
-
-
-
-
-
 
 
 	//Setup the buffer regions pointing to the shaders in our shader binding table
@@ -2702,6 +2684,7 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 
 	// Ray trace main image
 	_rtTarget.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+	
 	vkCmdTraceRaysKHR(
 		commandBuffer,
 		&raygenShaderSbtEntry,
@@ -2711,11 +2694,6 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 		_renderTargetExtent.width,
 		_renderTargetExtent.height,
 		1);
-
-	// Ray trace center pixel
-	//vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _rtPipelineLayout, 0, 1, &_rtCenterPixelDescriptorSet, 0, 0);
-	//_rtCenterPixelTarget.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-	vkCmdTraceRaysKHR(commandBuffer, &raygenShaderSbtEntry,	&missShaderSbtEntry, &hitShaderSbtEntry, &callableShaderSbtEntry, 1, 1,	1);
 
 	// Now blit that image into the presentTarget
 	_rtTarget.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
@@ -2733,7 +2711,6 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 		1,
 		1,
 		1);
-
 
 
 	// UI //
@@ -2818,7 +2795,7 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	if (_lineListMesh._vertexCount > 0 && _debugMode != DebugMode::NONE) {
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _linelistPipeline);
 		glm::mat4 projection = glm::perspective(_cameraZoom, 1700.f / 900.f, 0.01f, 100.0f);
-		glm::mat4 view = _gameData.player.m_camera.GetViewMatrix();
+		glm::mat4 view = GameData::GetPlayer().m_camera.GetViewMatrix();
 		projection[1][1] *= -1;
 		LineShaderPushConstants constants;
 		constants.transformation = projection * view;;
@@ -2911,13 +2888,18 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 void VulkanEngine::AddDebugText() {
 	TextBlitter::ResetDebugText();
 	if (_debugMode == DebugMode::RAY) {
-		TextBlitter::AddDebugText("Cam pos: " + Util::Vec3ToString(_gameData.player.m_camera.m_viewPos));
-		TextBlitter::AddDebugText("Cam rot: " + Util::Vec3ToString(_gameData.player.m_camera.m_transform.rotation));
+		TextBlitter::AddDebugText("Cam pos: " + Util::Vec3ToString(GameData::GetPlayer().m_camera.m_viewPos));
+		TextBlitter::AddDebugText("Cam rot: " + Util::Vec3ToString(GameData::GetPlayer().m_camera.m_transform.rotation));
 		TextBlitter::AddDebugText("Rayhit BLAS index: " + std::to_string(Scene::_instanceIndex));
 		TextBlitter::AddDebugText("Rayhit triangle index: " + std::to_string(Scene::_primitiveIndex));
 	}	
 	if (_debugMode == DebugMode::COLLISION) {
 		TextBlitter::AddDebugText("Collision world");
+	}
+	else {
+		TextBlitter::AddDebugText("Inventory");
+		for (int i=0; i < GameData::GetInventoryItemCount(); i++)
+			TextBlitter::AddDebugText("[g]" + GameData::GetInventoryItemNameByIndex(i, true) + "[w]");
 	}
 }
 

@@ -17,6 +17,12 @@ namespace Util {
 		return translation  * glm::vec4(position, 1.0);
 	}
 
+	inline std::string UpperCase(std::string str)
+	{
+		std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+		return str;
+	}
+
 	inline float FInterpTo(float Current, float Target, float DeltaTime, float InterpSpeed)
 	{
 		// If no interp speed, jump to target value

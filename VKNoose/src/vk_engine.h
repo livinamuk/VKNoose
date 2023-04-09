@@ -15,7 +15,7 @@
 #include <glm/gtx/transform.hpp>
 
 #include "Audio/Audio.h"
-#include "Game/Player.h"
+#include "Game/GameData.h"
 #include "IO/Input.h"
 #include "Renderer/Shader.h"
 #include "UI/TextBlitter.h"
@@ -135,11 +135,6 @@ struct RayTracingScratchBuffer
 };
 
 
-
-struct GameData {
-	Player player;
-};
-
 class VulkanEngine {
 public:
 
@@ -150,9 +145,6 @@ public:
 	//PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR;
 
 	VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeaturesKHR{};
-
-	GameData _gameData;
-
 
 	VkSampler _sampler; 
 	//VkSampler _blitterSampler;

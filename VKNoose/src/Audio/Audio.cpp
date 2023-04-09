@@ -66,9 +66,12 @@ void Audio::Init()
 	Audio::LoadAudio("Rope.wav");
 	Audio::LoadAudio("Door_Open.wav");
 	Audio::LoadAudio("DrawerOpen.wav");
+	//Audio::LoadAudio("DrawerClose.wav");
 	Audio::LoadAudio("ItemPickUp.wav");
 	Audio::LoadAudio("CabinetOpen.wav");
 	Audio::LoadAudio("CabinetClose.wav");
+	Audio::LoadAudio("Unlock1.wav");
+	Audio::LoadAudio("Locked1.wav");
 	//gSoloud.init();
 	/*
 	Audio::LoadAudio("DrawerClose.wav");
@@ -84,7 +87,6 @@ void Audio::Init()
 	Audio::LoadAudio("MenuScroll.wav");
 	Audio::LoadAudio("LightSwitchOn.wav");
 	Audio::LoadAudio("LightSwitchOff.wav");
-	Audio::LoadAudio("Unlock1.wav");
 	Audio::LoadAudio("Vase.wav");*/
 }
 

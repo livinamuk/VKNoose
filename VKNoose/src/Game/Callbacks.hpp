@@ -5,13 +5,32 @@
 
 namespace Callbacks {
 
-	inline void ReturnFlowers() {
-		Scene::GetGameObjectByName("Flowers")->ResetToInitialState();
-		Scene::GetGameObjectByName("Vase")->SetQuestion("", nullptr);
+	inline void UnlockSmallDrawer() {
+		Scene::GetGameObjectByName("LockedSmallDrawer")->SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f, "DrawerOpen.wav", "DrawerOpen.wav");
+		Scene::GetGameObjectByName("LockedSmallDrawer")->SetInteract(InteractType::NONE, "", nullptr);
+		Audio::PlayAudio("Unlock1.wav");
 	}
 
-	inline void TakeFlowers() {
-		Scene::GetGameObjectByName("Flowers")->PickUp();
-		Scene::GetGameObjectByName("Vase")->SetQuestion("Return the [g]FLOWERS[w]?", Callbacks::ReturnFlowers);
+	inline void TakeSmallKey() {
+		Scene::GetGameObjectByName("Small Key")->PickUp();
+		Scene::GetGameObjectByName("LockedSmallDrawer")->SetInteract(InteractType::QUESTION, "Use the [g]SMALL KEY[w]?", Callbacks::UnlockSmallDrawer);
+	}
+
+	inline void ReturnFlowers() {
+		GameData::RemoveInventoryItemByName("Flowers");
+		Scene::GetGameObjectByName("Flowers")->SetCollectedState(false);
+		Scene::GetGameObjectByName("Vase")->SetInteract(InteractType::NONE, "", nullptr);
+		if (Scene::GetGameObjectByName("Small Key")->IsCollected()) {
+			Scene::GetGameObjectByName("Flowers")->SetInteract(InteractType::TEXT, "Did she leave these here?", nullptr);
+		}
+	}
+
+	inline void FlowersWereTaken() {
+		Scene::GetGameObjectByName("Vase")->SetInteract(InteractType::QUESTION, "Return the [g]FLOWERS[w]?", Callbacks::ReturnFlowers);
+		Scene::GetGameObjectByName("Small Key")->SetInteract(InteractType::QUESTION, "Take the [g]SMALL KEY[w]?", Callbacks::TakeSmallKey);
+	}
+
+	inline void OpenCabinet() {
+		Scene::GetGameObjectByName("Cabinet Door")->Interact();
 	}
 }

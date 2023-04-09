@@ -17,7 +17,8 @@
 #define CEILING_HEIGHT 2.5f
 
 enum class DebugMode { NONE, RAY, COLLISION, DEBUG_MODE_COUNT };
-enum class OpenState { CLOSED, CLOSING, OPEN, OPENING, STOPPED };
+enum class OpenState { NONE, CLOSED, CLOSING, OPEN, OPENING };
+enum class InteractType { NONE, TEXT, QUESTION, PICKUP};
 
 typedef void (*callback_function)(void); // type for conciseness
 

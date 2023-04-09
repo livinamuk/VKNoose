@@ -9,7 +9,7 @@ namespace TextBlitter {
 	void Update(float deltaTime);
 	void Type(std::string text);
 	void AddDebugText(std::string text);
-	void AskQuestion(std::string question, std::function<void(void)> callback);
+	void AskQuestion(std::string question, std::function<void(void)> callback, void* userPtr);
 	void ResetDebugText();
 	void ResetBlitter();
 	bool QuestionIsOpen();

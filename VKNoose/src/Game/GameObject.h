@@ -10,39 +10,43 @@ struct BoundingBox {
 };
 
 struct GameObject {
-
+public:
 	Model* _model = nullptr;
-	//std::vector<Material*> _meshMaterials; 
 	std::vector<int> _meshMaterialIndices;
 private:
-	std::function<void(void)> _questionCallback = nullptr;
+	std::function<void(void)> _interactCallback = nullptr;
 	callback_function _pickupCallback = nullptr;
-
 	std::string _name = "undefined";
 	std::string _parentName = "undefined";
 	std::string _scriptName = "undefined";
-	std::string _pickUpScriptName = "undefined";
-	std::string _pickUpText = "";
 	std::string _interactText = "";
-	std::string _questionText = "";
-	std::string _questionOutcomeScript = "";
+	//std::string _interactTextOLD = "";
+	//std::string _questionText = "";
 	Transform _transform;
-	OpenState _initalOpenState = OpenState::CLOSED;
-	OpenState _openState = OpenState::CLOSED;
+	OpenState _openState = OpenState::NONE;
 	float _maxOpenAmount = 0;
 	float _minOpenAmount = 0;
 	float _openSpeed = 0;
 	bool _collected = false; // if this were an item
 	BoundingBox _boundingBox;
 	bool _collisionEnabled = false;
+	InteractType _interactType = InteractType::NONE;
+
+	struct AudioFiles {
+		std::string onOpen = "";
+		std::string onClose = "";
+		std::string onInteract = "";
+	} _audio;
 
 public:
 	GameObject();
 	glm::mat4 GetModelMatrix();
 	std::string GetName();
-	void SetQuestion(std::string text, std::function<void(void)> callback);
-	void SetPickUpCallback(callback_function callback);
-	void SetOpenState(OpenState openState, float speed, float min, float max);
+	void SetOnInteractAudio(std::string filename);
+	void SetInteract(InteractType type, std::string text, std::function<void(void)> callback);
+	//void SetPickUpQuestion(std::string text);
+	//void SetPickUpCallback(callback_function callback);
+	void SetOpenState(OpenState openState, float speed, float min, float max, std::string audioOnOpen, std::string audioOnClose);
 	void SetPosition(glm::vec3 position);
 	void SetPositionX(float position);
 	void SetPositionY(float position);
@@ -58,8 +62,8 @@ public:
 	glm::mat4 GetRotationMatrix();
 	void SetScale(float scale);
 	void SetScaleX(float scale);
-	void SetInteractText(std::string text);
-	void SetPickUpText(std::string text);
+	//void SetInteractText(std::string text);
+	//void SetPickUpText(std::string text);
 	void SetName(std::string name);
 	void SetParentName(std::string name);
 	void SetScriptName(std::string name);
@@ -72,8 +76,10 @@ public:
 	void SetMeshMaterial(const char* name, int meshIndex = -1);
 	Material* GetMaterial(int meshIndex);
 	void PickUp();
-	void ResetToInitialState();
+	void SetCollectedState(bool value);
 	BoundingBox GetBoundingBox();
 	void EnableCollision();
 	bool HasCollisionsEnabled();
+	bool IsCollected();
+	const InteractType& GetInteractType();
 };

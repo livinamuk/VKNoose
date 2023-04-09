@@ -93,6 +93,7 @@
     <ClCompile Include="src\Audio\Audio.cpp" />
     <ClCompile Include="src\Game\AssetManager.cpp" />
     <ClCompile Include="src\Game\Camera.cpp" />
+    <ClCompile Include="src\Game\GameData.cpp" />
     <ClCompile Include="src\Game\GameObject.cpp" />
     <ClCompile Include="src\Game\House\Wall.cpp" />
     <ClCompile Include="src\Game\Player.cpp" />
@@ -120,6 +121,7 @@
     <ClInclude Include="src\Game\AssetManager.h" />
     <ClInclude Include="src\Game\Callbacks.hpp" />
     <ClInclude Include="src\Game\Camera.h" />
+    <ClInclude Include="src\Game\GameData.h" />
     <ClInclude Include="src\Game\GameObject.h" />
     <ClInclude Include="src\Game\House\Wall.h" />
     <ClInclude Include="src\Game\Player.h" />

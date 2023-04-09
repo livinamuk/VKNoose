@@ -820,7 +820,7 @@ void AssetManager::LoadModels() {
 	_models["SmallDrawerFourth"] = Model("res/models/SmallDrawerFourth.obj");
 	_models["SmallDrawerThird"] = Model("res/models/SmallDrawerThird.obj");
 	_models["SmallDrawerSecond"] = Model("res/models/SmallDrawerSecond.obj");
-	_models["SmallDrawerFirst"] = Model("res/models/SmallDrawerFirst.obj");
+	_models["SmallDrawerTop"] = Model("res/models/SmallDrawerTop.obj");
 	_models["ToiletPaper"] = Model("res/models/ToiletPaper.obj");
 	_models["CabinetBody"] = Model("res/models/CabinetBody.obj");
 	_models["CabinetDoor"] = Model("res/models/CabinetDoor.obj");
