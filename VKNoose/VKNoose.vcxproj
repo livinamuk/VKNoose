@@ -103,6 +103,7 @@
     <ClCompile Include="src\Profiler.cpp" />
     <ClCompile Include="src\Renderer\Shader.cpp" />
     <ClCompile Include="src\UI\TextBlitting.cpp" />
+    <ClCompile Include="src\vk_descriptors.cpp" />
     <ClCompile Include="src\vk_engine.cpp" />
     <ClCompile Include="src\vk_initializers.cpp" />
     <ClCompile Include="src\vk_mesh.cpp" />
@@ -134,6 +135,7 @@
     <ClInclude Include="src\Renderer\Shader.h" />
     <ClInclude Include="src\UI\TextBlitter.h" />
     <ClInclude Include="src\Util.h" />
+    <ClInclude Include="src\vk_descriptors.h" />
     <ClInclude Include="src\vk_engine.h" />
     <ClInclude Include="src\vk_initializers.h" />
     <ClInclude Include="src\vk_mesh.h" />

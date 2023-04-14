@@ -831,6 +831,7 @@ void AssetManager::LoadModels() {
 	_models["BathroomBin"] = Model("res/models/BathroomBin.obj");
 	_models["BathroomBinLid"] = Model("res/models/BathroomBinLid.obj");
 	_models["BathroomBinPedal"] = Model("res/models/BathroomBinPedal.obj");
+	_models["YourPhone"] = Model("res/models/YourPhone.obj");
 
 
 	{

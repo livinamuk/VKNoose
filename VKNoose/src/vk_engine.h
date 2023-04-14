@@ -2,6 +2,7 @@
 
 #include "vk_types.h"
 #include "vk_mesh.h"
+#include "vk_descriptors.h"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -107,7 +108,8 @@ struct FrameData {
 	VkDescriptorSet objectDescriptor;
 
 	AllocatedBuffer _uboBuffer_rayTracing;
-	VkDescriptorBufferInfo _uboBuffer_rayTracing_descriptor;
+	VkDescriptorBufferInfo _uboBuffer_rayTracing_descriptor; 
+	vkutil::DescriptorAllocator* dynamicDescriptorAllocator;
 };
 
 struct GPUCameraData {
@@ -138,6 +140,8 @@ struct RayTracingScratchBuffer
 class VulkanEngine {
 public:
 
+	vkutil::DescriptorAllocator _descriptorAllocator;
+	vkutil::DescriptorLayoutCache _descriptorLayoutCache;
 
 	//Handles _handles;
 
@@ -161,9 +165,13 @@ public:
 	VkImageView    _renderTargetImageView;
 	AllocatedImage _renderTargetImage;
 
-	RenderTarget _presentTarget;
-	RenderTarget _rtTarget;
-	//RenderTarget _rtCenterPixelTarget;
+	struct RenderTargets {
+		RenderTarget present;
+		RenderTarget rt;
+		RenderTarget shadows;
+		RenderTarget gBufferNormal;
+		RenderTarget gBufferDepth;
+	} _renderTargets;
 
 	GLFWwindow* _window;
 
@@ -219,14 +227,13 @@ public:
 
 	UploadContext _uploadContext;
 
-	VkShaderModule _solid_color_vertex_shader;
-	VkShaderModule _solid_color_fragment_shader;
-	VkShaderModule _colorMeshShader;
-	VkShaderModule _texturedMeshShader;
-	VkShaderModule _meshVertShader;
-
-	VkShaderModule _text_blitter_vertex_shader;
-	VkShaderModule _text_blitter_fragment_shader;
+	VkShaderModule _solid_color_vertex_shader = nullptr;
+	VkShaderModule _solid_color_fragment_shader = nullptr;
+	VkShaderModule _colorMeshShader = nullptr;
+	VkShaderModule _texturedMeshShader = nullptr;
+	VkShaderModule _meshVertShader = nullptr;
+	VkShaderModule _text_blitter_vertex_shader = nullptr;
+	VkShaderModule _text_blitter_fragment_shader = nullptr;
 
 	//initializes everything in the engine
 	void init();
@@ -282,7 +289,6 @@ public:
 			void create_rt_buffers();
 			AccelerationStructure createBottomLevelAccelerationStructure(Mesh* mesh);
 			void createTopLevelAccelerationStructure();
-			void createStorageImage();
 			void createUniformBuffer();
 			void createRayTracingPipeline();
 			void createShaderBindingTable();
@@ -304,10 +310,10 @@ public:
 			VkPipelineLayout _rtPipelineLayout;
 			VkDescriptorSet _rtDescriptorSet;
 			VkDescriptorSetLayout _rtDescriptorSetLayout;
-			VkShaderModule _rayGenShader;
-			VkShaderModule _rayMissShader;
-			VkShaderModule _closestHitShader;
-			VkShaderModule _rayshadowMissShader;
+			VkShaderModule _rayGenShader = nullptr;
+			VkShaderModule _rayMissShader = nullptr;
+			VkShaderModule _closestHitShader = nullptr;
+			VkShaderModule _rayshadowMissShader = nullptr;
 
 			AllocatedBuffer _raygenShaderBindingTable;
 			AllocatedBuffer _missShaderBindingTable;
@@ -333,6 +339,10 @@ public:
 			} _uniformData;
 
 
+			VkStridedDeviceAddressRegionKHR raygenShaderSbtEntry{};
+			VkStridedDeviceAddressRegionKHR missShaderSbtEntry{};
+			VkStridedDeviceAddressRegionKHR hitShaderSbtEntry{};
+			VkStridedDeviceAddressRegionKHR callableShaderSbtEntry{};
 
 
 	bool _frameBufferResized = false;

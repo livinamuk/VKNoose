@@ -48,7 +48,7 @@ std::vector<uint32_t> compile_file(const std::string& source_name, shaderc_shade
 		std::cerr << module.GetErrorMessage();
 
 		// print line by line
-		if (true) {
+		if (false) {
 			std::istringstream f(source);
 			std::string line;
 			int i = 0;
@@ -101,6 +101,12 @@ bool load_shader(VkDevice device, std::string filePath, VkShaderStageFlagBits fl
 	if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
 		return false;
 	}
+
+	// Delete old version of shader, this is the case if hotloading
+	if (outShaderModule != nullptr) {
+		vkDestroyShaderModule(device, *outShaderModule, nullptr);
+	}
+
 	*outShaderModule = shaderModule;
 	return true;
 }

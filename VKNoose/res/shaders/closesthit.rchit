@@ -53,7 +53,7 @@ hitAttributeEXT vec2 attribs;
 
 const float PI = 3.14159265359;  
 //const vec3 lightPos = vec3(-2.2, 2, -3.5);
-const vec3 lightPosition = vec3(-0.1, 2, -0);
+const vec3 lightPosition = vec3(-0.5, 2.1, -0);
 float lightStrength = 1.0;
 
 float fog_exp2(const float dist, const float density) {
@@ -209,7 +209,20 @@ vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic,
 	float tMin   = 0.001;
     float tMax   = distance(lightPos, origin);
 	
-    vec3 rayDir = lightVector;
+	vec2 rng = vec2(0.0015);
+	vec3 light_dir       = lightVector;
+    vec3 light_tangent   = normalize(cross(light_dir, vec3(0.0f, 1.0f, 0.0f)));
+    vec3 light_bitangent = normalize(cross(light_tangent, light_dir));
+    // calculate disk point
+    float point_radius = light.radius * sqrt(rng.x);
+    float point_angle  = rng.y * 2.0f * PI;
+    vec2  disk_point   = vec2(point_radius * cos(point_angle), point_radius * sin(point_angle));    
+    vec3 Wi = normalize(light_dir + disk_point.x * light_tangent + disk_point.y * light_bitangent);
+
+
+
+    vec3 rayDir = Wi;//
+	rayDir  = lightVector;
     //vec3  origin = worldPos;// + normal * 0.015;
     uint  flags  = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
     isShadowed   = true;
@@ -468,5 +481,124 @@ void main()
 		//rayPayload.color = vec3(0, 1,1);
     }
 	//	rayPayload.color = normal;
+
+
+
+
+	vec3 acc = vec3(0);
+	{
+	
+		float bias = 0.0;
+		//vec3 origin =  worldPos + normal * bias;	
+		vec3 origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+		vec3 lightVector = normalize(light.position - origin);
+
+		float tMin   = 0.001;
+		float tMax   = distance(light.position, origin);
+
+		//const vec2 current_coord = vec2(gl_GlobalInvocationID.xy);
+		vec2 rng = vec2(0);
+		rng.x = random(vec2(worldPos.x, worldPos.y));
+		rng.y = random(vec2(worldPos.y, worldPos.x));
+	
+
+		vec3 light_dir       = lightVector;
+		vec3 light_tangent   = normalize(cross(light_dir, vec3(0.0f, 1.0f, 0.0f)));
+		vec3 light_bitangent = normalize(cross(light_tangent, light_dir));
+		// calculate disk point
+		float radius = 0.05;
+		float point_radius = radius * sqrt(rng.x);
+		float point_angle  = rng.y * 2.0f * PI;
+		vec2  disk_point   = vec2(point_radius * cos(point_angle), point_radius * sin(point_angle));    
+		vec3 Wi = normalize(light_dir + disk_point.x * light_tangent + disk_point.y * light_bitangent);
+
+
+
+		vec3 rayDir = Wi;// lightVector;
+		// rayDir = lightVector;
+		//vec3  origin = worldPos;// + normal * 0.015;
+		uint  flags  = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+		isShadowed   = true;
+		traceRayEXT(topLevelAS,  // acceleration structure
+					flags,       // rayFlags
+					0xFF,        // cullMask
+					0,           // sbtRecordOffset
+					0,           // sbtRecordStride
+					1,           // missIndex
+					origin,      // ray origin
+					tMin,        // ray min range
+					rayDir,      // ray direction
+					tMax,        // ray max range
+					1            // payload (location = 1)
+		);
+		float att = CalculateAttenuation(light, origin);
+
+		vec3 COLOR = vec3(att * light2.color);    
+		if(isShadowed)
+		{
+		  COLOR *= 0.0;//25;
+		}
+		acc += COLOR;
+	}
+		{
+	
+		float bias = 0.0;
+		//vec3 origin =  worldPos + normal * bias;	
+		vec3 origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+		vec3 lightVector = normalize(light4.position - origin);
+
+		float tMin   = 0.001;
+		float tMax   = distance(light4.position, origin);
+
+		//const vec2 current_coord = vec2(gl_GlobalInvocationID.xy);
+		vec2 rng = vec2(0);
+		rng.y = random(vec2(worldPos.x, worldPos.y));
+		rng.x = random(vec2(worldPos.y, worldPos.x));
+	
+
+		vec3 light_dir       = lightVector;
+		vec3 light_tangent   = normalize(cross(light_dir, vec3(0.0f, 1.0f, 0.0f)));
+		vec3 light_bitangent = normalize(cross(light_tangent, light_dir));
+		// calculate disk point
+		float radius = 0.05;
+		float point_radius = radius * sqrt(rng.x);
+		float point_angle  = rng.y * 2.0f * PI;
+		vec2  disk_point   = vec2(point_radius * cos(point_angle), point_radius * sin(point_angle));    
+		vec3 Wi = normalize(light_dir + disk_point.x * light_tangent + disk_point.y * light_bitangent);
+
+
+
+		vec3 rayDir = Wi;// lightVector;
+		// rayDir = lightVector;
+		//vec3  origin = worldPos;// + normal * 0.015;
+		uint  flags  = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+		isShadowed   = true;
+		traceRayEXT(topLevelAS,  // acceleration structure
+					flags,       // rayFlags
+					0xFF,        // cullMask
+					0,           // sbtRecordOffset
+					0,           // sbtRecordStride
+					1,           // missIndex
+					origin,      // ray origin
+					tMin,        // ray min range
+					rayDir,      // ray direction
+					tMax,        // ray max range
+					1            // payload (location = 1)
+		);
+		float att = CalculateAttenuation(light4, origin);
+		//att = 1;
+		vec3 COLOR = vec3(att * light4.color);    
+		if(isShadowed)
+		{
+		  COLOR *= 0.0;//25;
+		}
+		acc += COLOR;
+	}
+	acc *= 1;
+
+	//acc = acc * (baseColor.rgb * 3.5) + (baseColor.rgb * 0.5);
+	//acc += vec3(baseColor.rgb * 0.5);
+
+	//rayPayload.color = acc;
 
 }

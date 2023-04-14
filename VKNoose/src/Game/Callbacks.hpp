@@ -6,8 +6,11 @@
 namespace Callbacks {
 
 	inline void UnlockSmallDrawer() {
-		Scene::GetGameObjectByName("LockedSmallDrawer")->SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f, "DrawerOpen.wav", "DrawerOpen.wav");
+		Scene::GetGameObjectByName("LockedSmallDrawer")->SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+		Scene::GetGameObjectByName("LockedSmallDrawer")->SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+		Scene::GetGameObjectByName("LockedSmallDrawer")->SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
 		Scene::GetGameObjectByName("LockedSmallDrawer")->SetInteract(InteractType::NONE, "", nullptr);
+		Scene::GetGameObjectByName("LockedSmallDrawer")->SetOpenAxis(OpenAxis::TRANSLATE_Z);
 		Audio::PlayAudio("Unlock1.wav");
 	}
 

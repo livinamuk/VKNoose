@@ -74,6 +74,14 @@ void VulkanEngine::init()
 		init_sync_structures();
 	}
 	{
+		Profiler profiler("_descriptorAllocator.init()", true);
+		_descriptorAllocator.init(_device);
+	}
+	{
+		Profiler profiler("_descriptorLayoutCache.init()", true);
+		_descriptorLayoutCache.init(_device);
+	}
+	{
 		Profiler profiler("init_descriptors", true);
 		init_descriptors();
 	}
@@ -138,7 +146,6 @@ void VulkanEngine::init()
 
 	create_rt_buffers();
 	createTopLevelAccelerationStructure();
-	createStorageImage();
 	createUniformBuffer();
 
 	init_raytracing();
@@ -189,8 +196,10 @@ void VulkanEngine::cleanup()
 		vmaDestroyBuffer(_allocator, _frames[i].objectBuffer._buffer, _frames[i].objectBuffer._allocation);
 	}
 
-	_presentTarget.cleanup(_device, _allocator);
-	//_rtCenterPixelTarget.cleanup(_device, _allocator);
+	_renderTargets.present.cleanup(_device, _allocator);
+	_renderTargets.shadows.cleanup(_device, _allocator);
+	_renderTargets.gBufferNormal.cleanup(_device, _allocator);
+	_renderTargets.gBufferDepth.cleanup(_device, _allocator);
 
 	// Render targets
 	vkDestroyImageView(_device, _renderTargetImageView, nullptr);
@@ -235,6 +244,9 @@ void VulkanEngine::cleanup()
 	vkDestroyDescriptorSetLayout(_device, _singleTextureSetLayout, nullptr);
 	vkDestroyDescriptorPool(_device, _descriptorPool, nullptr);
 
+	_descriptorAllocator.cleanup();
+	_descriptorLayoutCache.cleanup();
+
 	// new destroys
 	vkDestroyDescriptorSetLayout(_device, _textureArrayDescriptorLayout, nullptr);
 	vkDestroySampler(_device, _sampler, nullptr);
@@ -259,6 +271,10 @@ void VulkanEngine::cleanup()
 	glfwTerminate();
 }
 
+uint32_t alignedSize(uint32_t value, uint32_t alignment) {
+	return (value + alignment - 1) & ~(alignment - 1);
+}
+
 void VulkanEngine::init_raytracing()
 {
 	createRayTracingPipeline();
@@ -276,7 +292,10 @@ void VulkanEngine::cleanup_raytracing()
 	vkDestroyAccelerationStructureKHR(_device, _topLevelAS.handle, nullptr);
 	vmaDestroyBuffer(_allocator, _frames[0]._uboBuffer_rayTracing._buffer, _frames[0]._uboBuffer_rayTracing._allocation);
 	vmaDestroyBuffer(_allocator, _frames[1]._uboBuffer_rayTracing._buffer, _frames[1]._uboBuffer_rayTracing._allocation);
-	_rtTarget.cleanup(_device, _allocator);
+
+
+	_renderTargets.rt.cleanup(_device, _allocator);
+
 	//vmaDestroyImage(_allocator, _storageImage.image._image, _storageImage.image._allocation);
 	//vkDestroyImageView(_device, _storageImage.view, nullptr);
 	vkDestroyDescriptorPool(_device, _rtDescriptorPool, nullptr); 
@@ -904,6 +923,7 @@ void VulkanEngine::init_swapchain()
 
 void VulkanEngine::create_render_targets()
 {
+	// Thg below was the old render target you used when you did dynamic rendering
 	VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
 	VkImageCreateInfo img_info = vkinit::image_create_info(format, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, _renderTargetExtent);
 	VmaAllocationCreateInfo img_allocinfo = {};
@@ -913,9 +933,38 @@ void VulkanEngine::create_render_targets()
 	VkImageViewCreateInfo view_info = vkinit::imageview_create_info(format, _renderTargetImage._image, VK_IMAGE_ASPECT_COLOR_BIT);;
 	VK_CHECK(vkCreateImageView(_device, &view_info, nullptr, &_renderTargetImageView));
 
-	VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-	VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
-	_presentTarget = RenderTarget(_device, _allocator, format, 512, 288, usageFlags);
+	//  Present Target
+	{
+		VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+		VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+		_renderTargets.present = RenderTarget(_device, _allocator, format, 512, 288, usageFlags);
+	}
+	// RT image store 
+	{
+		VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+		VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		uint32_t width = _renderTargets.present._extent.width * 4;
+		uint32_t height = _renderTargets.present._extent.height * 4;
+		_renderTargets.rt = RenderTarget(_device, _allocator, format, width, height, usage);
+	}
+
+	// GBuffer
+	{
+		VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+		VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		uint32_t width = _renderTargets.rt._extent.width * 4;
+		uint32_t height = _renderTargets.rt._extent.height * 4;
+		_renderTargets.gBufferNormal = RenderTarget(_device, _allocator, format, width, height, usage);
+		_renderTargets.gBufferDepth = RenderTarget(_device, _allocator, format, width, height, usage);
+	}	
+	// RT Shadows Target
+	{
+		VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+		VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		uint32_t width = _renderTargets.rt._extent.width * 4;
+		uint32_t height = _renderTargets.rt._extent.height * 4;
+		_renderTargets.shadows = RenderTarget(_device, _allocator, format, width, height, usage);
+	}
 }
 
 void VulkanEngine::recreate_dynamic_swapchain()
@@ -964,7 +1013,6 @@ void VulkanEngine::hotload_shaders()
 
 	vkDeviceWaitIdle(_device);
 
-	cleanup_shaders();
 
 	vkDestroyPipeline(_device, _textblitterPipeline, nullptr);
 	vkDestroyPipelineLayout(_device, _textblitterPipelineLayout, nullptr);
@@ -981,6 +1029,7 @@ void VulkanEngine::hotload_shaders()
 
 
 
+	//cleanup_shaders();
 	load_shaders();
 	create_pipelines();
 	create_pipelines_2();
@@ -2251,20 +2300,6 @@ void VulkanEngine::updateTLASdescriptorSet() {
 	}*/
 }
 
-
-void VulkanEngine::createStorageImage()
-{
-	VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
-	VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	uint32_t width = _presentTarget._extent.width * 4;
-	uint32_t height = _presentTarget._extent.height * 4;
-
-	//VkMemoryPropertyFlags memoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
-	//VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-	_rtTarget = RenderTarget(_device, _allocator, format, width, height, usage);
-	//_rtCenterPixelTarget = RenderTarget(_device, _allocator, format, 1, 1, usage, VMA_MEMORY_USAGE_GPU_ONLY, memoryFlags);
-}
-
 void VulkanEngine::createUniformBuffer()
 {
 	/*VkBufferCreateInfo bufferInfo = {};
@@ -2417,9 +2452,7 @@ void VulkanEngine::createRayTracingPipeline()
 	VK_CHECK(vkCreateRayTracingPipelinesKHR(_device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rayTracingPipelineCI, nullptr, &_rtPipeline));
 }
 
-uint32_t alignedSize(uint32_t value, uint32_t alignment) {
-	return (value + alignment - 1) & ~(alignment - 1);
-}
+
 
 void VulkanEngine::createShaderBindingTable()
 {
@@ -2463,6 +2496,19 @@ void VulkanEngine::createShaderBindingTable()
 	vmaMapMemory(_allocator, _hitShaderBindingTable._allocation, &data);
 	memcpy(data, shaderHandleStorage.data() + handleSizeAligned * 3, handleSize);
 	vmaUnmapMemory(_allocator, _hitShaderBindingTable._allocation);
+
+	//Setup the buffer regions pointing to the shaders in our shader binding table
+	raygenShaderSbtEntry.deviceAddress = get_buffer_device_address(_raygenShaderBindingTable._buffer);
+	raygenShaderSbtEntry.stride = handleSizeAligned;
+	raygenShaderSbtEntry.size = handleSizeAligned;
+
+	missShaderSbtEntry.deviceAddress = get_buffer_device_address(_missShaderBindingTable._buffer);
+	missShaderSbtEntry.stride = handleSizeAligned;
+	missShaderSbtEntry.size = handleSizeAligned;
+
+	hitShaderSbtEntry.deviceAddress = get_buffer_device_address(_hitShaderBindingTable._buffer);
+	hitShaderSbtEntry.stride = handleSizeAligned;
+	hitShaderSbtEntry.size = handleSizeAligned;
 }
 
 
@@ -2490,7 +2536,7 @@ void VulkanEngine::createDescriptorSets()
 	//VK_CHECK(vkAllocateDescriptorSets(_device, &descriptorSetAllocateInfo3, &_rtCenterPixelDescriptorSet));
 
 	VkDescriptorImageInfo storageImageDescriptor{};
-	storageImageDescriptor.imageView = _rtTarget._view;
+	storageImageDescriptor.imageView = _renderTargets.rt._view;
 	storageImageDescriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 	/*VkDescriptorImageInfo storageImageDescriptor2{};
 	storageImageDescriptor2.imageView = _rtCenterPixelTarget._view;
@@ -2648,30 +2694,15 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	VkCommandBuffer commandBuffer = _frames[frameIndex]._commandBuffer;
 	VkCommandBufferBeginInfo cmdBufInfo = vkinit::command_buffer_begin_info();
 
+
+	//get_current_frame().dynamicDescriptorAllocator->reset_pools();
+
+
 	VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
 	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &cmdBufInfo));
 
 
-	//Setup the buffer regions pointing to the shaders in our shader binding table
-	const uint32_t handleSizeAligned = alignedSize(rayTracingPipelineProperties.shaderGroupHandleSize, rayTracingPipelineProperties.shaderGroupHandleAlignment);
-
-	VkStridedDeviceAddressRegionKHR raygenShaderSbtEntry{};
-	raygenShaderSbtEntry.deviceAddress = get_buffer_device_address(_raygenShaderBindingTable._buffer);
-	raygenShaderSbtEntry.stride = handleSizeAligned;
-	raygenShaderSbtEntry.size = handleSizeAligned;
-
-	VkStridedDeviceAddressRegionKHR missShaderSbtEntry{};
-	missShaderSbtEntry.deviceAddress = get_buffer_device_address(_missShaderBindingTable._buffer);
-	missShaderSbtEntry.stride = handleSizeAligned;
-	missShaderSbtEntry.size = handleSizeAligned;
-
-	VkStridedDeviceAddressRegionKHR hitShaderSbtEntry{};
-	hitShaderSbtEntry.deviceAddress = get_buffer_device_address(_hitShaderBindingTable._buffer);
-	hitShaderSbtEntry.stride = handleSizeAligned;
-	hitShaderSbtEntry.size = handleSizeAligned;
-
-	VkStridedDeviceAddressRegionKHR callableShaderSbtEntry{};
 
 	//Dispatch the ray tracing commands
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _rtPipeline);
@@ -2683,7 +2714,7 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	//_rtCenterPixelTarget.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 
 	// Ray trace main image
-	_rtTarget.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+	_renderTargets.rt.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 	
 	vkCmdTraceRaysKHR(
 		commandBuffer,
@@ -2696,12 +2727,12 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 		1);
 
 	// Now blit that image into the presentTarget
-	_rtTarget.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-	_presentTarget.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-	blit_render_target(commandBuffer, _rtTarget, _presentTarget, VkFilter::VK_FILTER_LINEAR);
+	_renderTargets.rt.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+	_renderTargets.present.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+	blit_render_target(commandBuffer, _renderTargets.rt, _renderTargets.present, VkFilter::VK_FILTER_LINEAR);
 
 	// Do camera ray
-	_rtTarget.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+	_renderTargets.rt.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 	vkCmdTraceRaysKHR(
 		commandBuffer,
 		&raygenShaderSbtEntry,
@@ -2714,7 +2745,54 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 
 
 	// UI //
-	_presentTarget.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+	_renderTargets.present.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+
+
+
+	{
+		VkImageSubresourceRange range;
+		range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		range.baseMipLevel = 0;
+		range.levelCount = 1;
+		range.baseArrayLayer = 0;
+		range.layerCount = 1;
+
+		// draw UI //
+		VkRenderingAttachmentInfoKHR colorAttachment{};
+		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+		colorAttachment.imageView = _renderTargets.present._view;
+		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		colorAttachment.clearValue = { 1.0, 1.0, 0, 0 };
+
+		VkRenderingAttachmentInfoKHR depthStencilAttachment{};
+		depthStencilAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+		depthStencilAttachment.imageView = _depthImageView;
+		depthStencilAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL_KHR;
+		depthStencilAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthStencilAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		depthStencilAttachment.clearValue.depthStencil = { 1.0f, 0 };
+
+		VkRenderingInfoKHR renderingInfo{};
+		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+		renderingInfo.renderArea = { 0, 0, _renderTargets.present._extent.width, _renderTargets.present._extent.height };
+		renderingInfo.layerCount = 1;
+		renderingInfo.colorAttachmentCount = 1;
+		renderingInfo.pColorAttachments = &colorAttachment;
+		renderingInfo.pDepthAttachment = &depthStencilAttachment;
+		renderingInfo.pStencilAttachment = nullptr;
+
+		//vkCmdBeginRendering(commandBuffer, &renderingInfo);
+
+		//for (MeshRenderInfo& mesh : Scene::GetMeshRenderInfos()) {
+			//mesh._mesh->draw(commandBuffer, 0);
+		//}
+
+		//vkCmdEndRendering(commandBuffer);
+	}
+
+
 
 	VkImageSubresourceRange range;
 	range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -2726,7 +2804,7 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	// draw UI //
 	VkRenderingAttachmentInfoKHR colorAttachment{};
 	colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-	colorAttachment.imageView = _presentTarget._view;
+	colorAttachment.imageView = _renderTargets.present._view;
 	colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
 	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -2741,7 +2819,7 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 
 	VkRenderingInfoKHR renderingInfo{};
 	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-	renderingInfo.renderArea = { 0, 0, _presentTarget._extent.width, _presentTarget._extent.height };
+	renderingInfo.renderArea = { 0, 0, _renderTargets.present._extent.width, _renderTargets.present._extent.height };
 	renderingInfo.layerCount = 1;
 	renderingInfo.colorAttachmentCount = 1;
 	renderingInfo.pColorAttachments = &colorAttachment;
@@ -2777,8 +2855,8 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	vmaUnmapMemory(_allocator, get_current_frame().objectBuffer._allocation);
 
 	vkCmdBeginRendering(commandBuffer, &renderingInfo);
-	VkViewport viewport = vkinit::viewport((float)_presentTarget._extent.width, (float)_presentTarget._extent.height, 0.0f, 1.0f);
-	VkRect2D scissor = vkinit::rect2D(_presentTarget._extent.width, _presentTarget._extent.height, 0, 0);
+	VkViewport viewport = vkinit::viewport((float)_renderTargets.present._extent.width, (float)_renderTargets.present._extent.height, 0.0f, 1.0f);
+	VkRect2D scissor = vkinit::rect2D(_renderTargets.present._extent.width, _renderTargets.present._extent.height, 0, 0);
 	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _textblitterPipeline);
@@ -2803,8 +2881,24 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 		_lineListMesh.draw(commandBuffer, 0);
 	}
 
+	// Render GBuffer
+	{
+
+	}
 
 	vkCmdEndRendering(commandBuffer);
+
+
+
+
+
+
+
+
+
+
+
+
 
 	// now prepare for to blit from storage image to swapchain
 
@@ -2813,8 +2907,8 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	region.srcOffsets[0].x = 0;
 	region.srcOffsets[0].y = 0;
 	region.srcOffsets[0].z = 0;
-	region.srcOffsets[1].x = _presentTarget._extent.width;
-	region.srcOffsets[1].y = _presentTarget._extent.height;
+	region.srcOffsets[1].x = _renderTargets.present._extent.width;
+	region.srcOffsets[1].y = _renderTargets.present._extent.height;
 	region.srcOffsets[1].z = 1;	region.srcOffsets[0].x = 0;
 	region.dstOffsets[0].x = 0;
 	region.dstOffsets[0].y = 0;
@@ -2836,7 +2930,7 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 
 
 	{
-		_presentTarget.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_MEMORY_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+		_renderTargets.present.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_MEMORY_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
 		// Prepare swapchain as destination for copy
 		VkImageMemoryBarrier swapChainBarrier = {};
@@ -2850,11 +2944,11 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &swapChainBarrier);
 
 		// PERFORM BLIT COPY
-		region.srcOffsets[1].x = _presentTarget._extent.width;
-		region.srcOffsets[1].y = _presentTarget._extent.height;
+		region.srcOffsets[1].x = _renderTargets.present._extent.width;
+		region.srcOffsets[1].y = _renderTargets.present._extent.height;
 		region.dstOffsets[1].x = _windowExtent.width;
 		region.dstOffsets[1].y = _windowExtent.height;
-		vkCmdBlitImage(commandBuffer, _presentTarget._image, srcLayout, _swapchainImages[swapchainIndex], dstLayout, regionCount, &region, VkFilter::VK_FILTER_NEAREST);
+		vkCmdBlitImage(commandBuffer, _renderTargets.present._image, srcLayout, _swapchainImages[swapchainIndex], dstLayout, regionCount, &region, VkFilter::VK_FILTER_NEAREST);
 
 		// Prepare swap chain for present
 		swapChainBarrier = {};
@@ -2887,16 +2981,18 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 
 void VulkanEngine::AddDebugText() {
 	TextBlitter::ResetDebugText();
+
 	if (_debugMode == DebugMode::RAY) {
 		TextBlitter::AddDebugText("Cam pos: " + Util::Vec3ToString(GameData::GetPlayer().m_camera.m_viewPos));
 		TextBlitter::AddDebugText("Cam rot: " + Util::Vec3ToString(GameData::GetPlayer().m_camera.m_transform.rotation));
 		TextBlitter::AddDebugText("Rayhit BLAS index: " + std::to_string(Scene::_instanceIndex));
 		TextBlitter::AddDebugText("Rayhit triangle index: " + std::to_string(Scene::_primitiveIndex));
 	}	
-	if (_debugMode == DebugMode::COLLISION) {
+	else if (_debugMode == DebugMode::COLLISION) {
 		TextBlitter::AddDebugText("Collision world");
 	}
 	else {
+		return;
 		TextBlitter::AddDebugText("Inventory");
 		for (int i=0; i < GameData::GetInventoryItemCount(); i++)
 			TextBlitter::AddDebugText("[g]" + GameData::GetInventoryItemNameByIndex(i, true) + "[w]");

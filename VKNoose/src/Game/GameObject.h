@@ -24,6 +24,7 @@ private:
 	//std::string _questionText = "";
 	Transform _transform;
 	OpenState _openState = OpenState::NONE;
+	OpenAxis _openAxis = OpenAxis::NONE;
 	float _maxOpenAmount = 0;
 	float _minOpenAmount = 0;
 	float _openSpeed = 0;
@@ -32,21 +33,25 @@ private:
 	bool _collisionEnabled = false;
 	InteractType _interactType = InteractType::NONE;
 
-	struct AudioFiles {
-		std::string onOpen = "";
-		std::string onClose = "";
-		std::string onInteract = "";
+	
+	struct AudioEffects {
+		AudioEffectInfo onOpen;
+		AudioEffectInfo onClose;
+		AudioEffectInfo onInteract;
 	} _audio;
 
 public:
 	GameObject();
 	glm::mat4 GetModelMatrix();
 	std::string GetName();
-	void SetOnInteractAudio(std::string filename);
+	void SetOpenAxis(OpenAxis openAxis);
+	void SetAudioOnInteract(std::string filename, float volume);
+	void SetAudioOnOpen(std::string filename, float volume);
+	void SetAudioOnClose(std::string filename, float volume);
 	void SetInteract(InteractType type, std::string text, std::function<void(void)> callback);
 	//void SetPickUpQuestion(std::string text);
 	//void SetPickUpCallback(callback_function callback);
-	void SetOpenState(OpenState openState, float speed, float min, float max, std::string audioOnOpen, std::string audioOnClose);
+	void SetOpenState(OpenState openState, float speed, float min, float max);
 	void SetPosition(glm::vec3 position);
 	void SetPositionX(float position);
 	void SetPositionY(float position);
@@ -82,4 +87,5 @@ public:
 	bool HasCollisionsEnabled();
 	bool IsCollected();
 	const InteractType& GetInteractType();
+	OpenState& GetOpenState();
 };

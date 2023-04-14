@@ -3,6 +3,11 @@
 #include "fmod.hpp"
 #include <fmod_errors.h>
 
+struct AudioEffectInfo {
+	std::string filename = "";
+	float volume = 0.0f;
+};
+
 /*struct AudioFile {
 	const char* name;
 	//SoLoud::Wav* audio; SoLoud::Soloud Audio::gSoloud;
@@ -23,6 +28,7 @@ public: // functions
 	static void LoadAudio(const char* name); 
 	static void Update();
 	static FMOD::Sound* PlayAudio(const char* name, float volume = 1.0f);
+	static FMOD::Sound* PlayAudio(AudioEffectInfo info);
 	static AudioHandle LoopAudio(const char* name, float volume = 1.0f);
 
 	//static FMOD::Sound* sound;// = nullptr;

@@ -1,6 +1,6 @@
 #include "Audio.h"
-//#include "Helpers/Util.h"
 #include <iostream>
+#include <Filesystem>
 
 std::unordered_map<std::string, FMOD::Sound*> Audio::s_loadedAudio;
 //SoLoud::Soloud Audio::gSoloud;
@@ -97,23 +97,36 @@ void Audio::Update()
 
 void Audio::LoadAudio(const char* name)
 {
-	std::string fullpath = "res/audio/";
-	fullpath += name;
+	std::string fullpath = "res/audio/" + std::string(name);	
+	
+	if (std::filesystem::exists(fullpath)) 	{	
+		FMOD_MODE eMode = FMOD_DEFAULT;
+		if (fullpath == "res/audio/Music.wav")
+			eMode = FMOD_LOOP_NORMAL;
 
-	FMOD_MODE eMode = FMOD_DEFAULT;
-	if (fullpath == "res/audio/Music.wav")
-		eMode = FMOD_LOOP_NORMAL;
+		// Create the sound.
+		FMOD::Sound* sound = nullptr; 
+		system->createSound(fullpath.c_str(), eMode, nullptr, &sound);
 
-	// Create the sound.
-	FMOD::Sound* sound = nullptr; 
-	system->createSound(fullpath.c_str(), eMode, nullptr, &sound);
+		// Map pointer to name
+		s_loadedAudio[name] = sound;
+	}
+	else {
+		std::cout << "ERROR LOG: Failed loading audio. \"" << fullpath << "\" does not exist.\n";
+	}
+}
 
-	// Map pointer to name
-	s_loadedAudio[name] = sound;
+FMOD::Sound* Audio::PlayAudio(AudioEffectInfo info) {
+	return PlayAudio(info.filename.c_str(), info.volume);
 }
 
 FMOD::Sound* Audio::PlayAudio(const char* name, float volume)
 {
+	// Key is not present, then load the audio file
+	if (s_loadedAudio.count(name) == 0) {
+		LoadAudio(name);
+	}
+
 	FMOD::Sound* sound = s_loadedAudio[name];
 	FMOD::Channel* channel = nullptr;
 	system->playSound(sound, nullptr, false, &channel);

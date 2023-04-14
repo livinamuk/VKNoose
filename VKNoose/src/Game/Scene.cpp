@@ -69,41 +69,57 @@ void Scene::Init()
 		drawers.SetBoundingBoxFromMesh(0); 
 		drawers.EnableCollision();
 
+		float drawerVolume = 1.0f;
 		GameObject& topLeftDrawer = _gameObjects.emplace_back(GameObject());
 		topLeftDrawer.SetModel("DrawerTopLeft");
 		topLeftDrawer.SetMeshMaterial("Drawers");
 		topLeftDrawer.SetScriptName("OpenableDrawer");
 		topLeftDrawer.SetParentName("ChestOfDrawers");
 		topLeftDrawer.SetName("TopLeftDrawer");
-		topLeftDrawer.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f, "DrawerOpen.wav", "DrawerOpen.wav");
+		topLeftDrawer.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+		topLeftDrawer.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+		topLeftDrawer.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+		topLeftDrawer.SetOpenAxis(OpenAxis::TRANSLATE_Z);
 
 		GameObject& topRightDrawer = _gameObjects.emplace_back(GameObject());
 		topRightDrawer.SetModel("DrawerTopRight");
 		topRightDrawer.SetMeshMaterial("Drawers");
 		topRightDrawer.SetScriptName("OpenableDrawer");
 		topRightDrawer.SetParentName("ChestOfDrawers");
-		topRightDrawer.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f, "DrawerOpen.wav", "DrawerOpen.wav");
+		topRightDrawer.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+		topRightDrawer.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+		topRightDrawer.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+		topRightDrawer.SetOpenAxis(OpenAxis::TRANSLATE_Z);
 
 		GameObject& drawSecond = _gameObjects.emplace_back(GameObject());
 		drawSecond.SetModel("DrawerSecond");
 		drawSecond.SetMeshMaterial("Drawers");
 		drawSecond.SetScriptName("OpenableDrawer");
 		drawSecond.SetParentName("ChestOfDrawers");
-		drawSecond.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f, "DrawerOpen.wav", "DrawerOpen.wav");
+		drawSecond.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+		drawSecond.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+		drawSecond.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+		drawSecond.SetOpenAxis(OpenAxis::TRANSLATE_Z);
 
 		GameObject& drawThird = _gameObjects.emplace_back(GameObject());
 		drawThird.SetModel("DrawerThird");
 		drawThird.SetMeshMaterial("Drawers");
 		drawThird.SetScriptName("OpenableDrawer");
 		drawThird.SetParentName("ChestOfDrawers");
-		drawThird.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f, "DrawerOpen.wav", "DrawerOpen.wav");
+		drawThird.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+		drawThird.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+		drawThird.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+		drawThird.SetOpenAxis(OpenAxis::TRANSLATE_Z);
 
 		GameObject& drawerFourth = _gameObjects.emplace_back(GameObject());
 		drawerFourth.SetModel("DrawerFourth");
 		drawerFourth.SetMeshMaterial("Drawers");
 		drawerFourth.SetScriptName("OpenableDrawer");
 		drawerFourth.SetParentName("ChestOfDrawers");
-		drawerFourth.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f, "DrawerOpen.wav", "DrawerOpen.wav");
+		drawerFourth.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+		drawerFourth.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+		drawerFourth.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+		drawerFourth.SetOpenAxis(OpenAxis::TRANSLATE_Z);
 
 		GameObject& diary = _gameObjects.emplace_back(GameObject());
 		diary.SetParentName("TopLeftDrawer");
@@ -169,7 +185,11 @@ void Scene::Init()
 	door0.SetRotationY(NOOSE_HALF_PI);
 	door0.SetPosition(hallDoorX + 0.39550f, 0, -1.85 - 0.058520);
 	door0.SetScriptName("OpenableDoor");
-	door0.SetOpenState(OpenState::CLOSED, 5.208f, NOOSE_HALF_PI, NOOSE_HALF_PI - 1.9f, "Door_Open.wav", "Door_Open.wav");
+	//door0.SetOpenState(OpenState::CLOSED, 5.208f, NOOSE_HALF_PI, -NOOSE_HALF_PI - 1.9f);
+	door0.SetOpenState(OpenState::CLOSED, 5.208f, NOOSE_HALF_PI, NOOSE_HALF_PI - 1.9f);
+	door0.SetAudioOnOpen("Door_Open.wav", DOOR_VOLUME);
+	door0.SetAudioOnClose("Door_Open.wav", DOOR_VOLUME);
+	door0.SetOpenAxis(OpenAxis::ROTATION_NEG_Y);
 
 	GameObject& doorFrame0 = _gameObjects.emplace_back(GameObject());
 	doorFrame0.SetModel("door_frame"); 
@@ -185,7 +205,10 @@ void Scene::Init()
 	door1.SetRotationY(NOOSE_HALF_PI);
 	door1.SetPosition(bathroomDoorX - 0.39550f, 0, bathroomZmin - 0.05f + 0.058520);
 	door1.SetScriptName("OpenableDoor");
-	door1.SetOpenState(OpenState::CLOSED, 5.208f, -NOOSE_HALF_PI, -1.9f -NOOSE_HALF_PI, "Door_Open.wav", "Door_Open.wav");
+	door1.SetOpenState(OpenState::CLOSED, 5.208f, -NOOSE_HALF_PI, -1.9f - NOOSE_HALF_PI);
+	door1.SetAudioOnOpen("Door_Open.wav", DOOR_VOLUME);
+	door1.SetAudioOnClose("Door_Open.wav", DOOR_VOLUME);
+	door1.SetOpenAxis(OpenAxis::ROTATION_NEG_Y);
 
 
 	GameObject& doorFrame1 = _gameObjects.emplace_back(GameObject());
@@ -233,19 +256,25 @@ void Scene::Init()
 
 	GameObject& toiletLid = _gameObjects.emplace_back(GameObject());
 	toiletLid.SetModel("ToiletLid");
+	toiletLid.SetName("ToiletLid");
 	toiletLid.SetMeshMaterial("Toilet");
 	toiletLid.SetPosition(0, 0.40727, -0.2014);
-	toiletLid.SetScriptName("OpenableToiletLid");
 	toiletLid.SetParentName("Toilet");
-	//toiletLid.SetOpenState("OpenableToiletLid");
-	//toiletLid.m_openState = OpenState::OPENING;
+	toiletLid.SetOpenState(OpenState::OPENING, 12.0f, 0, -(NOOSE_PI / 2) - 0.12);
+	toiletLid.SetAudioOnOpen("ToiletLidUp.wav", 0.75f);
+	toiletLid.SetAudioOnClose("ToiletLidDown.wav", 0.5f);
+	toiletLid.SetOpenAxis(OpenAxis::ROTATION_NEG_X);
 
 	GameObject& toiletSeat = _gameObjects.emplace_back(GameObject());
 	toiletSeat.SetModel("ToiletSeat");
+	toiletSeat.SetName("ToiletSeat");
 	toiletSeat.SetMeshMaterial("Toilet");
 	toiletSeat.SetPosition(0, 0.40727, -0.2014);
-	toiletSeat.SetScriptName("OpenableToiletSeat");
+	toiletSeat.SetAudioOnOpen("ToiletSeatUp.wav", 0.75f);
+	toiletSeat.SetAudioOnClose("ToiletSeatDown.wav", 0.5f);
 	toiletSeat.SetParentName("Toilet");
+	toiletSeat.SetOpenState(OpenState::CLOSED, 12.0f, 0, (NOOSE_PI / 2) + 0.12);
+	toiletSeat.SetOpenAxis(OpenAxis::ROTATION_POS_X);
 
 	GameObject& bathroomHeater = _gameObjects.emplace_back(GameObject());
 	bathroomHeater.SetModel("Heater");
@@ -296,7 +325,10 @@ void Scene::Init()
 	cabinetDoor.SetName("Cabinet Door");
 	cabinetDoor.SetParentName("Cabinet");
 	cabinetDoor.SetPosition(-0.10763f, 0, 0.24941);
-	cabinetDoor.SetOpenState(OpenState::CLOSED, 9, 0, NOOSE_HALF_PI, "CabinetOpen.wav", "CabinetClose.wav");
+	cabinetDoor.SetAudioOnOpen("CabinetOpen.wav", CABINET_VOLUME);
+	cabinetDoor.SetAudioOnClose("CabinetClose.wav", CABINET_VOLUME);
+	cabinetDoor.SetOpenState(OpenState::CLOSED, 9, 0, NOOSE_HALF_PI);
+	cabinetDoor.SetOpenAxis(OpenAxis::ROTATION_POS_Y);
 
 	GameObject& cabinetMirror = _gameObjects.emplace_back(GameObject());
 	cabinetMirror.SetModel("CabinetMirror");
@@ -319,28 +351,40 @@ void Scene::Init()
 	smallChestOfDrawer_1.SetMeshMaterial("Drawers");
 	smallChestOfDrawer_1.SetParentName("SmallDrawersHis");
 	smallChestOfDrawer_1.SetScriptName("OpenableDrawer");
-	smallChestOfDrawer_1.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f, "DrawerOpen.wav", "DrawerOpen.wav");
+	smallChestOfDrawer_1.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+	smallChestOfDrawer_1.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+	smallChestOfDrawer_1.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+	smallChestOfDrawer_1.SetOpenAxis(OpenAxis::TRANSLATE_Z);
 
 	GameObject& smallChestOfDrawer_2 = _gameObjects.emplace_back(GameObject());
 	smallChestOfDrawer_2.SetModel("SmallDrawerSecond");
 	smallChestOfDrawer_2.SetMeshMaterial("Drawers");
 	smallChestOfDrawer_2.SetParentName("SmallDrawersHis");
 	smallChestOfDrawer_2.SetScriptName("OpenableDrawer");
-	smallChestOfDrawer_2.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f, "DrawerOpen.wav", "DrawerOpen.wav");
+	smallChestOfDrawer_2.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+	smallChestOfDrawer_2.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+	smallChestOfDrawer_2.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+	smallChestOfDrawer_2.SetOpenAxis(OpenAxis::TRANSLATE_Z);
 
 	GameObject& smallChestOfDrawer_3 = _gameObjects.emplace_back(GameObject());
 	smallChestOfDrawer_3.SetModel("SmallDrawerThird");
 	smallChestOfDrawer_3.SetMeshMaterial("Drawers");
 	smallChestOfDrawer_3.SetParentName("SmallDrawersHis");
 	smallChestOfDrawer_3.SetScriptName("OpenableDrawer");
-	smallChestOfDrawer_3.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f, "DrawerOpen.wav", "DrawerOpen.wav");
+	smallChestOfDrawer_3.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+	smallChestOfDrawer_3.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+	smallChestOfDrawer_3.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+	smallChestOfDrawer_3.SetOpenAxis(OpenAxis::TRANSLATE_Z);
 
 	GameObject& smallChestOfDrawer_4 = _gameObjects.emplace_back(GameObject());
 	smallChestOfDrawer_4.SetModel("SmallDrawerFourth");
 	smallChestOfDrawer_4.SetMeshMaterial("Drawers");
 	smallChestOfDrawer_4.SetParentName("SmallDrawersHis");
 	smallChestOfDrawer_4.SetScriptName("OpenableDrawer");
-	smallChestOfDrawer_4.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f, "DrawerOpen.wav", "DrawerOpen.wav");
+	smallChestOfDrawer_4.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+	smallChestOfDrawer_4.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+	smallChestOfDrawer_4.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+	smallChestOfDrawer_4.SetOpenAxis(OpenAxis::TRANSLATE_Z);
 
 
 	GameObject& smallChestOfDrawersB = _gameObjects.emplace_back(GameObject());
@@ -358,47 +402,48 @@ void Scene::Init()
 	smallChestOfDrawer_1B.SetParentName("SmallDrawersHers");
 	smallChestOfDrawer_1B.SetName("LockedSmallDrawer");
 	smallChestOfDrawer_1B.SetInteract(InteractType::TEXT, "It's locked.", nullptr);
-	smallChestOfDrawer_1B.SetOnInteractAudio("Locked1.wav");
+	smallChestOfDrawer_1B.SetAudioOnInteract("Locked1.wav", 0.25f);
 
 	GameObject& smallChestOfDrawer_2B = _gameObjects.emplace_back(GameObject());
 	smallChestOfDrawer_2B.SetModel("SmallDrawerSecond");
 	smallChestOfDrawer_2B.SetMeshMaterial("Drawers");
 	smallChestOfDrawer_2B.SetParentName("SmallDrawersHers");
 	smallChestOfDrawer_2B.SetScriptName("OpenableDrawer");
-	smallChestOfDrawer_2B.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f, "DrawerOpen.wav", "DrawerOpen.wav");
+	smallChestOfDrawer_2B.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+	smallChestOfDrawer_2B.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+	smallChestOfDrawer_2B.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+	smallChestOfDrawer_2B.SetOpenAxis(OpenAxis::TRANSLATE_Z);
 
 	GameObject& smallChestOfDrawer_3B = _gameObjects.emplace_back(GameObject());
 	smallChestOfDrawer_3B.SetModel("SmallDrawerThird");
 	smallChestOfDrawer_3B.SetMeshMaterial("Drawers");
 	smallChestOfDrawer_3B.SetParentName("SmallDrawersHers");
 	smallChestOfDrawer_3B.SetScriptName("OpenableDrawer");
-	smallChestOfDrawer_3B.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f, "DrawerOpen.wav", "DrawerOpen.wav");
+	smallChestOfDrawer_3B.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+	smallChestOfDrawer_3B.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+	smallChestOfDrawer_3B.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+	smallChestOfDrawer_3B.SetOpenAxis(OpenAxis::TRANSLATE_Z);
 
 	GameObject& smallChestOfDrawer_4B = _gameObjects.emplace_back(GameObject());
 	smallChestOfDrawer_4B.SetModel("SmallDrawerFourth");
 	smallChestOfDrawer_4B.SetMeshMaterial("Drawers");
 	smallChestOfDrawer_4B.SetParentName("SmallDrawersHers");
 	smallChestOfDrawer_4B.SetScriptName("OpenableDrawer");
-	smallChestOfDrawer_4B.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f, "DrawerOpen.wav", "DrawerOpen.wav");
+	smallChestOfDrawer_4B.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+	smallChestOfDrawer_4B.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+	smallChestOfDrawer_4B.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+	smallChestOfDrawer_4B.SetOpenAxis(OpenAxis::TRANSLATE_Z);
 
-	/*
-	EntityStatic& smallChestOfDrawer_1 = smallChestOfDrawers.m_children.emplace_back(EntityStatic());
-	smallChestOfDrawer_1.SetModel("SmallDrawerTop.obj");
-	smallChestOfDrawer_1.SetMaterial("Drawers");
-	smallChestOfDrawer_1.m_scriptName = "OpenableDrawer";
-	EntityStatic& smallChestOfDrawer_2 = smallChestOfDrawers.m_children.emplace_back(EntityStatic());
-	smallChestOfDrawer_2.SetModel("SmallDrawerSecond.obj");
-	smallChestOfDrawer_2.SetMaterial("Drawers");
-	smallChestOfDrawer_2.m_scriptName = "OpenableDrawer";
-	EntityStatic& smallChestOfDrawer_3 = smallChestOfDrawers.m_children.emplace_back(EntityStatic());
-	smallChestOfDrawer_3.SetModel("SmallDrawerThird.obj");
-	smallChestOfDrawer_3.SetMaterial("Drawers");
-	smallChestOfDrawer_3.m_scriptName = "OpenableDrawer";
-	EntityStatic& smallChestOfDrawer_4 = smallChestOfDrawers.m_children.emplace_back(EntityStatic());
-	smallChestOfDrawer_4.SetModel("SmallDrawerFourth.obj");
-	smallChestOfDrawer_4.SetMaterial("Drawers");
-	smallChestOfDrawer_4.m_scriptName = "OpenableDrawer";
-	*/
+	GameObject& yourPhone = _gameObjects.emplace_back(GameObject());
+	yourPhone.SetModel("YourPhone");
+	yourPhone.SetName("Water Damaged Phone");
+	yourPhone.SetMeshMaterial("Phone");
+	yourPhone.SetInteract(InteractType::PICKUP, "Take the [g]WATER DAMAGED PHONE[w]?", nullptr);
+	yourPhone.SetPosition(-1.39f, 0.20f, 3.29f);
+	yourPhone.SetRotationX(-NOOSE_HALF_PI + 0.5);
+	yourPhone.SetRotationY(0.3);
+	yourPhone.SetScale(0.95f);
+
 
 	/*	X		   C  
 	 	|	  ___________

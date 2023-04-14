@@ -6,6 +6,10 @@
 GameObject::GameObject() {
 }
 
+void GameObject::SetOpenAxis(OpenAxis openAxis) {
+	_openAxis = openAxis;
+}
+
 void GameObject::SetPosition(float x, float y, float z) {
 	_transform.position = glm::vec3(x, y, z);
 }
@@ -103,6 +107,12 @@ void GameObject::SetScriptName(std::string name) {
 	_scriptName = name;
 }
 bool GameObject::IsInteractable() {
+
+	if (_name == "ToiletLid" && Scene::GetGameObjectByName("ToiletSeat")->GetOpenState() == OpenState::OPEN)
+		return false;
+	if (_name == "ToiletSeat" && Scene::GetGameObjectByName("ToiletLid")->GetOpenState() == OpenState::OPEN)
+		return false;
+
 	if (_openState == OpenState::CLOSED ||
 		_openState == OpenState::OPEN ||
 		_openState == OpenState::CLOSING ||
@@ -118,12 +128,12 @@ void GameObject::Interact() {
 	// Open
 	if (_openState == OpenState::CLOSED) {
 		_openState = OpenState::OPENING; 
-		Audio::PlayAudio(_audio.onOpen.c_str(), 0.5f);
+		Audio::PlayAudio(_audio.onOpen);
 	}
 	// Close
 	else if (_openState == OpenState::OPEN) {
 		_openState = OpenState::CLOSING;
-		Audio::PlayAudio(_audio.onClose.c_str(), 0.5f);
+		Audio::PlayAudio(_audio.onClose);
 	}
 	// Interact text
 	else if (_interactType == InteractType::TEXT) {
@@ -133,8 +143,8 @@ void GameObject::Interact() {
 		if (_interactCallback)
 			_interactCallback();
 		// Audio
-		if (_audio.onInteract.length() > 0) {
-			Audio::PlayAudio(_audio.onInteract.c_str(), 0.5f);
+		if (_audio.onInteract.filename != "") {
+			Audio::PlayAudio(_audio.onInteract);
 		}
 		// Default
 		else if (_interactText.length() > 0) {
@@ -157,7 +167,7 @@ void GameObject::Update(float deltaTime) {
 	// Open/Close if applicable
 	if (_openState != OpenState::NONE) {
 		// Rotation
-		if (GetName() == "Door") {
+		if (_openAxis == OpenAxis::ROTATION_NEG_Y) {
 			if (_openState == OpenState::OPENING) {
 				_transform.rotation.y -= _openSpeed * deltaTime;
 			}
@@ -172,8 +182,8 @@ void GameObject::Update(float deltaTime) {
 				_transform.rotation.y = _minOpenAmount;
 				_openState = OpenState::CLOSED;
 			}
-		}   
-		else if (GetName() == "Cabinet Door") {
+		}
+		if (_openAxis == OpenAxis::ROTATION_POS_Y) {
 			if (_openState == OpenState::OPENING) {
 				_transform.rotation.y += _openSpeed * deltaTime;
 			}
@@ -184,13 +194,47 @@ void GameObject::Update(float deltaTime) {
 				_transform.rotation.y = _maxOpenAmount;
 				_openState = OpenState::OPEN;
 			}
-			if (_transform.rotation.y < 0) {
-				_transform.rotation.y = 0;
+			if (_transform.rotation.y < _minOpenAmount) {
+				_transform.rotation.y = _minOpenAmount;
+				_openState = OpenState::CLOSED;
+			}
+		}
+		if (_openAxis == OpenAxis::ROTATION_NEG_X) {
+			if (_openState == OpenState::OPENING) {
+				_transform.rotation.x -= _openSpeed * deltaTime;
+			}
+			if (_openState == OpenState::CLOSING) {
+				_transform.rotation.x += _openSpeed * deltaTime;
+			}
+			if (_transform.rotation.x < _maxOpenAmount) {
+				_transform.rotation.x = _maxOpenAmount;
+				_openState = OpenState::OPEN;
+				//GameData::_toiletLidUp = false;
+			}
+			if (_transform.rotation.x > _minOpenAmount) {
+				_transform.rotation.x = _minOpenAmount;
+				_openState = OpenState::CLOSED;
+				//GameData::_toiletLidUp = true;
+			}
+		}
+		if (_openAxis == OpenAxis::ROTATION_POS_X) {
+			if (_openState == OpenState::OPENING) {
+				_transform.rotation.x += _openSpeed * deltaTime;
+			}
+			if (_openState == OpenState::CLOSING) {
+				_transform.rotation.x -= _openSpeed * deltaTime;
+			}
+			if (_transform.rotation.x > _maxOpenAmount) {
+				_transform.rotation.x = _maxOpenAmount;
+				_openState = OpenState::OPEN;
+			}
+			if (_transform.rotation.x < _minOpenAmount) {
+				_transform.rotation.x = _minOpenAmount;
 				_openState = OpenState::CLOSED;
 			}
 		}
 		// Position
-		else {
+		else if (_openAxis == OpenAxis::TRANSLATE_Z) {
 			if (_openState == OpenState::OPENING) {
 				_transform.position.z += _openSpeed * deltaTime;
 			}
@@ -244,19 +288,24 @@ void GameObject::Update(float deltaTime) {
 
 }
 
-
-void GameObject::SetOnInteractAudio(std::string filename) {
-	_audio.onInteract = filename;
+void GameObject::SetAudioOnOpen(std::string filename, float volume) {
+	_audio.onOpen = { filename, volume };
 }
 
-void GameObject::SetOpenState(OpenState openState, float speed, float min, float max, std::string audioOnOpen, std::string audioOnClose) {
-	//_initalOpenState = openState;
+void GameObject::SetAudioOnClose(std::string filename, float volume) {
+	_audio.onClose = { filename, volume };
+}
+
+void GameObject::SetAudioOnInteract(std::string filename, float volume) {
+	_audio.onInteract = { filename, volume };
+}
+
+
+void GameObject::SetOpenState(OpenState openState, float speed, float min, float max) {
 	_openState = openState;
 	_openSpeed = speed;
 	_minOpenAmount = min;
 	_maxOpenAmount = max;
-	_audio.onOpen = audioOnOpen;
-	_audio.onClose = audioOnClose;
 }
 
 void GameObject::SetModel(const std::string& name)
@@ -378,4 +427,8 @@ bool GameObject::IsCollected() {
 
 const InteractType& GameObject::GetInteractType() {
 	return _interactType;
+}
+
+OpenState& GameObject::GetOpenState() {
+	return _openState;
 }

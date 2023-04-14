@@ -16,8 +16,13 @@
 
 #define CEILING_HEIGHT 2.5f
 
+#define DRAWER_VOLUME 1.0f
+#define DOOR_VOLUME 1.0f
+#define CABINET_VOLUME 1.0f
+
 enum class DebugMode { NONE, RAY, COLLISION, DEBUG_MODE_COUNT };
 enum class OpenState { NONE, CLOSED, CLOSING, OPEN, OPENING };
+enum class OpenAxis { NONE, TRANSLATE_X, TRANSLATE_Y, TRANSLATE_Z, ROTATION_POS_X, ROTATION_POS_Y, ROTATION_POS_Z, ROTATION_NEG_X, ROTATION_NEG_Y, ROTATION_NEG_Z};
 enum class InteractType { NONE, TEXT, QUESTION, PICKUP};
 
 typedef void (*callback_function)(void); // type for conciseness
