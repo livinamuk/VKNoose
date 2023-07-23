@@ -1,0 +1,33 @@
+# 3ds Max Wavefront OBJ Exporter v0.97b - (c)2007 guruware
+# File Created: 17.07.2023 03:17:06
+
+mtllib MacbookScreenDisplay.mtl
+
+#
+# object screen
+#
+
+v  -13.4646 0.9114 0.3520
+v  -13.4646 19.0897 0.3520
+v  13.4819 19.0897 0.3520
+v  13.4819 0.9114 0.3520
+# 4 vertices
+
+vn 0.0000 0.0000 -1.0000
+vn -0.0000 0.0000 -1.0000
+# 2 vertex normals
+
+vt 1 0 0.0000
+vt 1 1 0.0000
+vt 0 1 0.0000
+vt 0 0 0.0000
+# 4 texture coords
+
+g screen
+usemtl Material__28
+s 1
+f 1/1/1 2/2/2 3/3/2 4/4/2 
+# 1 polygons
+
+26.9292 x 18.1783
+640 x 432
