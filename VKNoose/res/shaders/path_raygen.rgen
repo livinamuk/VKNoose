@@ -47,8 +47,9 @@ void main()
 
 
 	rayPayload.distance = 0; // this stops the screen being black when you inserted that ray cast above
-
+	
     vec3 color = vec3(0.0);
+    vec3 firstBounce = vec3(0.0);
 
 	
 	float mult = 1.0f;
@@ -137,7 +138,24 @@ void main()
 				// 2 is mirror
 				// 3 is refracted glass
 
-					if (rayPayload.done != 1 && rayPayload.done != 2 && rayPayload.done != 3) {	
+				if (b == 0) {
+					firstBounce = rayPayload.color;
+						contribution *= rayPayload.nextFactor;		
+
+									// Russian Roulette
+						if (true) {
+							// Randomly terminate a path with a probability inversely equal to the throughput
+							float p = max(contribution.x, max(contribution.y, contribution.z));
+							if (nextRand(rngState) > p) {
+								break;
+							}
+							// Add the energy we 'lose' by randomly terminating paths
+							contribution *= 1 / p;
+						}
+
+				}
+
+					if (rayPayload.done != 1 && rayPayload.done != 2 && rayPayload.done != 3 && b > 0) {	
 
 						color += contribution * rayPayload.color;
 
@@ -192,6 +210,8 @@ void main()
 				}
 
 			}
+
+
 		
 		summedPixelColor += accumulatedColor;
 
@@ -200,10 +220,13 @@ void main()
 	//color = summedPixelColor / NUM_SAMPLES;
 	color = color / NUM_SAMPLES;
 
+	color += firstBounce;
+
 	if (cam.data.inventoryOpen == 1) {
 		color *= vec3(0.125);
 	}
 
+//	color = firstBounce;
 	
    color = pow(color.xyz, vec3(1.0/2.2)); 
    vec3 tonemapped = Tonemap_ACES(color.xyz);
