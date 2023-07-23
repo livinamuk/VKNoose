@@ -130,7 +130,7 @@ int Window::GetTopEdge() {
 int Window::GetBottomEdge() {
 
 	if (resizing) {
-		if (resizeAvalibility == ResizeAvalibility::SOUTH || resizeAvalibility == ResizeAvalibility::SOUTH_EAST || resizeAvalibility == ResizeAvalibility::NORTH_WEST) {
+		if (resizeAvalibility == ResizeAvalibility::SOUTH || resizeAvalibility == ResizeAvalibility::SOUTH_EAST || resizeAvalibility == ResizeAvalibility::SOUTH_WEST) {
 			int edge = Laptop::_cursorY + resizeDragOffsetY;
 			edge = std::min(topEdgeBeforeResize - MINIMUM_WINDOW_HEIGHT, edge);
 			return edge;
@@ -734,16 +734,16 @@ void Laptop::Update(float deltaTime)
 			window.topEdgeBeforeResize = window.GetTopEdge();
 			window.bottomEdgeBeforeResize = window.GetBottomEdge();
 
-			if (window.resizeAvalibility == ResizeAvalibility::WEST || ResizeAvalibility::NORTH_WEST || ResizeAvalibility::SOUTH_WEST) {
+			if (window.resizeAvalibility == ResizeAvalibility::WEST || window.resizeAvalibility == ResizeAvalibility::NORTH_WEST || window.resizeAvalibility == ResizeAvalibility::SOUTH_WEST) {
 				window.resizeDragOffsetX = window.GetLeftEdge() - _cursorX;
 			}
-			if (window.resizeAvalibility == ResizeAvalibility::EAST || ResizeAvalibility::NORTH_EAST || ResizeAvalibility::SOUTH_EAST) {
+			if (window.resizeAvalibility == ResizeAvalibility::EAST || window.resizeAvalibility == ResizeAvalibility::NORTH_EAST || window.resizeAvalibility == ResizeAvalibility::SOUTH_EAST) {
 				window.resizeDragOffsetX = window.GetRightEdge() - _cursorX;
 			}
-			if (window.resizeAvalibility == ResizeAvalibility::SOUTH || ResizeAvalibility::SOUTH_WEST || ResizeAvalibility::SOUTH_EAST) {
+			if (window.resizeAvalibility == ResizeAvalibility::SOUTH || window.resizeAvalibility == ResizeAvalibility::SOUTH_WEST || window.resizeAvalibility == ResizeAvalibility::SOUTH_EAST) {
 				window.resizeDragOffsetY = window.GetBottomEdge() - _cursorY;
 			}
-			if (window.resizeAvalibility == ResizeAvalibility::NORTH || ResizeAvalibility::NORTH_WEST || ResizeAvalibility::NORTH_EAST) {
+			if (window.resizeAvalibility == ResizeAvalibility::NORTH || window.resizeAvalibility == ResizeAvalibility::NORTH_WEST || window.resizeAvalibility == ResizeAvalibility::NORTH_EAST) {
 				window.resizeDragOffsetY = window.GetTopEdge() - _cursorY;
 			}
 
@@ -759,7 +759,7 @@ void Laptop::Update(float deltaTime)
 		// End resize
 		if (!Input::LeftMouseDown() && window.resizing) {
 
-			if (window.resizeAvalibility == ResizeAvalibility::WEST || ResizeAvalibility::NORTH_WEST || ResizeAvalibility::SOUTH_WEST) {
+			if (window.resizeAvalibility == ResizeAvalibility::WEST || window.resizeAvalibility == ResizeAvalibility::NORTH_WEST || window.resizeAvalibility == ResizeAvalibility::SOUTH_WEST) {
 				window.currentXPos = window.GetLeftEdge() + (window.GetCurrentWidth()) * 0.5;
 				window.windowedXPos = window.GetLeftEdge() + (window.GetCurrentWidth()) * 0.5;
 				if ((int)window.GetCurrentWidth() % 2) {
@@ -769,7 +769,7 @@ void Laptop::Update(float deltaTime)
 				window.currentWidth = window.GetCurrentWidth();
 				window.windowedWidth = window.GetCurrentWidth();
 			}
-			if (window.resizeAvalibility == ResizeAvalibility::EAST || ResizeAvalibility::NORTH_EAST || ResizeAvalibility::SOUTH_EAST) {
+			if (window.resizeAvalibility == ResizeAvalibility::EAST || window.resizeAvalibility == ResizeAvalibility::NORTH_EAST || window.resizeAvalibility == ResizeAvalibility::SOUTH_EAST) {
 				window.currentXPos = window.GetRightEdge() - (window.GetCurrentWidth()) * 0.5;
 				window.windowedXPos = window.GetRightEdge() - (window.GetCurrentWidth()) * 0.5;
 				if ((int)window.GetCurrentWidth() % 2) {
@@ -780,7 +780,7 @@ void Laptop::Update(float deltaTime)
 				window.windowedWidth = window.GetCurrentWidth();
 			}
 
-			if (window.resizeAvalibility == ResizeAvalibility::SOUTH || ResizeAvalibility::SOUTH_EAST || ResizeAvalibility::SOUTH_WEST) {
+			if (window.resizeAvalibility == ResizeAvalibility::SOUTH || window.resizeAvalibility == ResizeAvalibility::SOUTH_EAST || window.resizeAvalibility == ResizeAvalibility::SOUTH_WEST) {
 				window.currentYPos = window.GetBottomEdge() + (window.GetCurrentHeight()) * 0.5;
 				window.windowedYPos = window.GetBottomEdge() + (window.GetCurrentHeight()) * 0.5;
 				if ((int)window.GetCurrentHeight() % 2) {
@@ -790,7 +790,7 @@ void Laptop::Update(float deltaTime)
 				window.currentHeight = window.GetCurrentHeight();
 				window.windowedHeight = window.GetCurrentHeight();
 			}
-			if (window.resizeAvalibility == ResizeAvalibility::NORTH || ResizeAvalibility::NORTH_EAST || ResizeAvalibility::NORTH_WEST) {
+			if (window.resizeAvalibility == ResizeAvalibility::NORTH || window.resizeAvalibility == ResizeAvalibility::NORTH_EAST || window.resizeAvalibility == ResizeAvalibility::NORTH_WEST) {
 				window.currentYPos = window.GetTopEdge() - (window.GetCurrentHeight()) * 0.5;
 				window.windowedYPos = window.GetTopEdge() - (window.GetCurrentHeight()) * 0.5;
 				if ((int)window.GetCurrentHeight() % 2) {
@@ -1013,7 +1013,7 @@ void Laptop::PrepareUIForRaster()
 	}
 
 	// Draw dragged file
-	TextBlitter::AddDebugText("Desktop");
+//	TextBlitter::AddDebugText("Desktop");
 	for (int i = 0; i < _files.size(); i++) {
 	//	TextBlitter::AddDebugText(" " + std::to_string(i) + ": " + _files[i].textureName + " " + "");
 	}
@@ -1025,8 +1025,8 @@ void Laptop::PrepareUIForRaster()
 		Window& window = _windows[i];
 		TextBlitter::AddDebugText( std::to_string(i) + ": " + std::to_string(window.currentXPos) + " " + std::to_string(window.GetCurrentWidth()) + "  " + std::to_string(window.xPosBeforeResize) + " " + std::to_string(window.widthBeforeResize) + "   " + std::to_string((int)window.resizeDragOffsetX) + "   " + std::to_string(window.leftEdgeBeforeResize) + "   " + std::to_string(window.GetLeftEdge()));
 	}*/
-	Window& win = _windows[_windows.size()-1];
-	/*TextBlitter::AddDebugText("Current width:        " + std::to_string(win.currentWidth));
+	/*Window& win = _windows[_windows.size() - 1];
+	TextBlitter::AddDebugText("Current width:        " + std::to_string(win.currentWidth));
 	TextBlitter::AddDebugText("Current height:        " + std::to_string(win.currentHeight));
 	TextBlitter::AddDebugText("GetCurrentWidth:    " + std::to_string(win.GetCurrentWidth()));
 	TextBlitter::AddDebugText("GetCurrentHeight:   " + std::to_string(win.GetCurrentHeight()));
@@ -1041,7 +1041,7 @@ void Laptop::PrepareUIForRaster()
 	TextBlitter::AddDebugText("resizeDragOffsetX:    " + std::to_string(win.resizeDragOffsetX));
 	TextBlitter::AddDebugText("leftEdgeBeforeResize: " + std::to_string(win.leftEdgeBeforeResize));
 	TextBlitter::AddDebugText("GetLeftEdge:        " + std::to_string(win.GetLeftEdge()));
-	*/
+*/
 	for (const auto& file : _files) {
 		if (file.dragging && file.hasBeenDraggedAtLeastOnePixel)
 			RasterRenderer::DrawQuad(file.textureName + "_selected", file.xPos, file.yPos, RasterRenderer::Destination::LAPTOP_DISPLAY);
