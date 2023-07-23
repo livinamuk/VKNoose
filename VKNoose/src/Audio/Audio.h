@@ -2,6 +2,7 @@
 #include <unordered_map>
 #include "fmod.hpp"
 #include <fmod_errors.h>
+#include <string>
 
 struct AudioEffectInfo {
 	std::string filename = "";

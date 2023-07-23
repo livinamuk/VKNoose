@@ -7,7 +7,7 @@ class Player
 public:
 	void UpdateMovement(float deltaTime);
 	void UpdateMouselook(float deltaTime);
-	void UpdateCamera(float deltaTime);
+	void UpdateCamera(float deltaTime, bool inventoryOpen);
 	void EvaluateCollsions(std::vector<Vertex>& lines);
 	bool IsCrouching();
 
@@ -20,6 +20,15 @@ public:
 	bool m_mouselookDisabled = false;
 	bool m_movementDisabled = false;;
 	bool m_interactDisabled = false;
+
+	float _walkingSpeed = 2.25f;
+	float _crouchingSpeed = _walkingSpeed * 0.75f;
+	float _viewHeightCrouching = 1.15f;
+	float _viewHeightStanding = 1.65f;;
+	float _crouchDownSpeed = 17.5f;
+	float _viewHeight = _viewHeightStanding;
+
+
 
 public:
 	//bool EvaluateCollision(glm::vec3 lineStart, glm::vec3 lineEnd);

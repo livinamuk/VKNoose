@@ -2,7 +2,7 @@
 
 #include "vk_types.h"
 #include "vk_mesh.h"
-#include "vk_descriptors.h"
+#include "vk_raytracing.h"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -37,7 +37,7 @@ public:
 	VkPipelineLayout _pipelineLayout;
 	VkPipelineDepthStencilStateCreateInfo _depthStencil;
 	VkPipeline build_pipeline(VkDevice device, VkRenderPass pass);
-	VkPipeline build_dynamic_rendering_pipeline(VkDevice device, const VkFormat* swapchainFormat, VkFormat depthFormat);
+	VkPipeline build_dynamic_rendering_pipeline(VkDevice device, const VkFormat* swapchainFormat, VkFormat depthFormat, int colorAttachmentCount);
 };
 
 
@@ -59,13 +59,18 @@ struct DeletionQueue
 	}
 };
 
-/*
-struct Handles {
-	VkDevice device;
-	UploadContext uploadContext;
-	VkQueue graphicsQueue;
-};*/
 
+struct CameraData {
+	glm::mat4 proj;
+	glm::mat4 view;
+	glm::mat4 projInverse;
+	glm::mat4 viewInverse;
+	glm::vec4 viewPos;
+	int32_t vertexSize;
+	int32_t frameIndex;
+	int32_t inventoryOpen;
+	int32_t wallPaperALBIndex;
+};
 
 
 struct UploadContext {
@@ -90,7 +95,9 @@ struct RenderObject {
 };
 
 #define TEXTURE_ARRAY_SIZE 256
-#define MAX_RENDER_OBJECTS 10000
+#define MAX_RENDER_OBJECTS_3D 1000
+#define MAX_RENDER_OBJECTS_2D 1000
+#define MAX_LIGHTS 16
 
 struct FrameData {
 	VkSemaphore _presentSemaphore, _renderSemaphore;
@@ -100,32 +107,17 @@ struct FrameData {
 
 	VkCommandPool _commandPool;
 	VkCommandBuffer _commandBuffer;
+		
+	HellBuffer _sceneCamDataBuffer;
+	HellBuffer _inventoryCamDataBuffer;
+	HellBuffer _meshInstances2DBuffer;
+	HellBuffer _meshInstancesSceneBuffer;
+	HellBuffer _meshInstancesInventoryBuffer;
+	HellBuffer _lightRenderInfoBuffer;
+	HellBuffer _lightRenderInfoBufferInventory;
 
-	AllocatedBuffer cameraBuffer;
-	VkDescriptorSet globalDescriptor;
-
-	AllocatedBuffer objectBuffer;
-	VkDescriptorSet objectDescriptor;
-
-	AllocatedBuffer _uboBuffer_rayTracing;
-	VkDescriptorBufferInfo _uboBuffer_rayTracing_descriptor; 
-	vkutil::DescriptorAllocator* dynamicDescriptorAllocator;
-};
-
-struct GPUCameraData {
-	glm::mat4 view;
-	glm::mat4 proj;
-	glm::mat4 viewproj;
-	glm::vec4 viewPos;
-};
-
-
-struct GPUSceneData {
-	glm::vec4 fogColor; // w is for exponent
-	glm::vec4 fogDistances; //x for min, y for max, zw unused.
-	glm::vec4 ambientColor;
-	glm::vec4 sunlightDirection; //w for sun power
-	glm::vec4 sunlightColor;
+	AccelerationStructure _sceneTLAS{};
+	AccelerationStructure _inventoryTLAS{};
 };
 
 
@@ -140,37 +132,52 @@ struct RayTracingScratchBuffer
 class VulkanEngine {
 public:
 
-	vkutil::DescriptorAllocator _descriptorAllocator;
-	vkutil::DescriptorLayoutCache _descriptorLayoutCache;
+	void create_buffers();
+	void UpdateBuffers();
+	void update_static_descriptor_set();
+	void UpdateDynamicDescriptorSet();
+	
+	// Commands
+	void cmd_SetViewportSize(VkCommandBuffer commandBuffer, int width, int height);
+	void cmd_SetViewportSize(VkCommandBuffer commandBuffer, RenderTarget renderTarget);
+	void cmd_BindPipeline(VkCommandBuffer commandBuffer, HellPipeline& pipeline);
+	void cmd_BindDescriptorSet(VkCommandBuffer commandBuffer, HellPipeline& pipeline, uint32_t setIndex, HellDescriptorSet& descriptorSet);
+	void cmd_BindRayTracingPipeline(VkCommandBuffer commandBuffer, VkPipeline pipeline);
+	void cmd_BindRayTracingDescriptorSet(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, uint32_t setIndex, HellDescriptorSet& descriptorSet);
 
-	//Handles _handles;
+	uint32_t _frameIndex;
 
-	//PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR;
-	//PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR;
+	HellDescriptorSet _staticDescriptorSet;
+	HellDescriptorSet _dynamicDescriptorSet;
+	HellDescriptorSet _dynamicDescriptorSetInventory;
+	HellDescriptorSet _samplerDescriptorSet;
 
+	HellPipeline _textBlitterPipeline;
+	HellPipeline _rasterPipeline;
+	HellPipeline _depthAwareblurPipeline;
+
+	RenderTarget _renderTargetBlur;
+	
 	VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeaturesKHR{};
 
 	VkSampler _sampler; 
-	//VkSampler _blitterSampler;
-	VkDescriptorSetLayout _textureArrayDescriptorLayout;
-	VkDescriptorSet	_textureArrayDescriptorSet;
-
 
 	bool _shouldClose{ false };
-
+	 
 	// Render target shit
-	VkExtent2D _windowExtent{ 1700 , 900 };
-	VkExtent3D _renderTargetPresentExtent = { 512, 288, 1 };
-	VkExtent3D _renderTargetExtent = { _renderTargetPresentExtent.width * 4, _renderTargetPresentExtent.height * 4, 1 };
-	VkImageView    _renderTargetImageView;
-	AllocatedImage _renderTargetImage;
-
+	VkExtent2D _currentWindowExtent{ 512 , 288  };
+	//VkExtent2D _fullscreenModeExtent{ 512 , 288  };
+	const VkExtent2D _windowedModeExtent{ 512 * 4, 288 * 4 };
+	const VkExtent3D _renderTargetPresentExtent = { 512 , 288  , 1 };
+	
 	struct RenderTargets {
 		RenderTarget present;
-		RenderTarget rt;
-		RenderTarget shadows;
+		RenderTarget rt_scene;
+		//RenderTarget rt_inventory;
+		RenderTarget gBufferBasecolor;
 		RenderTarget gBufferNormal;
-		RenderTarget gBufferDepth;
+		RenderTarget gBufferRMA;
+		RenderTarget laptopDisplay;
 	} _renderTargets;
 
 	GLFWwindow* _window;
@@ -191,10 +198,7 @@ public:
 	VkQueue _graphicsQueue;
 	uint32_t _graphicsQueueFamily;
 
-	VkRenderPass _renderPass;
-
 	VkSurfaceKHR _surface;
-	//std::unique_ptr<VkSwapchainKHR> _swapchain; 
 	VkSwapchainKHR _swapchain;
 	VkFormat _swachainImageFormat;
 
@@ -206,34 +210,24 @@ public:
 
 	VmaAllocator _allocator; //vma lib allocator
 
+	HellDepthTarget _presentDepthTarget;
+	HellDepthTarget _gbufferDepthTarget;
 
-
-	//depth resources
-	VkImageView _depthImageView;
-	AllocatedImage _depthImage;
-
-	//the format for the depth image
 	VkFormat _depthFormat;
 
 	VkDescriptorPool _descriptorPool;
 
-	VkDescriptorSetLayout _globalSetLayout;
-	VkDescriptorSetLayout _objectSetLayout;
-	VkDescriptorSetLayout _singleTextureSetLayout;
-	VkDescriptorSetLayout _bindlessTextureSetLayout;
-
-	GPUSceneData _sceneParameters;
-	AllocatedBuffer _sceneParameterBuffer;
-
 	UploadContext _uploadContext;
 
+	// Shaders
+	VkShaderModule _gbuffer_vertex_shader = nullptr;
+	VkShaderModule _gbuffer_fragment_shader = nullptr;
 	VkShaderModule _solid_color_vertex_shader = nullptr;
 	VkShaderModule _solid_color_fragment_shader = nullptr;
-	VkShaderModule _colorMeshShader = nullptr;
-	VkShaderModule _texturedMeshShader = nullptr;
-	VkShaderModule _meshVertShader = nullptr;
 	VkShaderModule _text_blitter_vertex_shader = nullptr;
 	VkShaderModule _text_blitter_fragment_shader = nullptr;
+	VkShaderModule _depth_aware_blur_vertex_shader = nullptr;
+	VkShaderModule _depth_aware_blur_fragment_shader = nullptr;
 
 	//initializes everything in the engine
 	void init();
@@ -244,8 +238,7 @@ public:
 	void run();
 
 	// Pipelines
-	VkPipeline _textblitterPipeline;
-	VkPipelineLayout _textblitterPipelineLayout;
+
 
 	VkPipeline _linelistPipeline;
 	VkPipelineLayout _linelistPipelineLayout;
@@ -256,73 +249,51 @@ public:
 	Mesh _lineListMesh;
 
 
-	float _cameraZoom = 1.0f;// glm::radians(70.f);
+	HellRaytracer _raytracer;
+	HellRaytracer _raytracerPath;
+	HellRaytracer _raytracerMousePick;
 
+	bool _collisionEnabled = true;
+	bool _debugScene = false;
+	bool _renderGBuffer = false;// true;
+	bool _usePathRayTracer = true;// true;
 
-			// Ray tracing
+		// Ray tracing
 
-			RayTracingScratchBuffer createScratchBuffer(VkDeviceSize size);
-			uint32_t getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32* memTypeFound = nullptr) const;
-			VkPhysicalDeviceMemoryProperties _memoryProperties;
+		RayTracingScratchBuffer createScratchBuffer(VkDeviceSize size);
+		uint32_t getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32* memTypeFound = nullptr) const;
+		VkPhysicalDeviceMemoryProperties _memoryProperties;
 
-			PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR;
-			PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR;
-			PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR;
-			PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR;
-			PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR;
-			PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR;
-			PFN_vkBuildAccelerationStructuresKHR vkBuildAccelerationStructuresKHR;
-			PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR;
-			PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR;
-			PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR;
-			PFN_vkDebugMarkerSetObjectTagEXT pfnDebugMarkerSetObjectTag;
-			PFN_vkDebugMarkerSetObjectNameEXT pfnDebugMarkerSetObjectName;
-			PFN_vkCmdDebugMarkerBeginEXT pfnCmdDebugMarkerBegin;
-			PFN_vkCmdDebugMarkerEndEXT pfnCmdDebugMarkerEnd;
-			PFN_vkCmdDebugMarkerInsertEXT pfnCmdDebugMarkerInsert; 
-			PFN_vkSetDebugUtilsObjectNameEXT vkSetDebugUtilsObjectNameEXT;
+		PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR;
+		PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR;
+		PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR;
+		PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR;
+		PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR;
+		PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR;
+		PFN_vkBuildAccelerationStructuresKHR vkBuildAccelerationStructuresKHR;
+		PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR;
+		PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR;
+		PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR;
+		PFN_vkDebugMarkerSetObjectTagEXT pfnDebugMarkerSetObjectTag;
+		PFN_vkDebugMarkerSetObjectNameEXT pfnDebugMarkerSetObjectName;
+		PFN_vkCmdDebugMarkerBeginEXT pfnCmdDebugMarkerBegin;
+		PFN_vkCmdDebugMarkerEndEXT pfnCmdDebugMarkerEnd;
+		PFN_vkCmdDebugMarkerInsertEXT pfnCmdDebugMarkerInsert; 
+		PFN_vkSetDebugUtilsObjectNameEXT vkSetDebugUtilsObjectNameEXT;
 
-			VkPhysicalDeviceRayTracingPipelinePropertiesKHR  rayTracingPipelineProperties{};
+			VkPhysicalDeviceRayTracingPipelinePropertiesKHR  _rayTracingPipelineProperties{};
 			VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{};
 
-			AccelerationStructure _topLevelAS{};
 			void create_rt_buffers();
 			AccelerationStructure createBottomLevelAccelerationStructure(Mesh* mesh);
-			void createTopLevelAccelerationStructure();
-			void createUniformBuffer();
-			void createRayTracingPipeline();
-			void createShaderBindingTable();
-			void createDescriptorSets();
+			void create_top_level_acceleration_structure(std::vector<VkAccelerationStructureInstanceKHR> instances, AccelerationStructure& outTLAS);
+			
 			void build_rt_command_buffers(int swapchainIndex);
-			void updateUniformBuffers();
-
-			void updateTLASdescriptorSet();
-			//vks::Buffer vertexBuffer;
-			//vks::Buffer indexBuffer;
 			AllocatedBuffer _rtVertexBuffer;
 			AllocatedBuffer _rtIndexBuffer;
 			AllocatedBuffer _mousePickResultBuffer;
 			AllocatedBuffer _mousePickResultCPUBuffer; // for mouse picking
 			uint32_t _rtIndexCount;
-			std::vector<VkRayTracingShaderGroupCreateInfoKHR> _rtShaderGroups{};
-			std::vector<VkPipelineShaderStageCreateInfo> _rtShaderStages;
-			VkPipeline _rtPipeline;
-			VkPipelineLayout _rtPipelineLayout;
-			VkDescriptorSet _rtDescriptorSet;
-			VkDescriptorSetLayout _rtDescriptorSetLayout;
-			VkShaderModule _rayGenShader = nullptr;
-			VkShaderModule _rayMissShader = nullptr;
-			VkShaderModule _closestHitShader = nullptr;
-			VkShaderModule _rayshadowMissShader = nullptr;
-
-			AllocatedBuffer _raygenShaderBindingTable;
-			AllocatedBuffer _missShaderBindingTable;
-			AllocatedBuffer _hitShaderBindingTable;
-			VkDescriptorPool _rtDescriptorPool = VK_NULL_HANDLE;
-
-			VkDescriptorSet _rtObjectDescDescriptorSet;
-			VkDescriptorSetLayout _rtObjectDescDescriptorSetLayout;
-			AllocatedBuffer _rtObjectDescBuffer;
 
 			VkDeviceOrHostAddressConstKHR _vertexBufferDeviceAddress{};
 			VkDeviceOrHostAddressConstKHR _indexBufferDeviceAddress{};
@@ -330,19 +301,6 @@ public:
 
 			AllocatedBuffer _rtInstancesBuffer;
 
-
-			struct RTUniformData {
-				glm::mat4 viewInverse;
-				glm::mat4 projInverse;
-				glm::vec4 viewPos; 
-				int32_t vertexSize;
-			} _uniformData;
-
-
-			VkStridedDeviceAddressRegionKHR raygenShaderSbtEntry{};
-			VkStridedDeviceAddressRegionKHR missShaderSbtEntry{};
-			VkStridedDeviceAddressRegionKHR hitShaderSbtEntry{};
-			VkStridedDeviceAddressRegionKHR callableShaderSbtEntry{};
 
 
 	bool _frameBufferResized = false;
@@ -367,12 +325,12 @@ public:
 
 private:
 	void init_vulkan();
-	void init_swapchain();
-	void init_commands();
-	void init_sync_structures();
-	void init_descriptors();
+	void create_swapchain();
+	//void init_commands();
+	void create_sync_structures();
+	void create_descriptors();
+	void create_sampler();
 	void upload_meshes();
-	void upload_textures();
 	void upload_mesh(Mesh& mesh);
 
 	void recreate_dynamic_swapchain();
@@ -382,8 +340,6 @@ private:
 
 	void create_command_buffers();
 	void create_pipelines();
-	void create_pipelines_2();
-	//void build_command_buffers(int swapchainImageIndex);
 	void create_render_targets();
 	void draw_quad(Transform transform, Texture* texture);
 
@@ -392,5 +348,18 @@ private:
 	void createAccelerationStructureBuffer(AccelerationStructure& accelerationStructure, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo);
 	void AddDebugText();
 	void add_debug_name(VkBuffer buffer, const char* name);
+	void add_debug_name(VkDescriptorSetLayout descriptorSetLayout, const char* name);
 	void get_required_lines();
 };
+
+inline void PrintMat4(glm::mat4& m) {
+	std::cout << "\n";
+	for (int x = 0; x < 4; x++) {
+		std::cout << "(";
+		for (int y = 0; y < 4; y++)
+		{
+			std::cout << m[x][y] << " ";
+		}
+		std::cout << ")\n";
+	}
+}

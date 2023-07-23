@@ -4,12 +4,7 @@
 #include "../IO/Input.h"
 #include "../Util.h"
 
-float _walkingSpeed = 2.25f ;
-float _crouchingSpeed = _walkingSpeed * 0.75f;
-float _viewHeightCrouching = 1.15f;
-float _viewHeightStanding = 1.65f;;
-float _crouchDownSpeed = 17.5f;
-float _viewHeight = _viewHeightStanding;
+
 
 void Player::UpdateMovement(float deltaTime)
 {
@@ -82,6 +77,12 @@ void Player::UpdateMovement(float deltaTime)
 			m_footstepAudioTimer = 0;
 	}
 }
+float fwrap_alternate(float x, float min, float max) {
+	if (min > max)
+		return fwrap_alternate(x, max, min);
+	return (x >= 0 ? min : max) + fmodf(x, max - min);
+
+}
 
 void Player::UpdateMouselook(float deltaTime)
 {
@@ -95,12 +96,18 @@ void Player::UpdateMouselook(float deltaTime)
 	m_camera.m_transform.rotation += glm::vec3(-xoffset, -yoffset, 0.0);
 	m_camera.m_transform.rotation.x = std::min(m_camera.m_transform.rotation.x, yLimit);
 	m_camera.m_transform.rotation.x = std::max(m_camera.m_transform.rotation.x, -yLimit);
+
+	//m_camera.m_transform.rotation.x = fwrap_alternate(m_camera.m_transform.rotation.x, 0, NOOSE_PI * 2);
+	m_camera.m_transform.rotation.y = fwrap_alternate(m_camera.m_transform.rotation.y, 0, NOOSE_PI * 2);
+	//m_camera.m_transform.rotation.z = fwrap_alternate(m_camera.m_transform.rotation.z, 0, NOOSE_PI * 2);
 }
 
-void Player::UpdateCamera(float deltaTime)
+void Player::UpdateCamera(float deltaTime, bool inventoryOpen)
 {
-	m_camera.m_transform.position = glm::vec3(m_position.x, m_position.y + _viewHeight, m_position.z);
-	m_camera.Update(m_moving, IsCrouching(), deltaTime);
+	if (m_camera._state == Camera::State::PLAYER_CONROL) {
+		m_camera.m_transform.position = glm::vec3(m_position.x, m_position.y + _viewHeight, m_position.z);
+	}
+	m_camera.Update(m_moving && !inventoryOpen, IsCrouching(), deltaTime);
 }
 
 bool Player::IsCrouching()

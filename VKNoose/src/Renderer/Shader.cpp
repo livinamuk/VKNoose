@@ -30,7 +30,7 @@ std::string read_file(std::string filepath)
 
 
 // Compiles a shader to a SPIR-V binary. Returns the binary as a vector of 32-bit words.
-std::vector<uint32_t> compile_file(const std::string& source_name, shaderc_shader_kind kind, const std::string& source,	bool optimize = false) 
+std::vector<uint32_t> compile_file(const std::string& source_name, shaderc_shader_kind kind, const std::string& source, std::string shaderPath, bool optimize = false)
 {
 	shaderc::Compiler compiler;
 	shaderc::CompileOptions options;
@@ -45,6 +45,8 @@ std::vector<uint32_t> compile_file(const std::string& source_name, shaderc_shade
 	shaderc::SpvCompilationResult module = compiler.CompileGlslToSpv(source, kind, source_name.c_str(), options);
 
 	if (module.GetCompilationStatus() != shaderc_compilation_status_success) {
+
+		std::cout << "ERROR IN: " << shaderPath << "\n";
 		std::cerr << module.GetErrorMessage();
 
 		// print line by line
@@ -85,7 +87,7 @@ bool load_shader(VkDevice device, std::string filePath, VkShaderStageFlagBits fl
 	}
 
 	std::string vertSource = read_file("res/shaders/" + filePath);	
-	std::vector<uint32_t> buffer = compile_file("shader_src", kind, vertSource, true);
+	std::vector<uint32_t> buffer = compile_file("shader_src", kind, vertSource, filePath, true);
 	//std::cout << "Compiled to an optimized binary module with " << buffer.size() << " words." << std::endl;
 
 	//create a new shader module, using the buffer we loaded
@@ -108,6 +110,8 @@ bool load_shader(VkDevice device, std::string filePath, VkShaderStageFlagBits fl
 	}
 
 	*outShaderModule = shaderModule;
+
+	//std::cout << "Loaded shader: " << filePath << "\n";
 	return true;
 }
 

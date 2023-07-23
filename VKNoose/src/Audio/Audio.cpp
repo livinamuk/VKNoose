@@ -72,6 +72,10 @@ void Audio::Init()
 	Audio::LoadAudio("CabinetClose.wav");
 	Audio::LoadAudio("Unlock1.wav");
 	Audio::LoadAudio("Locked1.wav");
+	Audio::LoadAudio("LightSwitchOn.wav"); 
+	Audio::LoadAudio("LightSwitchOff.wav");
+	Audio::LoadAudio("LaptopClose.wav");
+	Audio::LoadAudio("LaptopOpen.wav");
 	//gSoloud.init();
 	/*
 	Audio::LoadAudio("DrawerClose.wav");
@@ -85,8 +89,6 @@ void Audio::Init()
 	Audio::LoadAudio("ToiletSeatDown.wav");
 	Audio::LoadAudio("OpenMenu.wav");
 	Audio::LoadAudio("MenuScroll.wav");
-	Audio::LoadAudio("LightSwitchOn.wav");
-	Audio::LoadAudio("LightSwitchOff.wav");
 	Audio::LoadAudio("Vase.wav");*/
 }
 

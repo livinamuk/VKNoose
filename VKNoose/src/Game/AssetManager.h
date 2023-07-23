@@ -61,6 +61,20 @@ struct MeshInfo {
 	std::string originalFile;
 };
 
+struct ImageData {
+
+	unsigned int texture = 0;
+	int width = 0;
+	int height = 0;
+	int nrChannels = 0;
+	unsigned char* data = nullptr;
+	ImageData() {};
+	ImageData(std::string path);
+	void free();
+	void save(std::string path);
+	int getSize();
+};
+
 namespace AssetManager 
 {
 	//parses the texture metadata from an asset file
@@ -81,7 +95,7 @@ namespace AssetManager
 
 	void Init();
 	void LoadFont(VulkanEngine& engine);
-	void LoadBlitterQuad();
+	void LoadHardcodedMesh();
 	void LoadModels();
 	void LoadTextures(VulkanEngine& engine);
 	void BuildMaterials();
@@ -115,4 +129,8 @@ namespace AssetManager
 
 	int GetNumberOfTextures();
 	bool TextureExists(const std::string& name);
+
+	void SaveImageData(std::string, int width, int height, int channels, void* data);
+	void SaveImageDataF(std::string, int width, int height, int channels, void* data);
+	void SaveImageDataU8(std::string path, int width, int height, int channels, void* data);
 }

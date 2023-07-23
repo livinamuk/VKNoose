@@ -6,6 +6,11 @@
 GameObject::GameObject() {
 }
 
+void GameObject::SetModelMatrixTransformOverride(glm::mat4 model) {
+	_overrideTransformWithMatrix = true;
+	_modelMatrixTransformOverride = model;
+}
+
 void GameObject::SetOpenAxis(OpenAxis openAxis) {
 	_openAxis = openAxis;
 }
@@ -65,6 +70,10 @@ glm::mat4 GameObject::GetRotationMatrix() {
 	return transform.to_mat4();
 }
 
+void GameObject::SetScale(glm::vec3 scale) {
+	_transform.scale = glm::vec3(scale);
+}
+
 void GameObject::SetScale(float scale) {
 	_transform.scale = glm::vec3(scale);
 }
@@ -82,9 +91,19 @@ glm::mat4 GameObject::GetModelMatrix() {
 
 	GameObject* parent = Scene::GetGameObjectByName(_parentName);
 	if (parent) {
-		return parent->GetModelMatrix() * _transform.to_mat4();
+		if (_overrideTransformWithMatrix) {
+			return parent->GetModelMatrix() * _modelMatrixTransformOverride;
+		}
+		else {
+			return parent->GetModelMatrix() * _transform.to_mat4();
+		}
 	}
-	return _transform.to_mat4();
+	if (_overrideTransformWithMatrix) {
+		return _modelMatrixTransformOverride;
+	}
+	else {
+		return _transform.to_mat4();
+	}
 }
 
 std::string GameObject::GetName() {
@@ -118,8 +137,9 @@ bool GameObject::IsInteractable() {
 		_openState == OpenState::CLOSING ||
 		_openState == OpenState::OPENING ||
 		_interactType == InteractType::PICKUP ||
-		_interactType == InteractType::TEXT || 
-		_interactType == InteractType::QUESTION)
+		_interactType == InteractType::TEXT ||
+		_interactType == InteractType::QUESTION ||
+		_interactType == InteractType::CALLBACK_ONLY)
 		return true;
 	return false;
 }
@@ -160,6 +180,10 @@ void GameObject::Interact() {
 	else if (_interactType == InteractType::PICKUP) {
 		TextBlitter::AskQuestion(_interactText, this->_interactCallback, this);
 		Audio::PlayAudio("RE_type.wav", 1.0f);
+	}
+	// Callback only
+	else if (_interactType == InteractType::CALLBACK_ONLY) {
+		_interactCallback();
 	}
 }
 
@@ -314,6 +338,8 @@ void GameObject::SetModel(const std::string& name)
 
 	if (_model) {
 		_meshMaterialIndices.resize(_model->_meshIndices.size());
+		_meshMaterialTypes.resize(_model->_meshIndices.size());
+		_meshTransforms.resize(_model->_meshIndices.size());
 	}
 	else {
 		std::cout << "Failed to set model '" << name << "', it does not exist.\n";
@@ -359,6 +385,9 @@ void GameObject::SetMeshMaterial(const char* name, int meshIndex) {
 }
 
 Material* GameObject::GetMaterial(int meshIndex) {
+	if (meshIndex < 0 || meshIndex >= _meshMaterialIndices.size()) {
+		std::cout << "Mesh index " << meshIndex << " is out of range of _meshMaterialIndices with size " << _meshMaterialIndices.size() << "\n";
+	}
 	int materialIndex = _meshMaterialIndices[meshIndex];
 	return AssetManager::GetMaterial(materialIndex);
 }
@@ -417,6 +446,10 @@ void GameObject::EnableCollision() {
 	_collisionEnabled = true;
 }
 
+void GameObject::DisableCollision() {
+	_collisionEnabled = false;
+}
+
 bool GameObject::HasCollisionsEnabled() {
 	return _collisionEnabled;
 }
@@ -431,4 +464,29 @@ const InteractType& GameObject::GetInteractType() {
 
 OpenState& GameObject::GetOpenState() {
 	return _openState;
+}
+
+void GameObject::SetMaterialType(MaterialType materialType, int meshIndex)
+{
+	if (meshIndex == -1) {
+		for (int i = 0; i < _meshMaterialTypes.size(); i++) {
+			_meshMaterialTypes[i] = materialType;
+		}
+	}
+	else if (meshIndex < _meshMaterialTypes.size()) {
+		_meshMaterialTypes[meshIndex] = materialType;
+	}
+	else {
+		std::cout << "Error in SetMaterialType(), meshIndex " << meshIndex << "is out of range of. _meshMaterialTypes size is " << _meshMaterialTypes.size() << "\n";
+	}
+}
+
+void GameObject::SetTransform(Transform& transform)
+{
+	_transform = transform;
+}
+
+void GameObject::SetInteractToAffectAnotherObject(std::string objectName)
+{
+	_interactAffectsThisObjectInstead = objectName;
 }

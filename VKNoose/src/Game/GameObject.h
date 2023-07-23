@@ -9,10 +9,16 @@ struct BoundingBox {
 	float zHigh = 0;
 };
 
+enum class MaterialType { DEFAULT = 0, MIRROR = 1, GLASS = 2, LAPTOP_DISPLAY = 3};
+
 struct GameObject {
 public:
 	Model* _model = nullptr;
 	std::vector<int> _meshMaterialIndices;
+	std::vector<MaterialType> _meshMaterialTypes;
+	std::vector<Transform> _meshTransforms;
+	bool _overrideTransformWithMatrix = false;
+	std::string _interactAffectsThisObjectInstead = "";
 private:
 	std::function<void(void)> _interactCallback = nullptr;
 	callback_function _pickupCallback = nullptr;
@@ -23,6 +29,7 @@ private:
 	//std::string _interactTextOLD = "";
 	//std::string _questionText = "";
 	Transform _transform;
+	glm::mat4 _modelMatrixTransformOverride = glm::mat4(1);
 	OpenState _openState = OpenState::NONE;
 	OpenAxis _openAxis = OpenAxis::NONE;
 	float _maxOpenAmount = 0;
@@ -30,20 +37,22 @@ private:
 	float _openSpeed = 0;
 	bool _collected = false; // if this were an item
 	BoundingBox _boundingBox;
-	bool _collisionEnabled = false;
+	bool _collisionEnabled = true;
 	InteractType _interactType = InteractType::NONE;
-
-	
+	MaterialType _materialType = MaterialType::DEFAULT;
+		
 	struct AudioEffects {
 		AudioEffectInfo onOpen;
 		AudioEffectInfo onClose;
 		AudioEffectInfo onInteract;
 	} _audio;
 
+
 public:
 	GameObject();
 	glm::mat4 GetModelMatrix();
 	std::string GetName();
+	void SetModelMatrixTransformOverride(glm::mat4 model);
 	void SetOpenAxis(OpenAxis openAxis);
 	void SetAudioOnInteract(std::string filename, float volume);
 	void SetAudioOnOpen(std::string filename, float volume);
@@ -65,6 +74,7 @@ public:
 	float GetRotationZ();
 	glm::vec3 GetPosition();
 	glm::mat4 GetRotationMatrix();
+	void SetScale(glm::vec3 scale);
 	void SetScale(float scale);
 	void SetScaleX(float scale);
 	//void SetInteractText(std::string text);
@@ -84,8 +94,12 @@ public:
 	void SetCollectedState(bool value);
 	BoundingBox GetBoundingBox();
 	void EnableCollision();
+	void DisableCollision();
 	bool HasCollisionsEnabled();
 	bool IsCollected();
 	const InteractType& GetInteractType();
 	OpenState& GetOpenState();
+	void SetMaterialType(MaterialType materialType, int meshIndex = -1);
+	void SetTransform(Transform& transform);
+	void SetInteractToAffectAnotherObject(std::string objectName);
 };

@@ -87,7 +87,16 @@
     <ClCompile Include="src\Game\GameData.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\vk_descriptors.cpp">
+    <ClCompile Include="src\vk_raytracing.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vk_types.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Game\Laptop.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Game\Laptop.h">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -191,8 +200,24 @@
     <ClInclude Include="src\Game\GameData.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\vk_descriptors.h">
+    <ClInclude Include="src\vk_raytracing.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="vendor\stb_image\stb_image_write.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="res\shaders\gbuffer.frag" />
+    <None Include="res\shaders\gbuffer.vert" />
+    <None Include="res\shaders\depthAwareBlur.vert" />
+    <None Include="res\shaders\depthAwareBlur.frag" />
+    <None Include="res\shaders\path_closesthit.rchit" />
+    <None Include="res\shaders\path_miss.rmiss" />
+    <None Include="res\shaders\path_raygen.rgen" />
+    <None Include="res\shaders\path_shadow.rmiss" />
+    <None Include="res\shaders\mousepick_closesthit.rchit" />
+    <None Include="res\shaders\mousepick_miss.rmiss" />
+    <None Include="res\shaders\mousepick_raygen.rgen" />
   </ItemGroup>
 </Project>

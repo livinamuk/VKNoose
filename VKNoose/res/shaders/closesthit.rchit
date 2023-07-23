@@ -34,53 +34,26 @@ struct ObjDesc {
 };
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
-layout(set = 0, binding = 2) uniform CameraProperties {
-	mat4 viewInverse;
-	mat4 projInverse;
-	vec4 viewPos;
-    int sizeOfVertex;
-} cam;
+layout(set = 0, binding = 1) uniform CameraData_ { CameraData data; } cam;
+layout(set = 0, binding = 2) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
 
-layout(set = 0, binding = 3) readonly buffer Vertices { Vertex v[]; } vertices;
-layout(set = 0, binding = 4) readonly buffer Indices { uint i[]; } indices;
 
+
+// Static
 layout(set = 1, binding = 0) uniform sampler samp;
 layout(set = 1, binding = 1) uniform texture2D textures[256];
+layout(set = 1, binding = 2) readonly buffer Vertices { Vertex v[]; } vertices;
+layout(set = 1, binding = 3) readonly buffer Indices { uint i[]; } indices;
+//layout(set = 1, binding = 4, rgba8) uniform image2D image; // rt output image
 
-layout(set = 2, binding = 0) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
+layout(set = 2, binding = 0) buffer ObjDesc_2 { ObjDesc i[]; } objDesc2;
+
 
 hitAttributeEXT vec2 attribs;
-
-const float PI = 3.14159265359;  
+ 
 //const vec3 lightPos = vec3(-2.2, 2, -3.5);
 const vec3 lightPosition = vec3(-0.5, 2.1, -0);
 float lightStrength = 1.0;
-
-float fog_exp2(const float dist, const float density) {
-  const float LOG2 = -1.442695;
-  float d = density * dist;
-  return 1.0 - clamp(exp2(d * d * LOG2), 0.0, 1.0);
-}
-
-vec3 calculateFog(vec3 inputColor, vec3 fogColor, float fogDensity, float fogDistance) {
-    float fogAmount = fog_exp2(fogDistance, fogDensity);
-    return mix(inputColor, fogColor, fogAmount);
-}
-
-float calculateDoomFactor(vec3 fragPos, vec3 camPos, float fallOff)
-{
-    float distanceFromCamera = distance(fragPos, camPos);
-    float doomFactor = 1;	
-    if (distanceFromCamera > fallOff) {
-        distanceFromCamera -= fallOff;
-        distanceFromCamera *= 0.13;
-        doomFactor = (1 - distanceFromCamera);
-       // doomFactor = clamp(doomFactor, 0.23, 1.0);
-        doomFactor = clamp(doomFactor, 0.1, 1.0);
-    }
-    return doomFactor;
-}
-
 
 struct Light {
 	vec3 position;
@@ -245,7 +218,146 @@ vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic,
 	return finalColor;
 }
 
+void main2() {
+	
+	ObjDesc objResource = objDesc.i[gl_InstanceCustomIndexEXT];
 
+	int vertexOffset = objResource.vertexOffset;
+	int indexOffset = objResource.indexOffset;
+	mat4 worldMatrix = objResource.worldMatrix;
+         
+    const vec3 barycentrics = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
+
+    uint index0 = indices.i[3 * gl_PrimitiveID + indexOffset];
+    uint index1 = indices.i[3 * gl_PrimitiveID + 1 + indexOffset];
+    uint index2 = indices.i[3 * gl_PrimitiveID + 2 + indexOffset];
+
+    Vertex v0 = vertices.v[index0 + vertexOffset];
+    Vertex v1 = vertices.v[index1 + vertexOffset];
+    Vertex v2 = vertices.v[index2 + vertexOffset];
+	
+	const vec3 pos0 = v0.position.xyz;
+	const vec3 pos1 = v1.position.xyz;
+	const vec3 pos2 = v2.position.xyz;
+	const vec3 nrm0 = v0.normal.xyz;
+	const vec3 nrm1 = v1.normal.xyz;
+	const vec3 nrm2 = v2.normal.xyz;
+	const vec2 uv0  = v0.texCoord;
+	const vec2 uv1  = v1.texCoord;
+	const vec2 uv2  = v2.texCoord;
+	const vec4 tng0 = vec4(v0.tangent, 0);
+	const vec4 tng1 = vec4(v1.tangent, 0);
+	const vec4 tng2 = vec4(v2.tangent, 0);
+		
+    vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y + v2.texCoord * barycentrics.z;
+    vec4 baseColor = texture(sampler2D(textures[objResource.basecolorIndex], samp), texCoord).rgba;
+    vec3 rma = texture(sampler2D(textures[objResource.rmaIndex], samp), texCoord).rgb;	
+	vec3 normalMap = texture(sampler2D(textures[objResource.normalIndex], samp), texCoord).rgb;
+
+	// Normal
+	vec3 vnormal = normalize(mixBary(nrm0, nrm1, nrm2, barycentrics));
+	vec3 normal    = normalize(vec3(vnormal * gl_WorldToObjectEXT));
+	vec3 geonrm = normalize(cross(pos1 - pos0, pos2 - pos0));
+	geonrm = normalize(vec3(geonrm * gl_WorldToObjectEXT));
+	vec3 tangent = normalize(mixBary(tng0.xyz, tng1.xyz, tng2.xyz, barycentrics));
+	tangent    = normalize(vec3(tangent * gl_WorldToObjectEXT));
+
+	vec3 bitangent = cross(normal, tangent);
+	
+	mat3 tbn = mat3(normalize(bitangent), normalize(tangent), normalize(normal));
+	normal = normalize(tbn * normalize(normalMap * 2.0 - 1.0));
+
+	vec4 modelSpaceHitPos = vec4(pos0 * barycentrics.x + pos1 * barycentrics.y + pos2 * barycentrics.z, 1.0);
+	vec3 worldPos = (worldMatrix * modelSpaceHitPos).xyz;
+
+	  // Adjusting normal
+	  const vec3 V = -gl_WorldRayDirectionEXT;
+	  if(dot(geonrm, V) < 0)  // Flip if back facing
+		geonrm = -geonrm;
+
+	// If backface
+	if(dot(geonrm, normal) < 0) { // Make Normal and GeoNormal on the same side
+		normal    = -normal;
+		tangent   = -tangent;
+		bitangent = -bitangent;
+	}
+	
+	float roughness = rma.r;
+	float metallic = rma.g;
+	float ao = rma.b;
+    vec3 camPos = cam.data.viewPos.rgb;
+
+	Light light;
+	light.position = lightPosition;
+	light.color = vec3(1, 0.95, 0.8);
+	light.strength = 2.5;
+	light.radius = 5;
+	light.magic = 88;
+
+
+	
+	vec3 finalColor = light.color;//CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light);
+
+
+	
+		vec3 origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+		
+		vec3 lightVector = normalize(light.position - origin);
+		
+		float tMin   = 0.001;
+		float tMax   = distance(light.position, origin);
+		
+		vec2 rng = vec2(0);
+		
+		rng.x = random(vec2(worldPos.x, worldPos.y));
+		rng.y = random(vec2(worldPos.y, worldPos.x));
+		rng.x = random(vec2(origin.x, worldPos.y));
+		rng.y = random(vec2(worldPos.y, origin.x));
+		
+		vec3 light_dir       = lightVector;
+		vec3 light_tangent   = normalize(cross(light_dir, vec3(0.0f, 1.0f, 0.0f)));
+		vec3 light_bitangent = normalize(cross(light_tangent, light_dir));
+		// calculate disk point
+		float radius = 0.03;
+		float point_radius = radius * sqrt(rng.x);
+		float point_angle  = rng.y * 2.0f * PI;
+		vec2  disk_point   = vec2(point_radius * cos(point_angle), point_radius * sin(point_angle));    
+		vec3 Wi = normalize(light_dir + disk_point.x * light_tangent + disk_point.y * light_bitangent);
+
+	  vec3 rayDir = Wi;
+	//rayDir  = lightVector;
+    //vec3  origin = worldPos;// + normal * 0.015;
+    uint  flags  = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+    isShadowed   = true;
+    traceRayEXT(topLevelAS,  // acceleration structure
+                flags,       // rayFlags
+                0xFF,        // cullMask
+                0,           // sbtRecordOffset
+                0,           // sbtRecordStride
+                1,           // missIndex
+                origin,      // ray origin
+                tMin,        // ray min range
+                rayDir,      // ray direction
+                tMax,        // ray max range
+                1            // payload (location = 1)
+    );
+    if(isShadowed)
+    {
+      finalColor *= 0.0;//25;
+    }
+	
+
+
+
+
+	
+	rayPayload.color = finalColor;
+	rayPayload.distance = gl_RayTmaxEXT;
+	rayPayload.normal = normal;
+	rayPayload.done = 1;		
+
+
+}
 
 void main()
 {
@@ -314,7 +426,7 @@ void main()
 	float roughness = rma.r;
 	float metallic = rma.g;
 	float ao = rma.b;
-    vec3 camPos = cam.viewPos.rgb;
+    vec3 camPos = cam.data.viewPos.rgb;
 
 	
 
@@ -347,7 +459,10 @@ void main()
 	//light4.color =  vec3(1, 0.95, 0.8);
 	light4.strength = 1.5;
 	light4.radius = 10;
-	light4.magic = 88;
+	light4.magic = 88;	
+	
+	light4.color =  vec3(1, 0.95, 0.8) * vec3(1, 0.95, 0.8) * 0.45;
+
 
 	Light light5;
 	light5.position = vec3(-3.8, 2, -8.5);
@@ -361,9 +476,9 @@ void main()
 	//vec3 lightPosition3 = vec3(-2,1,-1.5);
 	
 	vec3 finalColor1 = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light);
-	vec3 finalColor2 = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light2);
-	vec3 finalColor3 = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light3);
 	vec3 finalColor4 = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light4);
+	/*vec3 finalColor2 = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light2);
+	vec3 finalColor3 = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light3);
 	vec3 finalColor5 = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light5);
 
 
@@ -371,8 +486,9 @@ void main()
     vec3 finalColor =  finalColor1 + finalColor2 + finalColor3 + finalColor4;
    finalColor =  finalColor1 + finalColor4 + finalColor5;
 
-   finalColor += baseColor.rgb * vec3(0.0);
+   finalColor += baseColor.rgb * vec3(0.0);*/
    // finalColor =  finalColor4;;
+   vec3 finalColor = finalColor1.rgb + finalColor4.rgb / 2;
 	
     // HDR tonemapping
 	//phong = phong / (phong + vec3(1.0));
@@ -418,6 +534,8 @@ void main()
     rayPayload.color = finalColor;
 	rayPayload.distance = gl_RayTmaxEXT;
 	rayPayload.normal = normal;
+	
+	//rayPayload.color.rgb = baseColor.rgb;
 
 //rayPayload.color = vec4(1, 0, 1, 1);
 
@@ -432,21 +550,13 @@ void main()
 	const vec3 nrm      = nrm0 * barycentrics.x + nrm1 * barycentrics.y + nrm2 * barycentrics.z;
 	const vec3 worldNrm = normalize(vec3(nrm * gl_WorldToObjectEXT));  
 
-	// If first bounce, the record the hit
-	if (rayPayload.done == -1) {
-		rayPayload.instanceIndex = gl_InstanceCustomIndexEXT;
-		rayPayload.primitiveIndex = gl_PrimitiveID;
-	}
-
 	if (rayPayload.done == 1) {
 		rayPayload.color = rayPayload.color * vec3(0.3025);
 	}
 
 	rayPayload.done = 1;
-	rayPayload.hitPos = worldPosition;// + (normal * vec3(0.1));
 	//rayPayload.reflectDir = reflect(gl_WorldRayDirectionEXT, worldNrm);
 	rayPayload.normal = normal;
-	rayPayload.attenuation = vec3(1,1,1);
 
 	//rayPayload.color = vec3(texCoord, 0);
 	
@@ -472,7 +582,10 @@ void main()
 	gl_InstanceCustomIndexEXT == 56 ||  //basin
 	gl_InstanceCustomIndexEXT == 66 ) // mirror
 	{//|| metallic > 0.9|| roughness > 0.1) {
-		rayPayload.done = 0;		
+	
+	
+	// uncomment this if u want reflections back
+//	rayPayload.done = 0;		
     }
 		 
 	if (gl_InstanceCustomIndexEXT == 66 ){

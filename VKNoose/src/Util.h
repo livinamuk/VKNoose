@@ -183,16 +183,16 @@ namespace Util {
 		uvAttribute.format = VK_FORMAT_R32G32_SFLOAT;
 		uvAttribute.offset = offsetof(Vertex, uv);
 
-		VkVertexInputAttributeDescription tangentAttribute = {};
+		/*VkVertexInputAttributeDescription tangentAttribute = {};
 		tangentAttribute.binding = 0;
 		tangentAttribute.location = 3;
 		tangentAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
-		tangentAttribute.offset = offsetof(Vertex, tangent);
+		tangentAttribute.offset = offsetof(Vertex, tangent);*/
 
 		description.attributes.push_back(positionAttribute);
 		description.attributes.push_back(normalAttribute);
 		description.attributes.push_back(uvAttribute);
-		description.attributes.push_back(tangentAttribute);
+		//description.attributes.push_back(tangentAttribute);
 		return description;
 	}
 

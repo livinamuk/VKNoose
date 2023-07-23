@@ -182,7 +182,7 @@ VkPipelineInputAssemblyStateCreateInfo vkinit::input_assembly_create_info(VkPrim
 	info.primitiveRestartEnable = VK_FALSE;
 	return info;
 }
-VkPipelineRasterizationStateCreateInfo vkinit::rasterization_state_create_info(VkPolygonMode polygonMode)
+VkPipelineRasterizationStateCreateInfo vkinit::rasterization_state_create_info(VkPolygonMode polygonMode, VkCullModeFlags cullModeFlags)
 {
 	VkPipelineRasterizationStateCreateInfo info = {};
 	info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -195,7 +195,7 @@ VkPipelineRasterizationStateCreateInfo vkinit::rasterization_state_create_info(V
 	info.polygonMode = polygonMode;
 	info.lineWidth = 1.0f;
 	//no backface cull
-	info.cullMode = VK_CULL_MODE_NONE;
+	info.cullMode = cullModeFlags; // VK_CULL_MODE_NONE
 	info.frontFace = VK_FRONT_FACE_CLOCKWISE;
 	//no depth bias
 	info.depthBiasEnable = VK_FALSE;
@@ -220,11 +220,10 @@ VkPipelineMultisampleStateCreateInfo vkinit::multisampling_state_create_info()
 	info.alphaToOneEnable = VK_FALSE;
 	return info;
 }
-VkPipelineColorBlendAttachmentState vkinit::color_blend_attachment_state() {
+VkPipelineColorBlendAttachmentState vkinit::color_blend_attachment_state(bool enableBlending) {
 	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
-	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-		VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-	colorBlendAttachment.blendEnable = VK_FALSE;
+	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |	VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	colorBlendAttachment.blendEnable = enableBlending;
 	return colorBlendAttachment;
 }
 VkPipelineLayoutCreateInfo vkinit::pipeline_layout_create_info() {

@@ -38,11 +38,11 @@ namespace vkinit {
 
 	VkPipelineInputAssemblyStateCreateInfo input_assembly_create_info(VkPrimitiveTopology topology);
 
-	VkPipelineRasterizationStateCreateInfo rasterization_state_create_info(VkPolygonMode polygonMode);
+	VkPipelineRasterizationStateCreateInfo rasterization_state_create_info(VkPolygonMode polygonMode, VkCullModeFlags cullModeFlags);
 
 	VkPipelineMultisampleStateCreateInfo multisampling_state_create_info();
 
-	VkPipelineColorBlendAttachmentState color_blend_attachment_state();
+	VkPipelineColorBlendAttachmentState color_blend_attachment_state(bool enableBlending);
 
 	VkPipelineLayoutCreateInfo pipeline_layout_create_info();
 

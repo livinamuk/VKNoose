@@ -6,7 +6,7 @@
 #include <glm/vec3.hpp>
 
 #include <iostream>
-#include "Common.h"
+//#include "Common.h"
 #define GLM_FORCE_SILENT_WARNINGS
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
@@ -16,9 +16,6 @@
 #include "glm/gtx/hash.hpp"
 
 struct Mesh {
-	//std::vector<Vertex> _vertices;
-	//std::vector<uint32_t> _indices;
-
 	uint32_t _vertexOffset;
 	uint32_t _indexOffset;
 	uint32_t _vertexCount;
@@ -27,7 +24,7 @@ struct Mesh {
 	AllocatedBuffer _vertexBuffer;
 	AllocatedBuffer _indexBuffer;
 	AllocatedBuffer _transformBuffer;
-	Transform _transform;
+	//Transform _transform;
 	AccelerationStructure _accelerationStructure;
 	std::string _name = "undefined";
 	bool _uploadedToGPU = false;
@@ -40,18 +37,10 @@ public:
 	// methods
 	Model();
 	Model(const char* filename);
-	//Model(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, const char* name = "undefined");
 	void draw(VkCommandBuffer commandBuffer, uint32_t firstInstance);
 	std::string _filename = "undefined";
-
 	std::vector<int> _meshIndices;
-
-	// fields
-//private:
-	//std::vector<Mesh> _meshes;
 	
-	//static void SetTangentsFromVertices(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
-
 private:
 	// methods
 	//bool load_from_obj(const char* filename);

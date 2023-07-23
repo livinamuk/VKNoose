@@ -5,21 +5,37 @@
 
 namespace RasterRenderer {
 
-	inline GPUObjectData _instanceData[MAX_RENDER_OBJECTS] = {};
-	inline std::vector<int> _UIToRender;
-	int instanceCount = 0;
+	enum class Destination { MAIN_UI, LAPTOP_DISPLAY };
 
-	inline void SubmitUI(int meshIndex, int textureIndex, int colorIndex, glm::mat4 modelMatrix) {
+	struct UIInfo {
+		int meshIndex = -1;
+		Destination destination = Destination::MAIN_UI;
+	};
+
+	inline GPUObjectData2D _instanceData2D[MAX_RENDER_OBJECTS_2D] = {};
+	inline std::vector<UIInfo> _UIToRender;
+	inline int instanceCount = 0;
+
+	inline void SubmitUI(int meshIndex, int textureIndex, int colorIndex, glm::mat4 modelMatrix, Destination destination, int xClipMin, int xClipMax, int yClipMin, int yClipMax) {
 		int instanceIndex = instanceCount;
-		_instanceData[instanceIndex].modelMatrix = modelMatrix;
-		_instanceData[instanceIndex].index_basecolor = textureIndex;
-		_instanceData[instanceIndex].index_normals = colorIndex;
-		_UIToRender.push_back(meshIndex);
+		_instanceData2D[instanceIndex].modelMatrix = modelMatrix;
+		_instanceData2D[instanceIndex].index_basecolor = textureIndex;
+		_instanceData2D[instanceIndex].index_color = colorIndex;
+		_instanceData2D[instanceIndex].xClipMin = xClipMin;
+		_instanceData2D[instanceIndex].xClipMax = xClipMax;
+		_instanceData2D[instanceIndex].yClipMin = yClipMin;
+		_instanceData2D[instanceIndex].yClipMax = yClipMax;
+
+		UIInfo info;
+		info.meshIndex = meshIndex;
+		info.destination = destination;
+
+		_UIToRender.push_back(info);
 		instanceCount++;
 	}
 
 	inline void DrawMesh(VkCommandBuffer commandbuffer, int index) {
-		Mesh* mesh = AssetManager::GetMesh(_UIToRender[index]);
+		Mesh* mesh = AssetManager::GetMesh(_UIToRender[index].meshIndex);
 		mesh->draw(commandbuffer, index);
 	}
 
@@ -28,12 +44,14 @@ namespace RasterRenderer {
 		instanceCount = 0;
 	}
 
-	inline void DrawQuad(const std::string& textureName, int xPosition, int yPosition, bool centered = false, int xSize = -1, int ySize = -1) {
+	inline void DrawQuad(const std::string& textureName, int xPosition, int yPosition, Destination destination, bool centered = false, int xSize = -1, int ySize = -1, int xClipMin = -1, int xClipMax = -1, int yClipMin = -1, int yClipMax = -1) {
 		
 		float quadWidth = xSize;
 		float quadHeight = ySize;
-		if (xSize == -1 || ySize == -1) {
+		if (xSize == -1) {
 			quadWidth = AssetManager::GetTexture(textureName)->_width;
+		}
+		if (ySize == -1) {
 			quadHeight = AssetManager::GetTexture(textureName)->_height;
 		}
 		if (centered) {
@@ -42,6 +60,21 @@ namespace RasterRenderer {
 		}
 		float renderTargetWidth = 512;
 		float renderTargetHeight = 288;
+
+		if (destination == Destination::LAPTOP_DISPLAY) {
+			renderTargetWidth = 640;
+			renderTargetHeight = 430;
+		}
+
+		if (xClipMin == -1)
+			xClipMin = 0;
+		if (xClipMax == -1)
+			xClipMax = renderTargetWidth;
+		if (yClipMin == -1)
+			yClipMin = 0;
+		if (yClipMax == -1)
+			yClipMax = renderTargetHeight;
+
 		float width = (1.0f / renderTargetWidth) * quadWidth;
 		float height = (1.0f / renderTargetHeight) * quadHeight;
 		float ndcX = ((xPosition + (quadWidth / 2.0f)) / renderTargetWidth) * 2 - 1;
@@ -52,15 +85,6 @@ namespace RasterRenderer {
 		transform.scale = glm::vec3(width, height * -1, 1);
 		int meshIndex = AssetManager::GetModel("blitter_quad")->_meshIndices[0];
 		int textureIndex = AssetManager::GetTextureIndex(textureName);
-		SubmitUI(meshIndex, textureIndex, 0, transform.to_mat4());
+		SubmitUI(meshIndex, textureIndex, 0, transform.to_mat4(), destination, xClipMin, xClipMax, yClipMin, yClipMax);
 	}
-
-	/*inline void SubmitForRender(int meshIndex, Material* material, glm::mat4 modelMatrix) {
-		int index = _meshToRender.size();
-		_rasterInstanceData[index].modelMatrix = modelMatrix;
-		_rasterInstanceData[index].index_basecolor = material->_basecolor;
-		_rasterInstanceData[index].index_rma = material->_rma;
-		_rasterInstanceData[index].index_normals = material->_normal;
-		_meshToRender.push_back(meshIndex);
-	}*/
 }

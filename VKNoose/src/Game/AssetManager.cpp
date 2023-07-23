@@ -1,12 +1,23 @@
 #include "AssetManager.h"
 #include "../Util.h"
 #include "../vk_initializers.h"
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
 #include <cmath>
 #include <fstream>
 #include "lz4.h"
 #include "nlohmann/json.hpp"
+
+// for checking if file exists
+#include <sys/stat.h>
+//#include <unistd.h>
+#include <string>
+#include <fstream>
+
 
 namespace AssetManager {
 	std::unordered_map<std::string, Model> _models;
@@ -16,8 +27,38 @@ namespace AssetManager {
 	std::vector<Texture> _textures;
 	std::vector<Vertex> _vertices;		// ALL of em
 	std::vector<uint32_t> _indices;		// ALL of em
-	int _vertexOffset = 0;				// insert index for next mesh
-	int _indexOffset = 0;				// insert index for next mesh
+	uint32_t _vertexOffset = 0;			// insert index for next mesh
+	uint32_t _indexOffset = 0;			// insert index for next mesh
+}
+
+void ImageData::free() {
+	stbi_image_free(data);
+}
+ImageData::ImageData(std::string path) {
+
+	data = stbi_load(path.c_str(), &width, &height, &nrChannels, 0);
+	if (data){
+		std::cout << "Successfully loaded " << path << std::endl;
+		std::cout << "-width:    " << width << std::endl;
+		std::cout << "-height:   " << height << std::endl;
+		std::cout << "-channels: " << nrChannels << std::endl;
+	}
+	else {
+		if (!std::filesystem::exists(path)) {
+			std::cout << "Failed to load " << path << ", file does not exist " << std::endl;
+		}
+		else {
+			std::cout << "Failed to load " << path << ", although file does exist " << std::endl;
+		}
+	}
+}
+
+int ImageData::getSize() {
+	return width * height * nrChannels;
+}
+
+void ImageData::save(std::string path) {
+	stbi_write_png(path.c_str(), width, height, nrChannels, data, width * nrChannels);
 }
 
 bool AssetManager::save_binaryfile(const  char* path, const AssetFile& file)
@@ -252,8 +293,8 @@ std::vector<Mesh>& AssetManager::GetMeshList() {
 int AssetManager::CreateMesh(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
 
 	Mesh& mesh = _meshes.emplace_back(Mesh());
-	mesh._vertexCount = vertices.size();
-	mesh._indexCount = indices.size();
+	mesh._vertexCount = (uint32_t)vertices.size();
+	mesh._indexCount = (uint32_t)indices.size();
 	mesh._vertexOffset = _vertexOffset;
 	mesh._indexOffset = _indexOffset;
 
@@ -405,7 +446,7 @@ bool AssetManager::load_image_from_file(VulkanEngine& engine, const char* file, 
 					imageBarrier_toReadable.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 					imageBarrier_toReadable.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 					imageBarrier_toReadable.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-					vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
+					vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
 
 					// Now walk the mip chain and copy down mips from n-1 to n
 					for (int32_t i = 1; i < outTexture._mipLevels; i++)
@@ -684,6 +725,7 @@ Texture* AssetManager::GetTexture(const std::string& filename) {
 		if (texture._filename == filename)
 			return &texture;
 	}
+	std::cout << "Could not get texture with name \"" << filename << "\", it does not exist\n";
 	return nullptr;
 }
 
@@ -725,7 +767,7 @@ void AssetManager::LoadFont(VulkanEngine& engine) {
 	for (size_t i = 1; i <= 90; i++) {
 		std::string filepath = "res/textures/char_" + std::to_string(i) + ".png";
 		Texture texture;
-		AssetManager::load_image_from_file(engine, filepath.c_str(), texture, VkFormat::VK_FORMAT_R8G8B8A8_UNORM, true);
+		AssetManager::load_image_from_file(engine, filepath.c_str(), texture, VkFormat::VK_FORMAT_R8G8B8A8_UNORM, true); // NO MIPS = false
 		AssetManager::AddTexture(texture);
 		TextBlitter::_charExtents.push_back({ AssetManager::GetTexture(i - 1)->_width, AssetManager::GetTexture(i - 1)->_height });
 	}
@@ -738,6 +780,27 @@ bool AssetManager::TextureExists(const std::string& filename) {
 	return false;
 }
 
+void AssetManager::SaveImageData(std::string path, int width, int height, int channels, void* data) {
+	stbi_write_png(path.c_str(), width, height, channels, data, width * channels);
+}
+
+void AssetManager::SaveImageDataF(std::string path, int width, int height, int channels, void* data) {
+
+	float* floatArray = (float*)data;
+	int size = width * height * channels;
+	uint8_t* pixels = new uint8_t[size];
+	for (int i = 0; i < size; i++) {
+		//std::cout << i << "\n";
+		pixels[i] = int(255.99 * (floatArray[i]));
+	}
+	stbi_write_png(path.c_str(), width, height, channels, pixels, width * channels);
+}
+
+void AssetManager::SaveImageDataU8(std::string path, int width, int height, int channels, void* data) {
+
+	//stbi_write_png(path.c_str(), width, height, channels, data, width * channels);
+}
+
 void AssetManager::LoadTextures(VulkanEngine& engine) {
 	for (const auto& entry : std::filesystem::directory_iterator("res/textures/")) {
 		FileInfo info = Util::GetFileInfo(entry);
@@ -745,10 +808,10 @@ void AssetManager::LoadTextures(VulkanEngine& engine) {
 			if (!TextureExists(info.filename)) {
 				Texture texture;
 				VkFormat imageFormat = VK_FORMAT_R8G8B8A8_UNORM;// VK_FORMAT_R8G8B8A8_SRGB;
-				if (info.materialType == "ALB") {
+				if (info.materialType == "ALB" || info.filename.substr(0, 2) == "OS") {
 					imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
 				}
-				load_image_from_file(engine, info.fullpath.c_str(), texture, imageFormat, true);
+				load_image_from_file(engine, info.fullpath.c_str(), texture, imageFormat, false); // no mips
 				AddTexture(texture);
 			}
 		}
@@ -767,43 +830,73 @@ void AssetManager::BuildMaterials() {
 	}
 }
 
-void AssetManager::LoadBlitterQuad() {
+void AssetManager::LoadHardcodedMesh() {
 
-	Vertex vertA, vertB, vertC, vertD;
-	vertA.position = { -1.0f, -1.0f, 0.0f };
-	vertB.position = { -1.0f, 1.0f, 0.0f };
-	vertC.position = { 1.0f,  1.0f, 0.0f };
-	vertD.position = { 1.0f,  -1.0f, 0.0f };
-	vertA.uv = { 0.0f, 1.0f };
-	vertB.uv = { 0.0f, 0.0f };
-	vertC.uv = { 1.0f, 0.0f };
-	vertD.uv = { 1.0f, 1.0f };
-	std::vector<Vertex> vertices;
-	vertices.push_back(vertA);
-	vertices.push_back(vertB);
-	vertices.push_back(vertC);
-	vertices.push_back(vertD);
-	std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
+	// Blitter quad
+	{
+		Vertex vertA, vertB, vertC, vertD;
+		vertA.position = { -1.0f, -1.0f, 0.0f };
+		vertB.position = { -1.0f, 1.0f, 0.0f };
+		vertC.position = { 1.0f,  1.0f, 0.0f };
+		vertD.position = { 1.0f,  -1.0f, 0.0f };
+		vertA.uv = { 0.0f, 1.0f };
+		vertB.uv = { 0.0f, 0.0f };
+		vertC.uv = { 1.0f, 0.0f };
+		vertD.uv = { 1.0f, 1.0f };
+		std::vector<Vertex> vertices;
+		vertices.push_back(vertA);
+		vertices.push_back(vertB);
+		vertices.push_back(vertC);
+		vertices.push_back(vertD);
+		std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
+		Model model;
+		model._meshIndices.push_back(CreateMesh(vertices, indices));
+		_models["blitter_quad"] = model;
+	}
 
-	Model model;
-	model._meshIndices.push_back(CreateMesh(vertices, indices));
-	_models["blitter_quad"] = model;
+	// Fullscreen quad 
+	{
+		Vertex vertA, vertB, vertC, vertD;
+		vertA.position = { -1.0f, -1.0f, 0.0f };
+		vertB.position = { -1.0f, 1.0f, 0.0f };
+		vertC.position = { 1.0f,  1.0f, 0.0f };
+		vertD.position = { 1.0f,  -1.0f, 0.0f };
+		vertA.uv = { 0.0f, 1.0f };
+		vertB.uv = { 0.0f, 0.0f };
+		vertC.uv = { 1.0f, 0.0f };
+		vertD.uv = { 1.0f, 1.0f };
+		std::vector<Vertex> vertices;
+		vertices.push_back(vertA);
+		vertices.push_back(vertB);
+		vertices.push_back(vertC);
+		vertices.push_back(vertD);
+		std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
+		Model model;
+		model._meshIndices.push_back(CreateMesh(vertices, indices));
+		_models["fullscreen_quad"] = model;
+	}
 }
 
 void AssetManager::LoadModels() {
 
+	_models["MacbookClosed"] = Model("res/models/MacbookClosed.obj");
+	_models["MacbookScreen"] = Model("res/models/MacbookScreen.obj");
+	_models["MacbookBody"] = Model("res/models/MacbookBody.obj");
+	_models["WineGlass"] = Model("res/models/WineGlass.obj");
 	_models["FallenChairTop"] = Model("res/models/FallenChairTop.obj");
 	_models["KeyInVase"] = Model("res/models/KeyInVase.obj");
 	_models["FallenChairBottom"] = Model("res/models/FallenChairBottom.obj");
 	_models["wife"] = Model("res/models/Wife.obj");
 	_models["door"] = Model("res/models/Door.obj");
 	_models["skull"] = Model("res/models/BlackSkull.obj");
+	_models["skull2"] = Model("res/models/BlackSkull2.obj");
 	_models["door_frame"] = Model("res/models/DoorFrame.obj");
 	_models["trims_ceiling"] = Model("res/models/TrimCeiling.obj");
 	_models["flowers"] = Model("res/models/Flowers.obj");
 	_models["vase"] = Model("res/models/Vase.obj");
 	//_models["chest_of_drawers"] = Model("res/models/ChestOfDrawers.obj");
-	_models["light_switch"] = Model("res/models/LightSwitchOn.obj");
+	_models["LightSwitchOn"] = Model("res/models/LightSwitchOn.obj");
+	_models["LightSwitchOff"] = Model("res/models/LightSwitchOff.obj");
 
 	_models["DrawerFrame"] = Model("res/models/DrawerFrame.obj");
 	_models["DrawerTopLeft"] = Model("res/models/DrawerTopLeft.obj");
@@ -832,6 +925,12 @@ void AssetManager::LoadModels() {
 	_models["BathroomBinLid"] = Model("res/models/BathroomBinLid.obj");
 	_models["BathroomBinPedal"] = Model("res/models/BathroomBinPedal.obj");
 	_models["YourPhone"] = Model("res/models/YourPhone.obj");
+	_models["Bed"] = Model("res/models/BedNoPillows.obj");
+	_models["PillowHers"] = Model("res/models/PillowHers.obj");
+	_models["PillowHis"] = Model("res/models/PillowHis.obj");
+	_models["Cube"] = Model("res/models/Cube.obj");
+	_models["Sphere"] = Model("res/models/Sphere.obj");
+	_models["MacbookScreenDisplay"] = Model("res/models/MacbookScreenDisplay.obj");
 
 
 	{
@@ -857,7 +956,8 @@ void AssetManager::LoadModels() {
 		vertices.push_back(vert1);
 		vertices.push_back(vert2);
 		vertices.push_back(vert3);
-		std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
+		//std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
+		std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
 		Util::SetTangentsFromVertices(vertices, indices);
 		Model model;
 		model._meshIndices.push_back(CreateMesh(vertices, indices));
@@ -893,7 +993,8 @@ void AssetManager::LoadModels() {
 		vertices.push_back(vert1);
 		vertices.push_back(vert2);
 		vertices.push_back(vert3);
-		std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
+		//std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
+		std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
 		Util::SetTangentsFromVertices(vertices, indices);
 		Model model;
 		model._meshIndices.push_back(CreateMesh(vertices, indices));
@@ -929,7 +1030,8 @@ void AssetManager::LoadModels() {
 		vertices.push_back(vert1);
 		vertices.push_back(vert2);
 		vertices.push_back(vert3);
-		std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
+		//std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
+		std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
 		Util::SetTangentsFromVertices(vertices, indices);
 		Model model;
 		model._meshIndices.push_back(CreateMesh(vertices, indices));
@@ -980,6 +1082,7 @@ void AssetManager::LoadModels() {
 Model* AssetManager::GetModel(const std::string & name) {
 	auto it = _models.find(name);
 	if (it == _models.end()) {
+		std::cout << "GetModel() failed coz " << name << " was not found\n";
 		return nullptr;
 	}
 	else {

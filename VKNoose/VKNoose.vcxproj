@@ -21,13 +21,13 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -78,15 +78,15 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>vendor\VulkanMemoryAllocator\include;vendor\stb_image;vendor\TinyObjectLoader;vendor\GLFW\include;C:\VulkanSDK\1.3.239.0\Include;vendor\VkBootstrap;vendor\fmod\include;vendor\nlohmann_json\include;vendor\lz4\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>vendor\glm;vendor\VulkanMemoryAllocator\include;vendor\stb_image;vendor\TinyObjectLoader;vendor\GLFW\include;C:\VulkanSDK\1.3.239.0\Include;C:\VulkanSDK\1.3.250.0\Include;vendor\VkBootstrap;vendor\fmod\include;vendor\nlohmann_json\include;vendor\lz4\include;vendor\OpenImageIO\include;vendor\OpenImageDenoiser\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>vendor\Vulkan;vendor\GLFW\lib\release;vendor\lz4\lib;vendor\fmod\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;fmod_vc.lib;shaderc_combined.lib;liblz4_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>vendor\OpenImageIO\lib;vendor\Vulkan;vendor\GLFW\lib\release;vendor\lz4\lib;vendor\OpenImageDenoiser\lib;vendor\fmod\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;fmod_vc.lib;shaderc_combined.lib;liblz4_static.lib;OpenImageDenoise.lib;OpenImageIO.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -96,6 +96,8 @@
     <ClCompile Include="src\Game\GameData.cpp" />
     <ClCompile Include="src\Game\GameObject.cpp" />
     <ClCompile Include="src\Game\House\Wall.cpp" />
+    <ClCompile Include="src\Game\Laptop.cpp" />
+    <ClCompile Include="src\Game\Laptop.h" />
     <ClCompile Include="src\Game\Player.cpp" />
     <ClCompile Include="src\Game\Scene.cpp" />
     <ClCompile Include="src\IO\Input.cpp" />
@@ -103,12 +105,13 @@
     <ClCompile Include="src\Profiler.cpp" />
     <ClCompile Include="src\Renderer\Shader.cpp" />
     <ClCompile Include="src\UI\TextBlitting.cpp" />
-    <ClCompile Include="src\vk_descriptors.cpp" />
     <ClCompile Include="src\vk_engine.cpp" />
     <ClCompile Include="src\vk_initializers.cpp" />
     <ClCompile Include="src\vk_mesh.cpp" />
+    <ClCompile Include="src\vk_raytracing.cpp" />
     <ClCompile Include="src\vk_textures.cpp" />
     <ClCompile Include="src\vk_tools.cpp" />
+    <ClCompile Include="src\vk_types.cpp" />
     <ClCompile Include="vendor\lz4\include\lz4.c" />
     <ClCompile Include="vendor\lz4\include\lz4file.c" />
     <ClCompile Include="vendor\lz4\include\lz4frame.c" />
@@ -135,10 +138,10 @@
     <ClInclude Include="src\Renderer\Shader.h" />
     <ClInclude Include="src\UI\TextBlitter.h" />
     <ClInclude Include="src\Util.h" />
-    <ClInclude Include="src\vk_descriptors.h" />
     <ClInclude Include="src\vk_engine.h" />
     <ClInclude Include="src\vk_initializers.h" />
     <ClInclude Include="src\vk_mesh.h" />
+    <ClInclude Include="src\vk_raytracing.h" />
     <ClInclude Include="src\vk_textures.h" />
     <ClInclude Include="src\vk_tools.h" />
     <ClInclude Include="src\vk_types.h" />
@@ -148,9 +151,23 @@
     <ClInclude Include="vendor\lz4\include\lz4frame_static.h" />
     <ClInclude Include="vendor\lz4\include\lz4hc.h" />
     <ClInclude Include="vendor\lz4\include\xxhash.h" />
+    <ClInclude Include="vendor\stb_image\stb_image_write.h" />
     <ClInclude Include="vendor\TinyObjectLoader\tiny_obj_loader.h" />
     <ClInclude Include="vendor\VkBootstrap\VkBootstrap.h" />
     <ClInclude Include="vendor\VkBootstrap\VkBootstrapDispatch.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="res\shaders\depthAwareBlur.frag" />
+    <None Include="res\shaders\depthAwareBlur.vert" />
+    <None Include="res\shaders\gbuffer.frag" />
+    <None Include="res\shaders\gbuffer.vert" />
+    <None Include="res\shaders\mousepick_closesthit.rchit" />
+    <None Include="res\shaders\mousepick_miss.rmiss" />
+    <None Include="res\shaders\mousepick_raygen.rgen" />
+    <None Include="res\shaders\path_closesthit.rchit" />
+    <None Include="res\shaders\path_miss.rmiss" />
+    <None Include="res\shaders\path_raygen.rgen" />
+    <None Include="res\shaders\path_shadow.rmiss" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
