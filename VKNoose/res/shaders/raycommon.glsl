@@ -24,6 +24,8 @@ struct RayPayload {
     vec3 random;
     int bounce;
     int writeToImageStore;
+    vec3 vertexNormal;
+    float meshIndex;
 };
 
 struct MousepickPayload {

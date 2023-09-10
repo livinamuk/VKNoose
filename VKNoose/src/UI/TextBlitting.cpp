@@ -30,6 +30,7 @@ namespace TextBlitter {
 		int x = 0;
 		int y = 0;
 		bool centered = false;
+		float scale = 1.0f;
 	};
 	std::vector<BlitXY> blitXYs;
 
@@ -346,8 +347,8 @@ namespace TextBlitter {
 				float renderTargetWidth = 512;
 				float renderTargetHeight = 288;
 
-				float width = (1.0f / renderTargetWidth) * texWidth;
-				float height = (1.0f / renderTargetHeight) * texWHeight;
+				float width = (1.0f / renderTargetWidth) * texWidth * blitXY.scale;
+				float height = (1.0f / renderTargetHeight) * texWHeight * blitXY.scale;
 				float cursor_X = ((xcursor + (texWidth / 2.0f)) / renderTargetWidth) * 2 - 1;
 				float cursor_Y = ((ycursor + (texWHeight / 2.0f)) / renderTargetHeight) * 2 - 1;
 
@@ -372,13 +373,14 @@ namespace TextBlitter {
 		blitXYs.clear();
 	}
 
-	void TextBlitter::BlitAtPosition(std::string text, int x, int y, bool centered)
+	void TextBlitter::BlitAtPosition(std::string text, int x, int y, bool centered, float scale)
 	{
 		BlitXY blitXY;
 		blitXY.text = text;
 		blitXY.x = x;
 		blitXY.y = y;
 		blitXY.centered = centered;
+		blitXY.scale = scale;
 		blitXYs.push_back(blitXY);
 	}
 
@@ -395,5 +397,9 @@ namespace TextBlitter {
 
 	bool TextBlitter::QuestionIsOpen() {
 		return (_questionState != QuestionState::CLOSED);
+	}
+	int GetLineHeight()
+	{
+		return _lineHeight;
 	}
 }

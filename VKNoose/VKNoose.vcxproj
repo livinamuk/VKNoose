@@ -157,6 +157,9 @@
     <ClInclude Include="vendor\VkBootstrap\VkBootstrapDispatch.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="res\shaders\composite.frag" />
+    <None Include="res\shaders\composite.vert" />
+    <None Include="res\shaders\denoise.comp" />
     <None Include="res\shaders\depthAwareBlur.frag" />
     <None Include="res\shaders\depthAwareBlur.vert" />
     <None Include="res\shaders\gbuffer.frag" />

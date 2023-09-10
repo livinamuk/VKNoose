@@ -11,7 +11,7 @@
 #include "vk_mesh.h"
 
 #define NEAR_PLANE 0.01f
-#define FAR_PLANE 100.0f
+#define FAR_PLANE 25.0f
 #define NOOSE_PI 3.14159265359f
 #define NOOSE_HALF_PI 1.57079632679f
 

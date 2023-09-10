@@ -219,5 +219,8 @@
     <None Include="res\shaders\mousepick_closesthit.rchit" />
     <None Include="res\shaders\mousepick_miss.rmiss" />
     <None Include="res\shaders\mousepick_raygen.rgen" />
+    <None Include="res\shaders\denoise.comp" />
+    <None Include="res\shaders\composite.vert" />
+    <None Include="res\shaders\composite.frag" />
   </ItemGroup>
 </Project>

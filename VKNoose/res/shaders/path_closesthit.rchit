@@ -91,7 +91,7 @@ vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic,
 	finalColor = finalColor * doom;
 
 	// sample indirect direction	
-	vec3 random = random_pcg3d(uvec3(gl_LaunchIDEXT.xy, rayPayload.bounce));
+	vec3 random = random_pcg3d(uvec3(gl_LaunchIDEXT.xy, rayPayload.bounce + cam.data.frameIndex * 6341));
 	vec3 nextFactor = vec3(0.0);
 	vec3 nextDir = sampleMicrofacetBRDF(viewDir, normal, baseColor, metallic, fresnelReflect, roughness, random, nextFactor);              
 	rayPayload.nextRayDirection = nextDir;
@@ -141,6 +141,8 @@ void main()
 {
     MeshInstance meshInstance = meshInstances.i[gl_InstanceCustomIndexEXT];
 
+	rayPayload.meshIndex = gl_InstanceCustomIndexEXT;
+
 	int vertexOffset = meshInstance.vertexOffset;
 	int indexOffset = meshInstance.indexOffset;
 	mat4 worldMatrix = meshInstance.worldMatrix;
@@ -189,8 +191,7 @@ void main()
 
 	vec3 bitangent = cross(normal, tangent);
 	
-	mat3 tbn = mat3(normalize(bitangent), normalize(tangent), normalize(normal));
-	//normal = normalize(tbn * normalize(normalMap * 2.0 - 1.0));
+
 
 	vec4 modelSpaceHitPos = vec4(pos0 * barycentrics.x + pos1 * barycentrics.y + pos2 * barycentrics.z, 1.0);
 	vec3 worldPos = (worldMatrix * modelSpaceHitPos).xyz;
@@ -207,27 +208,38 @@ void main()
 		bitangent = -bitangent;
 	}
 	
+	//mat3 tbn = mat3(normalize(bitangent), normalize(tangent), normalize(normal));
+	mat3 tbn = mat3(normalize(bitangent), normalize(tangent), normalize(normal));
+	
+	rayPayload.vertexNormal = normal;	
+	
+	// If not glass, then sample the normal map
+	// Store the vertex normal
+	if (materialType != 1) {
+		normal = normalize(tbn * normalize(normalMap * 2.0 - 1.0));
+	}
+	
+//	rayPayload.vertexNormal = geonrm;
+	
+
+
 	float roughness = rma.r;
 	float metallic = rma.g;
 	float ao = rma.b;
     vec3 camPos = cam.data.viewPos.rgb;
+
 	
-  	// GLASS SKULL`
-	if (gl_InstanceCustomIndexEXT == 17) {
-		//roughness += 0.4;
-		//roughness -= 0.4;
-		//metallic = 0.91;
-		//roughness = 0.01;
-		//metallic += 2.9;
-	}
-			
-	rayPayload.color = baseColor.rgb;
+	float near_plane = 0.01;
+	float far_plane = 25;
+	float distance_to_hit_point = distance(worldPos, cam.data.viewPos.xyz);
+	float depth = (distance_to_hit_point - near_plane) / (far_plane - near_plane);
 
 
+	//;
 
 	//rayPayload.done = 0;
     rayPayload.color = vec3(0);
-	rayPayload.distance = 0;
+	rayPayload.distance = depth;
 	rayPayload.normal = vec3(0);
 	rayPayload.nextRayOrigin = worldPos;
 	rayPayload.nextFactor = vec3(0);
@@ -261,6 +273,8 @@ void main()
 	
 	Light light0 =  lights.i[0];
 	Light light1 =  lights.i[1];
+
+	//light0.color = vec4(1,0,0,1);
 	//light1.color = light0.color;
 	//light0.position.xyz = vec3(0.5, 1.5, 1);
 	//light1.position.xyz = vec3(-0.5, 1.5, 1);
@@ -285,7 +299,7 @@ void main()
 
 	rayPayload.color = directLighting.rgb / 2;
 
-
+	//rayPayload.color = normal;
   	// RED BIG SKULL
 	//if (gl_InstanceCustomIndexEXT == 7)
 	//	rayPayload.color = vec3(1,0,0);
@@ -306,6 +320,7 @@ void main()
 		rayPayload.nextRayDirection = reflect(gl_WorldRayDirectionEXT, normal);
 		rayPayload.nextFactor = vec3(directLighting.rgb);
 		rayPayload.nextFactor = vec3(1);
+		rayPayload.color = vec3(0,0,0);
 	}
 
 	// Transparent fragment

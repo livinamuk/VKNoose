@@ -58,7 +58,7 @@ namespace RasterRenderer {
 			xPosition -= quadWidth / 2;
 			yPosition -= quadHeight / 2;
 		}
-		float renderTargetWidth = 512;
+		float renderTargetWidth = 512	;
 		float renderTargetHeight = 288;
 
 		if (destination == Destination::LAPTOP_DISPLAY) {

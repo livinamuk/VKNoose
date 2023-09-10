@@ -151,12 +151,17 @@ public:
 	HellDescriptorSet _dynamicDescriptorSet;
 	HellDescriptorSet _dynamicDescriptorSetInventory;
 	HellDescriptorSet _samplerDescriptorSet;
+	HellDescriptorSet _denoiseATextureDescriptorSet;
+	HellDescriptorSet _denoiseBTextureDescriptorSet;
 
 	HellPipeline _textBlitterPipeline;
 	HellPipeline _rasterPipeline;
-	HellPipeline _depthAwareblurPipeline;
+	HellPipeline _denoisePipeline;
+	HellPipeline _computePipeline;
+	HellPipeline _compositePipeline;
 
-	RenderTarget _renderTargetBlur;
+	RenderTarget _renderTargetDenoiseA;
+	RenderTarget _renderTargetDenoiseB;
 	
 	VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeaturesKHR{};
 
@@ -173,11 +178,14 @@ public:
 	struct RenderTargets {
 		RenderTarget present;
 		RenderTarget rt_scene;
+		RenderTarget rt_normals;
+		RenderTarget rt_indirect_noise;
 		//RenderTarget rt_inventory;
 		RenderTarget gBufferBasecolor;
 		RenderTarget gBufferNormal;
 		RenderTarget gBufferRMA;
 		RenderTarget laptopDisplay;
+		RenderTarget composite;
 	} _renderTargets;
 
 	GLFWwindow* _window;
@@ -228,6 +236,9 @@ public:
 	VkShaderModule _text_blitter_fragment_shader = nullptr;
 	VkShaderModule _depth_aware_blur_vertex_shader = nullptr;
 	VkShaderModule _depth_aware_blur_fragment_shader = nullptr;
+	VkShaderModule _denoiser_compute_shader = nullptr;
+	VkShaderModule _composite_vertex_shader = nullptr;
+	VkShaderModule _composite_fragment_shader = nullptr;
 
 	//initializes everything in the engine
 	void init();
@@ -236,6 +247,7 @@ public:
 	void draw();
 	void update(float deltaTime);
 	void run();
+	void render_loading_screen();
 
 	// Pipelines
 
