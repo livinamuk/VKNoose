@@ -138,7 +138,7 @@ vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic,
 	
 
 	rayPayload.color *= vec3(1 - shadowFactor);
-	rayPayload.done = -1;
+	//rayPayload.done = -1;
 	finalColor *= vec3(1 - shadowFactor);
 	
 	
@@ -169,8 +169,8 @@ vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic,
 
 void main()
 {
+	// Retreive the index of the mesh hit
     MeshInstance meshInstance = meshInstances.i[gl_InstanceCustomIndexEXT];
-
 	rayPayload.meshIndex = gl_InstanceCustomIndexEXT;
 
 	int vertexOffset = meshInstance.vertexOffset;
@@ -226,9 +226,9 @@ void main()
 	vec4 modelSpaceHitPos = vec4(pos0 * barycentrics.x + pos1 * barycentrics.y + pos2 * barycentrics.z, 1.0);
 	vec3 worldPos = (worldMatrix * modelSpaceHitPos).xyz;
 
-	  // Adjusting normal
-	  const vec3 V = -gl_WorldRayDirectionEXT;
-	  if(dot(geonrm, V) < 0)  // Flip if back facing
+	// Adjusting normal
+	const vec3 V = -gl_WorldRayDirectionEXT;
+	if(dot(geonrm, V) < 0)  // Flip if back facing
 		geonrm = -geonrm;
 
 	// If backface
@@ -238,9 +238,7 @@ void main()
 		bitangent = -bitangent;
 	}
 	
-	//mat3 tbn = mat3(normalize(bitangent), normalize(tangent), normalize(normal));
-	mat3 tbn = mat3(normalize(bitangent), normalize(tangent), normalize(normal));
-	
+	mat3 tbn = mat3(normalize(bitangent), normalize(tangent), normalize(normal));	
 	rayPayload.vertexNormal = normal;	
 	
 	// If not glass, then sample the normal map
@@ -249,110 +247,68 @@ void main()
 		normal = normalize(tbn * normalize(normalMap * 2.0 - 1.0));
 	}
 	
-//	rayPayload.vertexNormal = geonrm;
-	
-
-
 	float roughness = rma.r;
 	float metallic = rma.g;
 	float ao = rma.b;
     vec3 camPos = cam.data.viewPos.rgb;
-
-	
-	float near_plane = 0.01;
-	float far_plane = 25;
-	float distance_to_hit_point = distance(worldPos, cam.data.viewPos.xyz);
-	float depth = (distance_to_hit_point - near_plane) / (far_plane - near_plane);
-
-
-	//;
-
-	//rayPayload.done = 0;
+		
     rayPayload.color = vec3(0);
-	rayPayload.distance = depth;
 	rayPayload.normal = vec3(0);
 	rayPayload.nextRayOrigin = worldPos;
 	rayPayload.nextFactor = vec3(0);
 	rayPayload.alpha = 1.0;
-	//rayPayload.nextRayDirection = vec3(0);
-	//rayPayload.random = vec3(0);
+	//rayPayload.writeToImageStore = 1;
 
 	vec3 randomm;
 	randomm.x = nextRand(rayPayload.seed);
 	randomm.y = nextRand(rayPayload.seed);
 	randomm.z = nextRand(rayPayload.seed);
 
-
 	rayPayload.normal = normal;
 
-	// important sampling
-	float theta = asin(sqrt(randomm.y));
-	float phi = 2.0 * PI * randomm.x;  
-	// sampled indirect diffuse direction in normal space
-	vec3 localDiffuseDir = vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
-	vec3 diffuseDir = getNormalSpace(normal) * localDiffuseDir;
 	rayPayload.nextRayOrigin = worldPos;
-	rayPayload.nextRayDirection = diffuseDir;
-	//rayPayload.nextFactor = baseColor.rgb;
-	rayPayload.color = baseColor.rgb;
-	  
 
 
-
-
-
-	
-	rayPayload.done = 0;
-
-	/*Light light;
-	//light.position = lights[0].position.xyz;
-	light.color = vec3(1, 0.95, 0.8);
-	light.strength = 4.5;*/
-	
+	// Bedroom light
 	Light light0 =  lights.i[0];
-	Light light1 =  lights.i[1];
-	
-	light1.color.xyz *= vec3(0.4);
-	
 	light0.color *= vec4(1,0.95,0.95,1);
-	light1.color *= vec4(1,0.8,0.8,1);
-	//light1.color = light0.color;
-	//light0.position.xyz = vec3(0.5, 1.5, 1);
-	//light1.position.xyz = vec3(-0.5, 1.5, 1);
-
+	light0.color *= 0.75;
 	vec3 directLighting = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light0, materialType);
 
-	/*Light light4;
-	light4.position = vec3(-1.7376, 2, 2.85);
-	light4.color =  vec3(1, 0, 0);
-	light4.strength = 1.5;
-	light4.radius = 10;
-		
-	light4.color =  vec3(1, 0.95, 0.8) * vec3(1, 0.95, 0.8) * 0.45;
-	light4.strength = -0.5;
-	light4.radius = 1;*/
+	// Bathroom light
+	Light light1 =  lights.i[1];
+	light1.color *= vec4(1,0.8,0.8,1);
+	light1.color *= vec4(1,0.0,0.0,1);
+	light1.color *= 0.75;
+	directLighting += CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light1, materialType);
 
-	lights.i[1].position.z += 0.00;
+	directLighting = directLighting / 2;
 
-	//directLighting += CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light1, materialType);
+	///////////////////////////////
+	//						     //
+	//	 Store the final color   //
 
-//vec3	directLighting = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light4);
+	// Hit was transparent
+	if (baseColor.a < 0.90 ) {
+		rayPayload.hitType = HIT_TYPE_TRANSULUCENT;
+		rayPayload.nextRayDirection = gl_WorldRayDirectionEXT;
+		rayPayload.nextRayOrigin = worldPos + (gl_WorldRayDirectionEXT * 0.001);
+		rayPayload.alpha =  baseColor.a;
 
-	rayPayload.color = directLighting.rgb / 2;
-
-	// rayPayload.color = baseColor.xyz;
-	//rayPayload.color = normal;
-  	// RED BIG SKULL
-	//if (gl_InstanceCustomIndexEXT == 7)
-	//	rayPayload.color = vec3(1,0,0);
+	}
+	// Hit was solid
+	else {
+		rayPayload.hitType = HIT_TYPE_SOLID;
+		rayPayload.color = directLighting.rgb;
+	}
 
 	if (cam.data.inventoryOpen == 0) {
-//		rayPayload.color = vec3(1,0,0);
+		//rayPayload.color = vec3(1,0,0);
 	}
   
 	// Glass (refraction)
-	if (materialType == 2) {
-		rayPayload.done = 3;   
+	/*if (materialType == 2) {
+		//rayPayload.done = 3;   
 		float ratio = 1.00 / 1.52;
 		vec3 I = normalize(worldPos.xyz - cam.data.viewPos.xyz);
 		vec3 R = refract(I, normalize(normal.xyz), ratio);
@@ -362,29 +318,18 @@ void main()
 
 	// Mirror (reflection)
 	if (materialType == 1) {
-		rayPayload.done = 2;     
+		//rayPayload.done = 2;     
 		rayPayload.nextRayDirection = reflect(gl_WorldRayDirectionEXT, normal);
 		rayPayload.nextFactor = vec3(directLighting.rgb);
 		rayPayload.nextFactor = vec3(1);
 		rayPayload.color = vec3(0,0,0);
 	}
 
-	// Transparent fragment
-	if (baseColor.a < 0.90 ) {
-		rayPayload.done = 1;
-		rayPayload.nextRayDirection = gl_WorldRayDirectionEXT;
-		//rayPayload.nextRayDirection = reflect(gl_WorldRayDirectionEXT, normal);
-		rayPayload.nextRayOrigin = worldPos + (gl_WorldRayDirectionEXT * 0.001);
-		//gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT
-		//rayPayload.nextRayDirection = reflect(gl_WorldRayDirectionEXT, normal);
-		//rayPayload.color = vec3(0,0,0);
-		rayPayload.alpha =  baseColor.a;
 
-	}
 	// little cube (test)
 	if (materialType == 4) {
 	
-		rayPayload.done = 1;
+		//rayPayload.done = 1;
 		rayPayload.nextRayDirection = gl_WorldRayDirectionEXT;
 		rayPayload.nextRayOrigin = worldPos + (gl_WorldRayDirectionEXT * 0.0000001);
 		rayPayload.alpha = 0.5;
@@ -396,11 +341,10 @@ void main()
 		//rayPayload.nextFactor = vec3(1);
 		//rayPayload.color = vec3(0,0,0);
 	}
-
+	*/
 
 	// Disable output of walls to the final image if in inventory
-	if (meshInstance.basecolorIndex == cam.data.wallpaperALBIndex) {
+	if (rayPayload.bounce == 0 && meshInstance.basecolorIndex == cam.data.wallpaperALBIndex) {
 		rayPayload.writeToImageStore = 0;
 	}
-
 }

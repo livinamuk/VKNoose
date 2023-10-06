@@ -6,9 +6,9 @@
 layout(location = 0) rayPayloadInEXT RayPayload rayPayload;
 
 void main() {
-	rayPayload.done = 0;
+	rayPayload.hitType = HIT_TYPE_MISS;
     rayPayload.color = vec3(0);
-	rayPayload.distance = 0;
+	//rayPayload.distance = 0;
 	rayPayload.normal = vec3(0);
 	rayPayload.nextRayOrigin = vec3(0);
 	rayPayload.nextFactor = vec3(0);

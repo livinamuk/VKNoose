@@ -13,10 +13,16 @@ struct CameraData {
 	int wallpaperALBIndex;
 };
 
+#define HIT_TYPE_UNDEFINED      0
+#define HIT_TYPE_SOLID          1
+#define HIT_TYPE_TRANSULUCENT   2
+#define HIT_TYPE_MIRRORS        3
+#define HIT_TYPE_GLASS          4
+#define HIT_TYPE_MISS           5
+
 struct RayPayload {
-	int done;
+	int hitType;
 	vec3 color;
-	float distance;
 	vec3 normal;
     vec3 nextFactor;
     vec3 nextRayOrigin;
@@ -167,8 +173,6 @@ vec3 random_pcg3d(uvec3 v) {
   v.x += v.y*v.z; v.y += v.z*v.x; v.z += v.x*v.y;
   return vec3(v) * (1.0/float(0xffffffffu));
 }
-
-
 
 vec3 fresnelSchlick(float cosTheta, vec3 F0) {
   return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
