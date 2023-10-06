@@ -41,7 +41,8 @@ void main()
 
     vec3 color = pow(outFragColor.rgb, vec3(1.0/2.2)); 
     vec3 tonemapped = Tonemap_ACES(color.xyz);
-    //color = mix(color, tonemapped, 0.5);
+    color = mix(color, tonemapped, 0.1);
+    color = tonemapped;
 
     // colorContrasted 
     float contrast = 1.125;
@@ -56,6 +57,10 @@ void main()
     float temperatureStrength = 1.75;
     color = mix(color, color * colorTemperatureToRGB(temperature), temperatureStrength); 
     outFragColor.rgb = color.rgb;
+
+    outFragColor.rgb = tonemapped.rgb;
+    outFragColor.g = 0;
+    outFragColor.b = 0;
 
     
 

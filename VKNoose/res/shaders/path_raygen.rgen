@@ -20,6 +20,18 @@ uint stepRNG(uint rngState)
   return rngState * 747796405 + 1;
 }
 
+vec3 filmic(vec3 x) {
+  vec3 X = max(vec3(0.0), x - 0.004);
+  vec3 result = (X * (6.2 * X + 0.5)) / (X * (6.2 * X + 1.7) + 0.06);
+  return pow(result, vec3(2.2));
+}
+
+float filmic(float x) {
+  float X = max(0.0, x - 0.004);
+  float result = (X * (6.2 * X + 0.5)) / (X * (6.2 * X + 1.7) + 0.06);
+  return pow(result, 2.2);
+}
+
 // Steps the RNG and returns a floating-point value between 0 and 1 inclusive.
 float stepAndOutputRNGFloat(inout uint rngState)
 {
@@ -29,7 +41,7 @@ float stepAndOutputRNGFloat(inout uint rngState)
   word      = (word >> 22) ^ word;
   return float(word) / 4294967295.0f;
 }
-
+/*
 void main() 
 {
 	const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
@@ -42,7 +54,7 @@ void main()
 	vec4 direction = cam.data.viewInverse*vec4(normalize(target.xyz / target.w), 0);
 
 
-	uint rayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsCullFrontFacingTrianglesEXT;
+	uint rayFlags = gl_RayFlagsOpaqueEXT;// | gl_RayFlagsCullFrontFacingTrianglesEXT;
 	uint cullMask = 0xff;
 	float tmin = 0.001;
 	float tmax = 10000.0;
@@ -92,6 +104,8 @@ void main()
 	vec3 worldPosOfFirstHit;
 	float meshIndex = 0;
 
+	vec4 transparentAccumulation = vec4(0);
+	bool hitTranslucent = false;
 
 	const int NUM_SAMPLES = 1;	
 	for(int i = 0; i < NUM_SAMPLES; i++) {
@@ -123,7 +137,7 @@ void main()
 			vec3 accumulatedColor = vec3(1.0);
 
 			// Bounces
-			int bounces = 3 ;
+			int bounces = 2;//3 ;
 			for (int b = 0; b < bounces; b++) {				
 
 			rayPayload.bounce = b;
@@ -131,7 +145,7 @@ void main()
 
 
 			if (length(rayPayload.nextRayDirection) > 0.1) {
-
+			  
 				traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, rayPayload.nextRayOrigin, tmin, rayPayload.nextRayDirection, tmax, 0);
 				
 				// Mirror
@@ -156,10 +170,10 @@ void main()
 					meshIndex = rayPayload.meshIndex;
 
 					firstBounce = rayPayload.color;
-						contribution *= rayPayload.nextFactor;		
+					contribution *= rayPayload.nextFactor;		
 
-									// Russian Roulette
-						if (true) {
+						// Russian Roulette
+						if (false) {
 							// Randomly terminate a path with a probability inversely equal to the throughput
 							float p = max(contribution.x, max(contribution.y, contribution.z));
 							if (nextRand(rngState) > p) {
@@ -210,9 +224,18 @@ void main()
 					}
 				}
 				if (rayPayload.done == 1) {
-					accumulatedColor = vec3(0);
-					b = 99;
-					i--;
+					b--;
+					
+					
+					
+					// real but broken 
+					// transparentAccumulation.xyz = rayPayload.color;
+					// transparentAccumulation.w = rayPayload.alpha;
+
+					// hack
+					transparentAccumulation.xyz += rayPayload.color * rayPayload.alpha;
+					
+					hitTranslucent = true;
 				}
 				
 	
@@ -238,7 +261,18 @@ void main()
 
 	vec3 noisyIndirect = color;
 	
-	color += firstBounce;
+	//color += firstBounce;
+
+
+	if (hitTranslucent) {
+		vec3 color0 = transparentAccumulation.xyz;
+		vec3 color1 = color;
+		float alpha = transparentAccumulation.a;
+		//color.xyz = color0 * alpha + color1 * (1.0 - alpha);
+		//color.xyz =  color1;
+	}
+
+	color += transparentAccumulation.xyz;
 	//color = firstBounce;
 
 	if (cam.data.inventoryOpen == 1) {
@@ -249,20 +283,25 @@ void main()
 ////	color = firstBounce;
 	
    color = pow(color.xyz, vec3(1.0/2.2)); 
-   vec3 tonemapped = Tonemap_ACES(color.xyz);
-   //color = mix(color, tonemapped, 0.5);
-
+  vec3 tonemapped = Tonemap_ACES(color.xyz);
+   color = mix(color, tonemapped, 0.75);
+  //color.rgb = filmic(color.rgb);
+ // color.rgb = filmic(color.rgb);
+   
 	// colorContrasted 
-	float contrast = 1.125;
-	float brightness = -0.060;
+	float contrast = 1.5;
+	float brightness = -0.125;
 	color = (color) * contrast;
 	color = color + vec3(brightness,brightness,brightness);
 
 	float temperature = 225; // mix(1000.0, 15000.0, (sin(iTime * (PI2 / 10.0)) * 0.5) + 0.5);
 	float temperatureStrength = 1.75;
 	color = mix(color, color * colorTemperatureToRGB(temperature), temperatureStrength); 
-
+	
 	//color = firstBounce;
+
+	tonemapped = filmic(color.rgb);
+	color.rgb = mix(color.rgb, tonemapped, 0.55);
 
 	if (rayPayload.writeToImageStore == 1) {
 
@@ -284,7 +323,7 @@ void main()
 }
 
 
-
+*/
 
 
 
@@ -304,5 +343,293 @@ void main()
   
 
 
+
+
+
+
+
+  
+void main() 
+{
+	const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+	const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
+	vec2 d = inUV * 2.0 - 1.0;
+	
+	/*vec2 uv = d;
+	vec2 fishuv;
+	float fishyness = 0.5;
+    fishuv.x = (1.0 - uv.y*uv.y) * fishyness * uv.x;
+    fishuv.y = (1.0 - uv.x*uv.x) * fishyness * uv.y;
+	d = uv - fishuv;*/
+
+//	https://www.shadertoy.com/view/ltSXRz
+
+/*
+	vec2 uv = fragCoord.xy / iResolution.xy;
+    //uv.x *= iResolution.x/iResolution.y;
+    uv = (uv - 0.5) * 2.0;
+        
+    vec2 fishuv;
+    float fishyness = INTENSITY;
+    fishuv.x = (1.0 - uv.y*uv.y) * fishyness * uv.x;
+    fishuv.y = (1.0 - uv.x*uv.x) * fishyness * uv.y;
+	*/
+
+
+	vec4 origin = cam.data.viewInverse * vec4(0,0,0,1);
+	vec4 target = cam.data.projInverse * vec4(d.x, d.y, 1, 1) ;		
+
+	uint rayFlags = gl_RayFlagsOpaqueEXT;// | gl_RayFlagsCullFrontFacingTrianglesEXT;
+	uint cullMask = 0xff;
+	float tmin = 0.001;
+	float tmax = 10000.0;
+
+	rayPayload.distance = 0; // this stops the screen being black when you inserted that ray cast above
+	
+    vec3 color = vec3(0.0);
+    vec3 firstBounce = vec3(0.0);
+	
+	float mult = 1.0f;
+	
+	uint seed = cam.data.frameIndex;
+	
+	// Initial seed
+	const uvec2 resolution = uvec2(512, 288) * 1;
+	const uvec2 pixel = uvec2(gl_LaunchIDEXT.xy);
+	uint rngState = resolution.x * pixel.y + pixel.x + cam.data.frameIndex * 45678;
+	
+
+	int sampleCount = 12;
+	vec3 totalColor = vec3(0);
+
+	vec3 finalNormal = vec3(0);
+
+	for (int i = 0; i < sampleCount; i++) 
+	{
+		seed += i;
+
+		// Initial ray settings
+		rayPayload.done = -2;
+		rayPayload.color = vec3(0);
+		rayPayload.distance = 0;
+		rayPayload.normal = vec3(0);
+		rayPayload.nextRayOrigin = vec3(0);
+		rayPayload.nextFactor = vec3(0);
+		rayPayload.nextRayDirection = vec3(0);
+		rayPayload.seed = seed;
+		rayPayload.writeToImageStore = 1;
+		rayPayload.vertexNormal = vec3(0,0,0);
+		rayPayload.meshIndex = 0.0;
+	//	rayPayload.seed = seed;
+
+
+		vec3 vertexNormal = vec3(1, 0, 0);
+		float depth = 0.0;
+		float meshIndex = 0;
+
+		vec4 transparentAccumulation = vec4(0);
+		bool hitTranslucent = false;
+
+		vec3 newFinal = vec3(0);
+
+
+		int NUM_SAMPLES = 1;
+
+				vec2 randomPixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(stepAndOutputRNGFloat(rngState) * (NUM_SAMPLES / 2.0), stepAndOutputRNGFloat(rngState) * (NUM_SAMPLES / 2.0));
+				randomPixelCenter = pixelCenter;
+
+				const vec2 screenUV = randomPixelCenter/vec2(gl_LaunchSizeEXT.xy);
+				vec2 d2 = screenUV * 2.0 - 1.0;	
+				vec4 direction = cam.data.viewInverse*vec4(normalize(target.xyz / target.w), 0);
+				vec3 rayDirection = normalize(direction.xyz);
+			
+				const vec4 hitPos = origin + direction * rayPayload.distance;
+
+				origin = cam.data.viewInverse * vec4(0,0,0,1);
+				target = cam.data.projInverse * vec4(d2.x, d2.y, 1, 1);			
+						
+				rayPayload.nextRayOrigin = origin.xyz;
+				rayPayload.nextRayDirection = rayDirection;
+				rayPayload.nextFactor = vec3(1.0);
+		
+				vec3 contribution = vec3(1.0);
+
+			
+				// First bounce
+				for (int j = 0; j < 1; j++)
+				{				
+					int b = 0;
+					rayPayload.bounce = b;
+					//rayPayload.random.x = nextRand(seed);
+					//rayPayload.random.y = nextRand(seed);
+					//rayPayload.random.z = nextRand(seed);
+
+					traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, rayPayload.nextRayOrigin, tmin, rayDirection, tmax, 0);
+				
+					vertexNormal = rayPayload.vertexNormal * 0.5 + 0.5;
+					depth = rayPayload.distance;
+					meshIndex = rayPayload.meshIndex;
+
+					firstBounce = rayPayload.color;
+					contribution *= rayPayload.nextFactor;	
+
+					finalNormal = rayPayload.normal;
+
+					//contribution = vec3(1);
+
+
+					if (rayPayload.done == 1) {
+						// real but broken 
+						// transparentAccumulation.xyz = rayPayload.color;
+						// transparentAccumulation.w = rayPayload.alpha;
+
+						// hack
+						transparentAccumulation.xyz += rayPayload.color * rayPayload.alpha;
+					
+						hitTranslucent = true;
+						j--;
+						//firstBounce = vec3(1,0,0);
+					}
+
+				}		
+
+				firstBounce += transparentAccumulation.xyz;
+
+				// Second bounce
+				vec3 indirectRayOrigin = rayPayload.nextRayOrigin;
+				vec3 indirectRayDIrection =  rayPayload.nextRayDirection;
+				vec3 indirectContribution = vec3(0);
+
+
+
+			// important sampling
+
+			vec3 rrr = random_pcg3d(uvec3(gl_LaunchIDEXT.xy, i + rayPayload.seed * 6341));
+			
+			float theta = asin(sqrt(rrr.y));
+			float phi = 2.0 * PI * rrr.x;  
+			// sampled indirect diffuse direction in normal space
+			vec3 localDiffuseDir = vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
+			vec3 diffuseDir = getNormalSpace(finalNormal) * localDiffuseDir;
+			indirectRayDIrection = diffuseDir;
+
+				{
+					int b = 1;
+					rayPayload.bounce = b; 
+					//rayPayload.random.x = nextRand(seed);
+					//rayPayload.random.y = nextRand(seed);
+					//rayPayload.random.z = nextRand(seed);
+
+					rayPayload.color = firstBounce;
+
+					traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, indirectRayOrigin, tmin, indirectRayDIrection, tmax, 0);
+				
+					indirectContribution = contribution * rayPayload.color;	
+
+					vec3 col = indirectContribution;// + firstBounce;
+					newFinal = col;
+				}	
+				//newFinal = firstBounce;
+				
+				//newFinal =  indirectRayDIrection;
+
+		
+			color = newFinal.xyz;
+			color.xyz = mix(firstBounce, newFinal, 0.8);
+			//color = firstBounce.xyz;
+
+	//color.xyz += firstBounce;
+
+
+
+		
+/*
+		float temperature = 225; // mix(1000.0, 15000.0, (sin(iTime * (PI2 / 10.0)) * 0.5) + 0.5);
+		float temperatureStrength = 1.25;
+		color = mix(color, color * colorTemperatureToRGB(temperature), temperatureStrength); 
+		*/
+
+	/*	color = pow(newFinal.xyz, vec3(1.0/2.2)); 
+		vec3 tonemapped = Tonemap_ACES(color.xyz);
+		color = mix(color, tonemapped, 0.5);
+      
+		// colorContrasted 
+		float contrast = 1.5;
+		float brightness = -0.125;
+		color = (color) * contrast;
+		color = color + vec3(brightness,brightness,brightness);
+
+		float temperature = 225; // mix(1000.0, 15000.0, (sin(iTime * (PI2 / 10.0)) * 0.5) + 0.5);
+		float temperatureStrength = 1.75;
+		color = mix(color, color * colorTemperatureToRGB(temperature), temperatureStrength); 
+	
+		//color = firstBounce;
+
+		tonemapped = filmic(color.rgb);
+		//color.rgb = mix(color.rgb, tonemapped, 0.55);
+		*/
+
+		totalColor += color;
+	}
+
+
+
+	color = totalColor / sampleCount;
+
+	//color = firstBounce;
+
+	// Tonemap
+	color.xyz = pow(color.xyz, vec3(1.0/2.2)); 
+	color.xyz = Tonemap_ACES(color.xyz);
+
+	
+	// colorContrasted 
+	float contrast = 1.25;
+	float brightness = -0.08;
+	color = (color) * contrast;
+	color = color + vec3(brightness,brightness,brightness);
+	
+	float temperature = 225; // mix(1000.0, 15000.0, (sin(iTime * (PI2 / 10.0)) * 0.5) + 0.5);
+	float temperatureStrength = 1.75;
+	color = mix(color, color * colorTemperatureToRGB(temperature), temperatureStrength); 
+	
+
+	color = mix(color, filmic(color), 0.75);
+
+	
+	
+	
+	
+	float uvMagSqrd = dot(d,d);
+	float amount = 0.125;
+    float vignette = 1.0 - uvMagSqrd * amount;
+    color *= vignette;
+    
+
+	//color = firstBounce;
+
+	// Darken for inventory
+	if (cam.data.inventoryOpen == 1) {
+		color *= vec3(0.325);
+	}
+
+
+
+
+	if (rayPayload.writeToImageStore == 1) {
+
+		// Is this inventory screen?
+		if (cam.data.inventoryOpen == 2) {
+			imageStore(image, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(color, 0));
+		} 
+		// Otherwise draw at actual x/y
+		else {
+			imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(color, 0));
+		}
+	}
+//	if (rayPayload.writeToImageStore == 1)
+	//	imageStore(image, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(vec3(rayPayload.writeToImageStore), 0));
+
+}
 
 

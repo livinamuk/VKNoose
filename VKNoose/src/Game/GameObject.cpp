@@ -490,3 +490,13 @@ void GameObject::SetInteractToAffectAnotherObject(std::string objectName)
 {
 	_interactAffectsThisObjectInstead = objectName;
 }
+
+void GameObject::SetMeshMaterialByMeshName(std::string meshName, std::string materialName) {
+	if (_model && AssetManager::GetMaterial(materialName)) {
+		for(int i = 0; i < _model->_meshNames.size(); i++) {
+			if (_model->_meshNames[i] == meshName) {
+				_meshMaterialIndices[i] = AssetManager::GetMaterialIndex(materialName);
+			}
+		}
+	}
+}

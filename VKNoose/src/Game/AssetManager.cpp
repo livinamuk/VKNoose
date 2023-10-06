@@ -886,7 +886,8 @@ void AssetManager::LoadModels() {
 	_models["FallenChairTop"] = Model("res/models/FallenChairTop.obj");
 	_models["KeyInVase"] = Model("res/models/KeyInVase.obj");
 	_models["FallenChairBottom"] = Model("res/models/FallenChairBottom.obj");
-	_models["wife"] = Model("res/models/Wife.obj");
+	_models["wife"] = Model("res/models/WifeNude.obj");
+	_models["wife2"] = Model("res/models/WifeOld.obj");
 	_models["door"] = Model("res/models/Door.obj");
 	_models["skull"] = Model("res/models/BlackSkull.obj");
 	_models["skull2"] = Model("res/models/BlackSkull2.obj");
@@ -931,6 +932,7 @@ void AssetManager::LoadModels() {
 	_models["Cube"] = Model("res/models/Cube.obj");
 	_models["Sphere"] = Model("res/models/Sphere.obj");
 	_models["MacbookScreenDisplay"] = Model("res/models/MacbookScreenDisplay.obj");
+	_models["Lamp"] = Model("res/models/Lamp.obj");
 
 
 	{

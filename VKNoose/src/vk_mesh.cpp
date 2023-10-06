@@ -104,6 +104,7 @@ Model::Model(const char* filepath) {
 		int meshIndex = AssetManager::CreateMesh(vertices, indices);
 		_meshIndices.push_back(meshIndex);
 		AssetManager::GetMesh(meshIndex)->_name = shape.name;
+		_meshNames.push_back(shape.name);
 		//std::cout << shape.name << "\n";
 	}
 	//std::cout << "Loaded " << filename << " (" << _meshIndices.size() << " meshes)\n";

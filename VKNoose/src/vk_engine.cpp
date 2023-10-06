@@ -2111,8 +2111,8 @@ void VulkanEngine::create_sampler() {
 
 	// Good as place as any for a turret
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);//VK_FILTER_LINEAR VK_FILTER_NEAREST
-	samplerInfo.magFilter = VK_FILTER_NEAREST;
-	samplerInfo.minFilter = VK_FILTER_NEAREST;
+	samplerInfo.magFilter = VK_FILTER_LINEAR; //  VK_FILTER_NEAREST;
+	samplerInfo.minFilter = VK_FILTER_LINEAR; //  VK_FILTER_NEAREST;
 	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR; // VK_SAMPLER_MIPMAP_MODE_NEAREST VK_SAMPLER_MIPMAP_MODE_LINEAR
 	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -2793,13 +2793,16 @@ void VulkanEngine::update_static_descriptor_set() {
 	//_samplerDescriptorSet.Update(_device, 5, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
 	// denoise textures1
+	//																	YOU REMOVED THIS TO SHOWCASE AT TAS THING. YOU COMMENTED OUT ALL THE OTHER DNEOIES STUFF AND THIS WAS GIVING YOU VALIDATION ERRORS
 	VkDescriptorImageInfo storageImageDescriptor3{};
 	storageImageDescriptor3.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	storageImageDescriptor3.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	storageImageDescriptor3.sampler = _sampler;
 	storageImageDescriptor3.imageView = _renderTargetDenoiseA._view;
 	_denoiseATextureDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor3);
 	storageImageDescriptor3.imageView = _renderTargetDenoiseB._view;
 	_denoiseBTextureDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor3);
+	
 }
 
 void VulkanEngine::UpdateDynamicDescriptorSet() {

@@ -40,6 +40,7 @@ public:
 	void draw(VkCommandBuffer commandBuffer, uint32_t firstInstance);
 	std::string _filename = "undefined";
 	std::vector<int> _meshIndices;
+	std::vector<std::string> _meshNames;
 	
 private:
 	// methods

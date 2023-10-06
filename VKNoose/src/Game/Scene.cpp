@@ -161,7 +161,18 @@ void Scene::Init()
 	wife.SetPosition(0.6f, 2.6f, 0.9f);
 	wife.SetRotationY(-1.75f);
 	wife.SetScale(0.01f);
-	wife.SetMeshMaterial("WifeHair", 0);
+	wife.SetMeshMaterialByMeshName("Side_part_wavy", "WifeHair");
+	wife.SetMeshMaterialByMeshName("CC_Base_Eye", "WifeEye");
+	wife.SetMeshMaterialByMeshName("CC_Base_Teeth", "WifeTeeth");
+	wife.SetMeshMaterialByMeshName("CC_Game_Body", "WifeSkin");
+	wife.SetMeshMaterialByMeshName("CC_Game_Tongue", "WifeSkin");
+	wife.SetMeshMaterialByMeshName("F_BS_wDress_L", "WifeDress");
+	wife.SetMeshMaterialByMeshName("WifeDress_low", "WifeDress"); 
+	wife.SetMeshMaterialByMeshName("Noose_pivot", "Noose");
+	wife.SetMeshMaterialByMeshName("Object001", "Noose");
+	wife.SetMeshMaterialByMeshName("Rope_Low", "Noose");
+
+	/*wife.SetMeshMaterial("WifeHair", 0);
 	wife.SetMeshMaterial("WifeSkin", 1);
 	wife.SetMeshMaterial("WifeSkin", 2);
 	wife.SetMeshMaterial("WifeBrows", 3);
@@ -169,7 +180,7 @@ void Scene::Init()
 	wife.SetMeshMaterial("WifeEye", 5);
 	wife.SetMeshMaterial("WifeTeeth", 6);
 	wife.SetMeshMaterial("Noose", 7);
-	wife.SetMeshMaterial("Noose", 8);
+	wife.SetMeshMaterial("Noose", 8);*/
 	wife.SetInteract(InteractType::TEXT, "This can't be fucking happening.", nullptr);
 
 
@@ -475,7 +486,7 @@ void Scene::Init()
 	GameObject& bed = _gameObjects.emplace_back(GameObject());
 	bed.SetModel("Bed");
 	bed.SetMeshMaterial("BedFabrics");
-	bed.SetPosition(-2.75, 0.3, 0);
+	bed.SetPosition(-2.75, 0.0, 0);
 	bed.SetRotationY(NOOSE_PI / 2);
 	bed.SetName("Bed");
 	bed.EnableCollision();
@@ -483,11 +494,13 @@ void Scene::Init()
 
 	GameObject& pillow = _gameObjects.emplace_back(GameObject());
 	pillow.SetParentName("Bed");
+	pillow.SetPosition(0, 0.3, 0);
 	pillow.SetModel("PillowHers");
 	pillow.SetMeshMaterial("BedFabrics");
 
 	GameObject& pillow2 = _gameObjects.emplace_back(GameObject());
 	pillow2.SetModel("PillowHis");
+	pillow2.SetPosition(0, 0.3, 0);
 	pillow2.SetParentName("Bed");
 	pillow2.SetMeshMaterial("BedFabrics");
 
@@ -511,10 +524,20 @@ void Scene::Init()
 	cube2.SetRotationY(0.2);
 	cube2.SetName("Cube2");
 	cube2.SetMaterialType(MaterialType::GLASS);
+
+	GameObject& cube3 = _gameObjects.emplace_back(GameObject());
+	cube3.SetModel("Cube");
+	cube3.SetMeshMaterial("Red");
+	cube3.SetScale(glm::vec3(0.5, 0.174, 0.5));
+	cube3.SetPosition(0.2, 1.17, 0.2);
+	cube3.SetRotationY(0.2);
+	cube3.SetParentName("Cube2");
+	cube3.SetName("Cube3");
+	cube3.SetMaterialType(MaterialType::TRANSLUCENT);
 	//cube2.EnableCollision();
 	//cube2.SetBoundingBoxFromMesh(0);
 
-	GameObject& wineglass = _gameObjects.emplace_back(GameObject());
+	/*GameObject& wineglass = _gameObjects.emplace_back(GameObject());
 	wineglass.SetModel("WineGlass");
 	wineglass.SetRotationY(1.6f);
 	wineglass.SetPosition(glm::vec3(1.26, 1.15f, -1.675f + 2.0f - 0.3f));
@@ -528,7 +551,7 @@ void Scene::Init()
 	wineglass2.SetPosition(glm::vec3(1.30, 1.15f, -1.675f + 2.0f - 0.15f));
 	wineglass2.SetScale(0.04f);
 	wineglass2.SetMaterialType(MaterialType::GLASS);
-	wineglass2.SetMeshMaterial("White");
+	wineglass2.SetMeshMaterial("White");*/
 
 	GameObject& lightSwitch2 = _gameObjects.emplace_back(GameObject());
 	lightSwitch2.SetModel("LightSwitchOn");
@@ -573,6 +596,20 @@ void Scene::Init()
 	macbookScreenDisplay.SetMeshMaterial("LaptopDisplay");
 	macbookScreenDisplay.SetInteractToAffectAnotherObject("MacbookScreen");
 	macbookScreenDisplay.SetMaterialType(MaterialType::LAPTOP_DISPLAY);
+
+	GameObject& lampHers = _gameObjects.emplace_back(GameObject());
+	lampHers.SetModel("Lamp");
+	lampHers.SetMeshMaterial("Lamp");
+	lampHers.SetPosition(-2.55f, 0.88, 1.43);
+	lampHers.SetRotationY(NOOSE_HALF_PI);
+	lampHers.SetScale(1.0);
+
+	GameObject& lampHis = _gameObjects.emplace_back(GameObject());
+	lampHis.SetModel("Lamp");
+	lampHis.SetMeshMaterial("Lamp");
+	lampHis.SetPosition(-2.55f, 0.88, -1.43);
+	lampHis.SetRotationY(NOOSE_HALF_PI);
+	lampHis.SetScale(1.0);
 
 	/*	X		   C  
 	 	|	  ___________
@@ -918,6 +955,17 @@ void Scene::Update(float deltaTime) {
 	static bool exittingLaptop = false;
 	static float exitTimer = 0;
 
+	static bool wifeNew = true;
+
+	if (Input::KeyPressed(HELL_KEY_L)) {
+		wifeNew = !wifeNew;
+
+		if (wifeNew)
+			Scene::GetGameObjectByName("Wife")->SetModel("wife");
+		else
+			Scene::GetGameObjectByName("Wife")->SetModel("wife2");
+	}
+
 	if (camera._state == Camera::State::USING_LAPTOP) {
 
 		//TextBlitter::BlitAtPosition("ESC: Exit", 20, 16, false);
@@ -1048,8 +1096,15 @@ void Scene::Update(float deltaTime) {
 
 	// Sway wife
 	static float sway = 0;
-	sway += (3.89845f * deltaTime);
-	float offset = sin(sway) * 0.03;
+	float offset = 0;
+	static bool forceDisable = false;
+	if (Input::KeyPressed(HELL_KEY_P)) {
+		forceDisable = !forceDisable;
+	}
+	if (!forceDisable) {
+		sway += (3.89845f * deltaTime);
+		offset = sin(sway) * 0.03;
+	}
 	GameObject* wife = GetGameObjectByName("Wife");
 	if (wife) {
 		wife->SetRotationX(0.075f - offset * 0.045f);

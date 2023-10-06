@@ -9,7 +9,8 @@ struct BoundingBox {
 	float zHigh = 0;
 };
 
-enum class MaterialType { DEFAULT = 0, MIRROR = 1, GLASS = 2, LAPTOP_DISPLAY = 3};
+enum class MaterialType { DEFAULT = 0, MIRROR = 1, GLASS = 2, LAPTOP_DISPLAY = 3, TRANSLUCENT = 4
+};
 
 struct GameObject {
 public:
@@ -19,6 +20,7 @@ public:
 	std::vector<Transform> _meshTransforms;
 	bool _overrideTransformWithMatrix = false;
 	std::string _interactAffectsThisObjectInstead = "";
+
 private:
 	std::function<void(void)> _interactCallback = nullptr;
 	callback_function _pickupCallback = nullptr;
@@ -102,4 +104,5 @@ public:
 	void SetMaterialType(MaterialType materialType, int meshIndex = -1);
 	void SetTransform(Transform& transform);
 	void SetInteractToAffectAnotherObject(std::string objectName);
+	void SetMeshMaterialByMeshName(std::string meshName, std::string materialName);
 };

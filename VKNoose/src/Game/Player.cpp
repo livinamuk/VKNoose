@@ -86,6 +86,14 @@ float fwrap_alternate(float x, float min, float max) {
 
 void Player::UpdateMouselook(float deltaTime)
 {
+	static bool forceDisable = false;
+	if (Input::KeyPressed(HELL_KEY_O)) {
+		forceDisable = !forceDisable;
+	}
+	if (forceDisable)
+		return;
+
+
 	if (m_mouselookDisabled)
 		return;
 

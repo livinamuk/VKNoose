@@ -21,11 +21,12 @@ struct RayPayload {
     vec3 nextFactor;
     vec3 nextRayOrigin;
     vec3 nextRayDirection;
-    vec3 random;
+    uint seed;
     int bounce;
     int writeToImageStore;
     vec3 vertexNormal;
     float meshIndex;
+    float alpha;
 };
 
 struct MousepickPayload {
@@ -86,6 +87,10 @@ mat3 getNormalSpace(in vec3 normal) {
    return mat3(tangent, bitangent, normal);
 }
 
+float randomFloat(vec2 co) {
+	return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
 float nextRand(inout uint s) {
     s = (1664525u * s + 1013904223u);
     return float(s & 0x00FFFFFF) / float(0x01000000);
@@ -109,6 +114,27 @@ vec3 randomDirInCone(vec3 hitpos, vec3 lightPos)
     vec3 light_tangent   = normalize(cross(light_dir, vec3(0.0, 1.0, 0.0)));
     vec3 light_bitangent = normalize(cross(light_tangent, light_dir));
     float radius = 0.03; // light bulb radius
+    float point_radius = radius * sqrt(rng.x);
+    float point_angle  = rng.y * 2.0 * PI;
+    vec2  disk_point   = vec2(point_radius * cos(point_angle), point_radius * sin(point_angle));    
+    vec3 Wi = normalize(light_dir + disk_point.x * light_tangent + disk_point.y * light_bitangent);
+    return Wi;
+}
+
+vec3 randomDirInCone2(vec3 hitpos, vec3 lightPos, float randomSeed, float lightSize) 
+{
+    vec3 lightVector = normalize(lightPos - hitpos);		
+    vec2 rng = vec2(0);		
+    rng.x = random(vec2(hitpos.x * randomSeed, hitpos.y * -randomSeed));
+    rng.y = random(vec2(hitpos.y * randomSeed, hitpos.x * -randomSeed));		
+    //uint a = uint(hitpos.x * hitpos.y * hitpos.z * 1241 );	
+    //uint b = uint(hitpos.z * hitpos.x * hitpos.z * 4321 * -randomSeed);	
+    //rng.x = nextRand(a);
+    //rng.y = nextRand(b);
+    vec3 light_dir       = lightVector;
+    vec3 light_tangent   = normalize(cross(light_dir, vec3(0.0, 1.0, 0.0)));
+    vec3 light_bitangent = normalize(cross(light_tangent, light_dir));
+    float radius = lightSize; // light bulb radius
     float point_radius = radius * sqrt(rng.x);
     float point_angle  = rng.y * 2.0 * PI;
     vec2  disk_point   = vec2(point_radius * cos(point_angle), point_radius * sin(point_angle));    

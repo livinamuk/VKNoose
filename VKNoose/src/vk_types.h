@@ -5,7 +5,7 @@
 #include <iostream>
 #include <vector>
 
-#define VK_CHECK(x)                                             \
+/*#define VK_CHECK(x)                                             \
 do                                                              \
 {                                                               \
 	VkResult err = x;                                           \
@@ -14,7 +14,14 @@ do                                                              \
 		std::cout <<"Detected Vulkan error: " << err << "\n";	\
 		abort();                                                \
 	}                                                           \
-} while (0)
+} while (0)*/
+
+inline void VK_CHECK(VkResult err) {
+	if (err) {
+		std::cout << "Detected Vulkan error: " << err << "\n";
+		abort();                                               
+	}
+}
 
 struct AllocatedBuffer {
 	VkBuffer _buffer = VK_NULL_HANDLE;

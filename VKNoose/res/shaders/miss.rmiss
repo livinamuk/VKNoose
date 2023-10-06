@@ -9,6 +9,7 @@ void main()
 {
     rayPayload.color = vec3(0, 0, 0);
 	rayPayload.done = 1;
+	//rayPayload.writeToImageStore = 0;
 	//rayPayload.instanceIndex = 8;
 	//rayPayload.primitiveIndex = 9;
 }

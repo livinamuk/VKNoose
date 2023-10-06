@@ -13,6 +13,6 @@ void main() {
 	rayPayload.nextRayOrigin = vec3(0);
 	rayPayload.nextFactor = vec3(0);
 	rayPayload.nextRayDirection = vec3(0);
-	rayPayload.random = vec3(0);
-	rayPayload.writeToImageStore = 0;
+	rayPayload.seed = rayPayload.seed;
+	//rayPayload.writeToImageStore = 1;
 }

@@ -503,7 +503,7 @@ void main()
 
 
 	
-	if (baseColor.a < 0.5)  {
+	if (baseColor.a < 0.9)  {
 		finalColor = vec3(0,0,0);
     }
 	//firstHitColor
@@ -559,8 +559,10 @@ void main()
 	rayPayload.normal = normal;
 
 	//rayPayload.color = vec3(texCoord, 0);
-	
-
+	//rayPayload.color.xyz = vec3(baseColor.a);
+	//rayPayload.color.x = 1;
+	//rayPayload.color.y = 0;
+	//rayPayload.color.z = 0;
 	//rayPayload.color = normal;
 
     if (gl_InstanceCustomIndexEXT == 2 || 
@@ -594,7 +596,7 @@ void main()
 		//rayPayload.color = vec3(0, 1,1);
     }
 	//	rayPayload.color = normal;
-
+		
 
 
 
@@ -708,6 +710,8 @@ void main()
 		acc += COLOR;
 	}
 	acc *= 1;
+
+	//COLOR.xyz = vec3(1,0,0); 
 
 	//acc = acc * (baseColor.rgb * 3.5) + (baseColor.rgb * 0.5);
 	//acc += vec3(baseColor.rgb * 0.5);
