@@ -1,4 +1,4 @@
-// fragment shader
+ // fragment shader
 #version 460 core
 #extension GL_KHR_vulkan_glsl : enable
 #include "raycommon.glsl"
@@ -59,7 +59,7 @@ void main()
 
     vec3 result = vec3(0);
     int count = 0;
-    int range = 15;
+    int range = 1;
 
     for (int x = -range; x <= range; x++) {    
         for (int y = -range; y <= range; y++) {
@@ -80,7 +80,7 @@ void main()
             vec3 samplePositon = texture(rt_depth_texture, sampleCoords).rgb;
             float sampleMeshIndex = texture(rt_depth_texture, sampleCoords).a;
 
-
+            /*
             if (int(sampleMeshIndex) != int(fragmentMeshIndex)){//&& sampleNormal != fragmentNormal) {
                 //result += vec3(1);
                 continue;
@@ -109,14 +109,14 @@ void main()
             if (abs(fragmentDepth - sampleDepth) > depthCutoff) {                                                   
                 //result += vec3(1);
                 continue;                                                                                 
-            }     
+            }     */
 
 
             // Normal similiarity
             float normalDisplacement = abs( dot(sampleNormal, fragmentNormal));
             if (normalDisplacement < 0.35) {
                 //result += vec3(1);
-                continue;
+            //    continue;
             }
 
             result += sampleColor;
@@ -126,4 +126,7 @@ void main()
         }
     }
     outFragColor.rgb = result.rgb / count;
+    
+//	outFragColor.rgb = pow(outFragColor.rgb, vec3(1.0/2.2)); 
+//    outFragColor = vec4(fragmentNormal, 1);
 }

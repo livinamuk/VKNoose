@@ -3,6 +3,7 @@
 #define NOMINMAX
 #include "Windows.h"
 #include "Game/AssetManager.h"
+#include "Engine.h"
 
 #include "OpenImageDenoise/oidn.hpp"
 
@@ -204,10 +205,10 @@ int main()
     //return 0;
 
 	std::cout << "\nWELCOME TO HELL FUCK WHIT\n";
-	VulkanEngine engine;
-	engine.init();
-	engine.run();
-	engine.cleanup();
+	
+	Engine::Init();
+	Engine::Run();
+	Engine::Cleanup();
 
 	return 0;
 }

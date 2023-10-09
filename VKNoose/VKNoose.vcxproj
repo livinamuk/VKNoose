@@ -91,6 +91,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\Audio\Audio.cpp" />
+    <ClCompile Include="src\Engine.cpp" />
     <ClCompile Include="src\Game\AssetManager.cpp" />
     <ClCompile Include="src\Game\Camera.cpp" />
     <ClCompile Include="src\Game\GameData.cpp" />
@@ -122,6 +123,7 @@
   <ItemGroup>
     <ClInclude Include="src\Audio\Audio.h" />
     <ClInclude Include="src\Common.h" />
+    <ClInclude Include="src\Engine.h" />
     <ClInclude Include="src\Game\AssetManager.h" />
     <ClInclude Include="src\Game\Callbacks.hpp" />
     <ClInclude Include="src\Game\Camera.h" />

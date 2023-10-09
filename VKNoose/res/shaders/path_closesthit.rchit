@@ -57,6 +57,12 @@ layout(set = 2, binding = 1) uniform sampler2D laptop_render_texture;
 hitAttributeEXT vec2 attribs;
 
 
+
+float rand(float co) { return fract(sin(co*(91.3458)) * 47453.5453); }
+float rand(vec2 co){ return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453); }
+float rand(vec3 co){ return rand(co.xy+rand(co.z)); }
+
+
 vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic, float ao, vec3 worldPos, vec3 camPos, Light light, int materialType) {
 	
 	// compute direct light	  
@@ -82,8 +88,10 @@ vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic,
 	// to prevent fireflies
 	if(rayPayload.bounce > 0) {
 		//radiance = clamp(radiance, 0.0, 5.0);
-		radiance = clamp(radiance, 0.0, 0.275);  // you added this, was 5
-		//radiance = clamp(radiance, 0.0, 0.1275);  // you added this, was 5
+	//	radiance = clamp(radiance, 0.0, 0.275);  // you added this, was 5
+	radiance = clamp(radiance, 0.0, 0.1275);  // you added this, was 5
+
+		//radiance = clamp(radiance, 0.025, 0.275);
 	}
 	
 	vec3 finalColor = radiance;
@@ -98,6 +106,7 @@ vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic,
 
 	
 	vec3 random;
+	//rayPayload.seed += uint(random.x * 420);
 	random = random_pcg3d(uvec3(gl_LaunchIDEXT.xy, rayPayload.bounce + rayPayload.seed * 6341));
 	
 	vec3 nextFactor = vec3(0.0);
@@ -135,14 +144,10 @@ vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic,
 	}
 	
 	shadowFactor /= sampleCount;
-	
 
 	rayPayload.color *= vec3(1 - shadowFactor);
-	//rayPayload.done = -1;
 	finalColor *= vec3(1 - shadowFactor);
 	
-	
-
 	
 	// Glass (refraction)
 	if (materialType == 2 && !isShadowed) {
@@ -259,11 +264,6 @@ void main()
 	rayPayload.alpha = 1.0;
 	//rayPayload.writeToImageStore = 1;
 
-	vec3 randomm;
-	randomm.x = nextRand(rayPayload.seed);
-	randomm.y = nextRand(rayPayload.seed);
-	randomm.z = nextRand(rayPayload.seed);
-
 	rayPayload.normal = normal;
 
 	rayPayload.nextRayOrigin = worldPos;
@@ -296,6 +296,21 @@ void main()
 		rayPayload.alpha =  baseColor.a;
 
 	}
+	else if (materialType == 1) {
+		rayPayload.hitType = HIT_TYPE_MIRROR;
+		rayPayload.nextRayDirection = reflect(gl_WorldRayDirectionEXT, normal);
+		rayPayload.nextFactor = vec3(1);
+		rayPayload.color = vec3(0,0,0);
+	}
+	// Glass
+	else if (materialType == 2) {
+		rayPayload.hitType = HIT_TYPE_GLASS;
+		float ratio = 1.00 / 1.52;
+		vec3 I = normalize(worldPos.xyz - cam.data.viewPos.xyz);
+		vec3 R = refract(I, normalize(normal.xyz), ratio);
+		rayPayload.nextRayDirection = R;
+		rayPayload.nextFactor = vec3(1);
+	}
 	// Hit was solid
 	else {
 		rayPayload.hitType = HIT_TYPE_SOLID;
@@ -306,25 +321,7 @@ void main()
 		//rayPayload.color = vec3(1,0,0);
 	}
   
-	// Glass (refraction)
-	/*if (materialType == 2) {
-		//rayPayload.done = 3;   
-		float ratio = 1.00 / 1.52;
-		vec3 I = normalize(worldPos.xyz - cam.data.viewPos.xyz);
-		vec3 R = refract(I, normalize(normal.xyz), ratio);
-		rayPayload.nextRayDirection = R;
-		
-	}
-
-	// Mirror (reflection)
-	if (materialType == 1) {
-		//rayPayload.done = 2;     
-		rayPayload.nextRayDirection = reflect(gl_WorldRayDirectionEXT, normal);
-		rayPayload.nextFactor = vec3(directLighting.rgb);
-		rayPayload.nextFactor = vec3(1);
-		rayPayload.color = vec3(0,0,0);
-	}
-
+	/*
 
 	// little cube (test)
 	if (materialType == 4) {

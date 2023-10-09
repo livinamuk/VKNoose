@@ -326,7 +326,7 @@ Mesh* AssetManager::GetMesh(int index) {
 		return nullptr;
 }
 
-bool AssetManager::load_image_from_file(VulkanEngine& engine, const char* file, Texture& outTexture, VkFormat imageFormat, bool generateMips)
+bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, VkFormat imageFormat, bool generateMips)
 {
 	FileInfo info = Util::GetFileInfo(file);
 	std::string assetPath = "res/assets/" + info.filename + ".tex";
@@ -365,12 +365,12 @@ bool AssetManager::load_image_from_file(VulkanEngine& engine, const char* file, 
 			textureInfo.pixelsize[1] = jsonData["height"];
 			textureInfo.originalFile = jsonData["original_file"];
 
-			AllocatedBuffer stagingBuffer = engine.create_buffer(textureInfo.textureSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
+			AllocatedBuffer stagingBuffer = Vulkan::create_buffer(textureInfo.textureSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
 
 			void* data;
-			vmaMapMemory(engine._allocator, stagingBuffer._allocation, &data);
+			vmaMapMemory(Vulkan::GetAllocator(), stagingBuffer._allocation, &data);
 			AssetManager::unpack_texture(&textureInfo, assetFile.binaryBlob.data(), assetFile.binaryBlob.size(), (char*)data);
-			vmaUnmapMemory(engine._allocator, stagingBuffer._allocation);
+			vmaUnmapMemory(Vulkan::GetAllocator(), stagingBuffer._allocation);
 
 			outTexture._width = jsonData["width"];
 			outTexture._height = jsonData["height"];
@@ -406,10 +406,10 @@ bool AssetManager::load_image_from_file(VulkanEngine& engine, const char* file, 
 			VmaAllocationCreateInfo dimg_allocinfo = {};
 			dimg_allocinfo.usage = VMA_MEMORY_USAGE_AUTO;
 
-			vmaCreateImage(engine._allocator, &createInfo, &dimg_allocinfo, &newImage._image, &newImage._allocation, nullptr);
+			vmaCreateImage(Vulkan::GetAllocator(), &createInfo, &dimg_allocinfo, &newImage._image, &newImage._allocation, nullptr);
 
 			//transition image to transfer-receiver	
-			engine.immediate_submit([&](VkCommandBuffer cmd)
+			Vulkan::immediate_submit([&](VkCommandBuffer cmd)
 				{
 					VkImageSubresourceRange range;
 					range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -516,7 +516,7 @@ bool AssetManager::load_image_from_file(VulkanEngine& engine, const char* file, 
 					vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 				});
 
-			vmaDestroyBuffer(engine._allocator, stagingBuffer._buffer, stagingBuffer._allocation);
+			vmaDestroyBuffer(Vulkan::GetAllocator(), stagingBuffer._buffer, stagingBuffer._allocation);
 
 			outTexture.image = newImage;
 
@@ -524,7 +524,7 @@ bool AssetManager::load_image_from_file(VulkanEngine& engine, const char* file, 
 			VkImageViewCreateInfo imageinfo = vkinit::imageview_create_info(imageFormat, outTexture.image._image, VK_IMAGE_ASPECT_COLOR_BIT);
 			imageinfo.subresourceRange.levelCount = outTexture._mipLevels;
 
-			vkCreateImageView(engine._device, &imageinfo, nullptr, &outTexture.imageView);
+			vkCreateImageView(Vulkan::GetDevice(), &imageinfo, nullptr, &outTexture.imageView);
 
 			// isolate name
 			std::string filepath = file;
@@ -546,12 +546,12 @@ bool AssetManager::load_image_from_file(VulkanEngine& engine, const char* file, 
 		}
 
 		VkDeviceSize imageSize = outTexture._width * outTexture._height * 4;
-		AllocatedBuffer stagingBuffer = engine.create_buffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+		AllocatedBuffer stagingBuffer = Vulkan::create_buffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
 
 		void* data;
-		vmaMapMemory(engine._allocator, stagingBuffer._allocation, &data);
+		vmaMapMemory(Vulkan::GetAllocator(), stagingBuffer._allocation, &data);
 		memcpy(data, (void*)pixels, static_cast<size_t>(imageSize));
-		vmaUnmapMemory(engine._allocator, stagingBuffer._allocation);
+		vmaUnmapMemory(Vulkan::GetAllocator(), stagingBuffer._allocation);
 		stbi_image_free(pixels);
 
 		VkExtent3D imageExtent;
@@ -585,10 +585,10 @@ bool AssetManager::load_image_from_file(VulkanEngine& engine, const char* file, 
 		VmaAllocationCreateInfo dimg_allocinfo = {};
 		dimg_allocinfo.usage = VMA_MEMORY_USAGE_AUTO;
 
-		vmaCreateImage(engine._allocator, &createInfo, &dimg_allocinfo, &newImage._image, &newImage._allocation, nullptr);
+		vmaCreateImage(Vulkan::GetAllocator(), &createInfo, &dimg_allocinfo, &newImage._image, &newImage._allocation, nullptr);
 
 		//transition image to transfer-receiver	
-		engine.immediate_submit([&](VkCommandBuffer cmd)
+		Vulkan::immediate_submit([&](VkCommandBuffer cmd)
 			{
 				VkImageSubresourceRange range;
 				range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -695,7 +695,7 @@ bool AssetManager::load_image_from_file(VulkanEngine& engine, const char* file, 
 				vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 			});
 
-		vmaDestroyBuffer(engine._allocator, stagingBuffer._buffer, stagingBuffer._allocation);
+		vmaDestroyBuffer(Vulkan::GetAllocator(), stagingBuffer._buffer, stagingBuffer._allocation);
 
 		outTexture.image = newImage;
 
@@ -703,7 +703,7 @@ bool AssetManager::load_image_from_file(VulkanEngine& engine, const char* file, 
 		VkImageViewCreateInfo imageinfo = vkinit::imageview_create_info(imageFormat, outTexture.image._image, VK_IMAGE_ASPECT_COLOR_BIT);
 		imageinfo.subresourceRange.levelCount = outTexture._mipLevels;
 
-		vkCreateImageView(engine._device, &imageinfo, nullptr, &outTexture.imageView);
+		vkCreateImageView(Vulkan::GetDevice(), &imageinfo, nullptr, &outTexture.imageView);
 
 		// isolate name
 		std::string filepath = file;
@@ -735,7 +735,8 @@ int AssetManager::GetTextureIndex(const std::string& filename) {
 			return i;
 		}
 	}
-	std::cout << "Could not get texture with name \"" << filename << "\", it does not exist\n";
+	if (filename != "Macbook3_RMA" && filename != "Macbook3_NRM")
+		std::cout << "Could not get texture with name \"" << filename << "\", it does not exist\n";
 	return -1;
 }
 
@@ -761,13 +762,13 @@ void AssetManager::AddTexture(Texture& texture) {
 	_models.push_back(model);
 }*/
 
-void AssetManager::LoadFont(VulkanEngine& engine) {
+void AssetManager::LoadFont() {
 	// Get the width and height of each character, used for text blitting. Probably move this into TextBlitter::Init()
 	TextBlitter::_charExtents.clear();
 	for (size_t i = 1; i <= 90; i++) {
 		std::string filepath = "res/textures/char_" + std::to_string(i) + ".png";
 		Texture texture;
-		AssetManager::load_image_from_file(engine, filepath.c_str(), texture, VkFormat::VK_FORMAT_R8G8B8A8_UNORM, true); // NO MIPS = false
+		AssetManager::load_image_from_file(filepath.c_str(), texture, VkFormat::VK_FORMAT_R8G8B8A8_UNORM, true); // NO MIPS = false
 		AssetManager::AddTexture(texture);
 		TextBlitter::_charExtents.push_back({ AssetManager::GetTexture(i - 1)->_width, AssetManager::GetTexture(i - 1)->_height });
 	}
@@ -801,7 +802,7 @@ void AssetManager::SaveImageDataU8(std::string path, int width, int height, int 
 	//stbi_write_png(path.c_str(), width, height, channels, data, width * channels);
 }
 
-void AssetManager::LoadTextures(VulkanEngine& engine) {
+void AssetManager::LoadTextures() {
 	for (const auto& entry : std::filesystem::directory_iterator("res/textures/")) {
 		FileInfo info = Util::GetFileInfo(entry);
 		if (info.filetype == "png" || info.filetype == "tga" || info.filetype == "jpg") {
@@ -811,7 +812,7 @@ void AssetManager::LoadTextures(VulkanEngine& engine) {
 				if (info.materialType == "ALB" || info.filename.substr(0, 2) == "OS") {
 					imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
 				}
-				load_image_from_file(engine, info.fullpath.c_str(), texture, imageFormat, false); // no mips
+				load_image_from_file(info.fullpath.c_str(), texture, imageFormat, false); // no mips
 				AddTexture(texture);
 			}
 		}

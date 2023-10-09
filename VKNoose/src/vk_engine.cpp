@@ -9,7 +9,7 @@
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 #include "Util.h"
-
+ 
 #include "Game/AssetManager.h"
 #include "Game/Scene.h"
 #include "Game/Laptop.h"
@@ -17,44 +17,233 @@
 #include "Profiler.h"
 
 #define NOOSE_PI 3.14159265359f
+const bool _printAvaliableExtensions = false;
+const bool _enableValidationLayers = true;
+bool _frameBufferResized = false;
+vkb::Instance _bootstrapInstance;
+VkDebugUtilsMessengerEXT _debugMessenger;
+VmaAllocator _allocator;
+VkDevice _device;
 
-#ifdef NDEBUG
-const bool enableValidationLayers2 = false;
-#else
-const bool enableValidationLayers2 = true;
-#endif
-
-const bool printAvaliableExtensions = false;
-const bool enableValidationLayers = true;
-
-void VulkanEngine::init()
-{
-	GameData::GetPlayer().m_position = glm::vec3(-2.7f, 0, 0);
-	GameData::GetPlayer().m_camera.m_transform.rotation = glm::vec3(-0.25f, -NOOSE_HALF_PI, 0);
-
-	// Inital pos 
-	
-	// BED
-	GameData::GetPlayer().m_position = glm::vec3(-1.82f, 0, -1.05f);
-	GameData::GetPlayer().m_camera.m_transform.rotation = glm::vec3(-1.12f, -0.66f, 0.0f);
-
-	// LAPTOP
-	GameData::GetPlayer().m_position = glm::vec3(-1.87f, 0, 1.11f);
-	GameData::GetPlayer().m_camera.m_transform.rotation = glm::vec3(-1.00f, 1.69f, 0.0f);
-
+void Vulkan::CreateWindow() {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-
 	_window = glfwCreateWindow(_windowedModeExtent.width, _windowedModeExtent.height, "Fuck", nullptr, nullptr);
-	glfwSetWindowUserPointer(_window, this);
+	//glfwSetWindowUserPointer(_window, this);
 	glfwSetFramebufferSizeCallback(_window, framebufferResizeCallback);
+}
+
+void Vulkan::CreateInstance() {
+	vkb::InstanceBuilder builder;
+	builder.set_app_name("Example Vulkan Application");
+	builder.request_validation_layers(_enableValidationLayers);
+	builder.use_default_debug_messenger();
+	builder.require_api_version(1, 3, 0);
+	_bootstrapInstance = builder.build().value();
+	_instance = _bootstrapInstance.instance;
+	_debugMessenger = _bootstrapInstance.debug_messenger;
+	glfwCreateWindowSurface(_instance, _window, nullptr, &_surface);
+}
+
+void Vulkan::SelectPhysicalDevice() {
+
+	vkb::PhysicalDeviceSelector selector{ _bootstrapInstance };
+	selector.add_required_extension(VK_KHR_MAINTENANCE_4_EXTENSION_NAME);					// Hides shader warnings for unused varibles
+	selector.add_required_extension(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);				// Dynamic rendering
+	selector.add_required_extension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);			// Ray tracing related extensions required by this sample
+	selector.add_required_extension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);			// Ray tracing related extensions required by this sample
+	selector.add_required_extension(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);			// Required by VK_KHR_acceleration_structure
+	selector.add_required_extension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);		// Required by VK_KHR_acceleration_structure
+	selector.add_required_extension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);				// Required by VK_KHR_acceleration_structure
+	selector.add_required_extension(VK_KHR_SPIRV_1_4_EXTENSION_NAME);						// Required for VK_KHR_ray_tracing_pipeline
+	selector.add_required_extension(VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);			// Required by VK_KHR_spirv_1_4
+	selector.add_required_extension(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME);	// aftermath
+	selector.add_required_extension(VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME);		// aftermath
+
+	VkPhysicalDeviceRayTracingPipelineFeaturesKHR enabledRayTracingPipelineFeatures{};
+	enabledRayTracingPipelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+	enabledRayTracingPipelineFeatures.rayTracingPipeline = VK_TRUE;
+	enabledRayTracingPipelineFeatures.pNext = nullptr;
+
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR enabledAccelerationStructureFeatures{};
+	enabledAccelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+	enabledAccelerationStructureFeatures.accelerationStructure = VK_TRUE;
+	enabledAccelerationStructureFeatures.pNext = &enabledRayTracingPipelineFeatures;
+
+	VkPhysicalDeviceFeatures features = {};
+	features.samplerAnisotropy = true;
+	features.shaderInt64 = true;
+	selector.set_required_features(features);
+
+	VkPhysicalDeviceVulkan12Features features12 = {};
+	features12.shaderSampledImageArrayNonUniformIndexing = true;
+	features12.runtimeDescriptorArray = true;
+	features12.descriptorBindingVariableDescriptorCount = true;
+	features12.descriptorBindingPartiallyBound = true;
+	features12.descriptorIndexing = true;
+	features12.bufferDeviceAddress = true;
+	selector.set_required_features_12(features12);
+
+	VkPhysicalDeviceVulkan13Features features13 = {};
+	features13.maintenance4 = true;
+	features13.dynamicRendering = true;
+	features13.pNext = &enabledAccelerationStructureFeatures;	// you probably want to confirm this chaining of pNexts works when shit goes wrong.
+	selector.set_required_features_13(features13);
+
+	selector.set_minimum_version(1, 3);
+	selector.set_surface(_surface);
+	vkb::PhysicalDevice physicalDevice = selector.select().value();
+	vkb::DeviceBuilder deviceBuilder{ physicalDevice };
+
+	// store these for some ray tracing stuff.
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &_memoryProperties);
+
+	// Query available device extensions
+	uint32_t extensionCount;
+	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, nullptr);
+	std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, availableExtensions.data());
+
+	// Check if extension is supported
+	bool maintenance4ExtensionSupported = false;
+	for (const auto& extension : availableExtensions) {
+		if (std::string(extension.extensionName) == VK_KHR_MAINTENANCE_4_EXTENSION_NAME) {
+			maintenance4ExtensionSupported = true;
+			std::cout << "VK_KHR_maintenance4 is supported\n";
+			break;
+		}
+	}
+	// Specify the extensions to enable
+	std::vector<const char*> enabledExtensions = {
+		VK_KHR_MAINTENANCE_4_EXTENSION_NAME
+	};
+	if (!maintenance4ExtensionSupported) {
+		throw std::runtime_error("Required extension not supported");
+	}
+
+	vkb::Device vkbDevice = deviceBuilder.build().value();
+	_device = vkbDevice.device;
+	_physicalDevice = physicalDevice.physical_device;
+	_graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
+	_graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
+
+	// Initialize the memory allocator
+	VmaAllocatorCreateInfo allocatorInfo = {};
+	allocatorInfo.physicalDevice = _physicalDevice;
+	allocatorInfo.device = _device;
+	allocatorInfo.instance = _instance;
+	allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+	vmaCreateAllocator(&allocatorInfo, &_allocator);
+
+	vkGetPhysicalDeviceProperties(_physicalDevice, &_gpuProperties);
+
+	auto instanceVersion = VK_API_VERSION_1_0;
+	auto FN_vkEnumerateInstanceVersion = PFN_vkEnumerateInstanceVersion(vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceVersion"));
+	if (vkEnumerateInstanceVersion) {
+		vkEnumerateInstanceVersion(&instanceVersion);
+	}
+
+	uint32_t major = VK_VERSION_MAJOR(instanceVersion);
+	uint32_t minor = VK_VERSION_MINOR(instanceVersion);
+	uint32_t patch = VK_VERSION_PATCH(instanceVersion);
+	std::cout << "Vulkan: " << major << "." << minor << "." << patch << "\n\n";
+
+	if (_printAvaliableExtensions) {
+		uint32_t deviceExtensionCount = 0;
+		vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &deviceExtensionCount, nullptr);
+		std::vector<VkExtensionProperties> deviceExtensions(deviceExtensionCount);
+		vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &deviceExtensionCount, deviceExtensions.data());
+		std::cout << "Available device extensions:\n";
+		for (const auto& extension : deviceExtensions) {
+			std::cout << ' ' << extension.extensionName << "\n";
+		}
+		std::cout << "\n";
+		uint32_t extensionCount = 0;
+		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+		std::vector<VkExtensionProperties> extensions(extensionCount);
+		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
+		std::cout << "Available instance extensions:\n";
+		for (const auto& extension : extensions) {
+			std::cout << ' ' << extension.extensionName << "\n";
+		}
+		std::cout << "\n";
+	}
+
+	// Get the ray tracing and accelertion structure related function pointers required by this sample
+	vkGetBufferDeviceAddressKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(vkGetDeviceProcAddr(_device, "vkGetBufferDeviceAddressKHR"));
+	vkCmdBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(_device, "vkCmdBuildAccelerationStructuresKHR"));
+	vkBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(_device, "vkBuildAccelerationStructuresKHR"));
+	vkCreateAccelerationStructureKHR = reinterpret_cast<PFN_vkCreateAccelerationStructureKHR>(vkGetDeviceProcAddr(_device, "vkCreateAccelerationStructureKHR"));
+	vkDestroyAccelerationStructureKHR = reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(vkGetDeviceProcAddr(_device, "vkDestroyAccelerationStructureKHR"));
+	vkGetAccelerationStructureBuildSizesKHR = reinterpret_cast<PFN_vkGetAccelerationStructureBuildSizesKHR>(vkGetDeviceProcAddr(_device, "vkGetAccelerationStructureBuildSizesKHR"));
+	vkGetAccelerationStructureDeviceAddressKHR = reinterpret_cast<PFN_vkGetAccelerationStructureDeviceAddressKHR>(vkGetDeviceProcAddr(_device, "vkGetAccelerationStructureDeviceAddressKHR"));
+	vkCmdTraceRaysKHR = reinterpret_cast<PFN_vkCmdTraceRaysKHR>(vkGetDeviceProcAddr(_device, "vkCmdTraceRaysKHR"));
+	vkGetRayTracingShaderGroupHandlesKHR = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(vkGetDeviceProcAddr(_device, "vkGetRayTracingShaderGroupHandlesKHR"));
+	vkCreateRayTracingPipelinesKHR = reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(vkGetDeviceProcAddr(_device, "vkCreateRayTracingPipelinesKHR"));
+
+	// Debug marker shit
+	vkSetDebugUtilsObjectNameEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(vkGetDeviceProcAddr(_device, "vkSetDebugUtilsObjectNameEXT"));
+
+	// Get ray tracing pipeline properties, which will be used later on in the sample
+	_rayTracingPipelineProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
+	VkPhysicalDeviceProperties2 deviceProperties2{};
+	deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+	deviceProperties2.pNext = &_rayTracingPipelineProperties;
+	vkGetPhysicalDeviceProperties2(_physicalDevice, &deviceProperties2);
+
+	// Get acceleration structure properties, which will be used later on in the sample
+	accelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+	VkPhysicalDeviceFeatures2 deviceFeatures2{};
+	deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+	deviceFeatures2.pNext = &accelerationStructureFeatures;
+	vkGetPhysicalDeviceFeatures2(_physicalDevice, &deviceFeatures2);
+}
+
+void Vulkan::CreateSwapchain() {
+
+	int width;
+	int height;
+	glfwGetFramebufferSize(_window, &width, &height);
+	_currentWindowExtent.width = width;
+	_currentWindowExtent.height = height;
+
+	VkSurfaceFormatKHR format;
+	format.colorSpace = VkColorSpaceKHR::VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+	format.format = VkFormat::VK_FORMAT_R8G8B8A8_UNORM;
+
+	vkb::SwapchainBuilder swapchainBuilder(_physicalDevice, _device, _surface);
+	swapchainBuilder.set_desired_format(format);
+	swapchainBuilder.set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR);
+	swapchainBuilder.set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR);
+	swapchainBuilder.set_desired_present_mode(VK_PRESENT_MODE_MAILBOX_KHR);
+	swapchainBuilder.set_desired_extent(_currentWindowExtent.width, _currentWindowExtent.height);
+	swapchainBuilder.set_image_usage_flags(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT); // added so you can blit into the swapchain
+	
+	vkb::Swapchain vkbSwapchain = swapchainBuilder.build().value();
+	_swapchain = vkbSwapchain.swapchain;
+	_swapchainImages = vkbSwapchain.get_images().value();
+	_swapchainImageViews = vkbSwapchain.get_image_views().value();
+	_swachainImageFormat = vkbSwapchain.image_format;
+}
+
+VmaAllocator Vulkan::GetAllocator() {
+	return _allocator;
+}
+
+VkDevice Vulkan::GetDevice() {
+	return _device;
+}
+
+void Vulkan::Init()
+{
+	CreateWindow();
+	CreateInstance();
+	SelectPhysicalDevice();
 		
-	init_vulkan();
+	LoadShaders();
 
-	load_shaders();
-
-	create_swapchain();
+	CreateSwapchain();
 	create_render_targets();	
 	create_command_buffers();	
 	create_sync_structures();
@@ -63,12 +252,12 @@ void VulkanEngine::init()
 	create_pipelines();
 
 	AssetManager::Init();
-	AssetManager::LoadFont(*this);
+	AssetManager::LoadFont();
 	AssetManager::LoadHardcodedMesh();
 
 	bool thereAreFilesToLoad = true;
 
-	AssetManager::LoadTextures(*this);	// Loads everything in res/textures, excluding the already loaded font characters 
+	AssetManager::LoadTextures();		// Loads everything in res/textures, excluding the already loaded font characters 
 	AssetManager::LoadModels();			// Loads the hardcoded model paths, and also creates the floor and ceiling meshes
 	AssetManager::BuildMaterials();	
 	Scene::Init();						// Scene::Init creates wall geometry, and thus must run before upload_meshes
@@ -105,7 +294,7 @@ void VulkanEngine::init()
 	}*/
 }
 
-void VulkanEngine::render_loading_screen() {
+void Vulkan::render_loading_screen() {
 
 	std::string testText = "shit\nfuck\n";
 	TextBlitter::BlitAtPosition(testText, 0, 288 - TextBlitter::GetLineHeight(), false, 1.0f);
@@ -315,7 +504,7 @@ void VulkanEngine::render_loading_screen() {
 	_frameNumber++;
 }
 
-void VulkanEngine::cleanup_shaders()
+void Vulkan::cleanup_shaders()
 {
 	vkDestroyShaderModule(_device, _text_blitter_vertex_shader, nullptr);
 	vkDestroyShaderModule(_device, _text_blitter_fragment_shader, nullptr);
@@ -330,7 +519,7 @@ void VulkanEngine::cleanup_shaders()
 	vkDestroyShaderModule(_device, _composite_fragment_shader, nullptr);
 }
 
-void VulkanEngine::cleanup()
+void Vulkan::cleanup()
 {
 	//make sure the gpu has stopped doing its things
 	vkDeviceWaitIdle(_device);
@@ -413,12 +602,14 @@ void VulkanEngine::cleanup()
 	cleanup_raytracing();
 
 	// Vulkan shit
+	//vkDestroyDebugUtilsMessengerEXT(_instance, _debugMessenger, nullptr);
+
 	vkDestroyDescriptorPool(_device, _descriptorPool, nullptr);
 	vkDestroySampler(_device, _sampler, nullptr);
 	vmaDestroyAllocator(_allocator);
 	vkDestroySurfaceKHR(_instance, _surface, nullptr);
 	vkDestroyDevice(_device, nullptr);
-	vkb::destroy_debug_utils_messenger(_instance, _debug_messenger);
+	vkb::destroy_debug_utils_messenger(_instance, _debugMessenger);
 	vkDestroyInstance(_instance, nullptr);
 	glfwDestroyWindow(_window);
 	glfwTerminate();
@@ -428,7 +619,7 @@ uint32_t alignedSize(uint32_t value, uint32_t alignment) {
 	return (value + alignment - 1) & ~(alignment - 1);
 }
 
-void VulkanEngine::init_raytracing()
+void Vulkan::init_raytracing()
 {
 	std::vector<VkDescriptorSetLayout> rtDescriptorSetLayouts = { _dynamicDescriptorSet.layout, _staticDescriptorSet.layout, _samplerDescriptorSet.layout };
 
@@ -444,7 +635,7 @@ void VulkanEngine::init_raytracing()
 
 /*
 
-void VulkanEngine::createRayTracingPipeline()
+void Vulkan::createRayTracingPipeline()
 {
 	// IMPORTANT: This is the set order
 
@@ -466,7 +657,7 @@ void VulkanEngine::createRayTracingPipeline()
 
 }*/
 
-void VulkanEngine::cleanup_raytracing()
+void Vulkan::cleanup_raytracing()
 {
 	// RT cleanup
 	vmaDestroyBuffer(_allocator, _rtVertexBuffer._buffer, _rtVertexBuffer._allocation);
@@ -495,7 +686,7 @@ void VulkanEngine::cleanup_raytracing()
 	_raytracerMousePick.Cleanup(_device, _allocator);
 }
 
-void VulkanEngine::create_command_buffers()
+void Vulkan::create_command_buffers()
 {
 	VkCommandPoolCreateInfo commandPoolInfo = vkinit::command_pool_create_info(_graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
@@ -516,7 +707,7 @@ void VulkanEngine::create_command_buffers()
 	VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_uploadContext._commandBuffer));
 }
 
-void VulkanEngine::update(float deltaTime)
+void Vulkan::update(float deltaTime)
 {
 	static float noise = 0;
 	noise += deltaTime;
@@ -589,7 +780,7 @@ void VulkanEngine::update(float deltaTime)
 	}
 }
 
-void VulkanEngine::draw()
+void Vulkan::draw()
 {
 	// Skip if window is miniized
 	int width, height;
@@ -674,7 +865,7 @@ void VulkanEngine::draw()
 	_frameNumber++;
 }
 
-void VulkanEngine::run()
+void Vulkan::run()
 {
 	auto currentTime = std::chrono::high_resolution_clock::now();
 
@@ -895,14 +1086,12 @@ void VulkanEngine::run()
 	}
 }
 
-FrameData& VulkanEngine::get_current_frame()
-{
+FrameData& Vulkan::get_current_frame() {
 	return _frames[_frameNumber % FRAME_OVERLAP];
 }
 
 
-FrameData& VulkanEngine::get_last_frame()
-{
+FrameData& Vulkan::get_last_frame() {
 	return _frames[(_frameNumber - 1) % 2];
 }
 
@@ -911,304 +1100,12 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 	Input::_mouseWheelValue = (int)yoffset;
 }
 
-void VulkanEngine::init_vulkan()
-{
-	vkb::InstanceBuilder builder;
 
 
-	//std::cout << "Making VK instance\n";
 
-	//make the vulkan instance, with basic debug features
-	auto inst_ret = builder.set_app_name("Example Vulkan Application")
-		.request_validation_layers(enableValidationLayers)
-		.use_default_debug_messenger()
-		.require_api_version(1, 3, 0)
-		.build();
 
 
-	//std::cout << "Made VK instance\n";
-
-	vkb::Instance vkb_inst = inst_ret.value();
-
-	//grab the instance 
-	_instance = vkb_inst.instance;
-	_debug_messenger = vkb_inst.debug_messenger;
-
-
-	//std::cout << "Creating window surface\n";
-
-	glfwCreateWindowSurface(_instance, _window, nullptr, &_surface);
-	glfwSetScrollCallback(_window, scroll_callback);
-//	std::cout << "Created window surface\n";
-	//SDL_Vulkan_CreateSurface(_window, _instance, &_surface);
-
-	//use vkbootstrap to select a gpu. 
-	vkb::PhysicalDeviceSelector selector{ vkb_inst };
-	// Hides shader warnings for unused varibles
-	selector.add_required_extension(VK_KHR_MAINTENANCE_4_EXTENSION_NAME);
-	// Dynamic rendering
-	selector.add_required_extension(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
-	// Ray tracing related extensions required by this sample
-	selector.add_required_extension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
-	selector.add_required_extension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
-	// Required by VK_KHR_acceleration_structure
-	selector.add_required_extension(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
-	selector.add_required_extension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
-	selector.add_required_extension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
-	// Required for VK_KHR_ray_tracing_pipeline
-	selector.add_required_extension(VK_KHR_SPIRV_1_4_EXTENSION_NAME);
-	// Required by VK_KHR_spirv_1_4
-	selector.add_required_extension(VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);
-
-	// aftermath
-	selector.add_required_extension(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME);
-	selector.add_required_extension(VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME);
-
-	// dynamic state
-	//selector.add_required_extension(VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME);
-	//selector.add_required_extension(VK_EXT_EXTENDED_DYNAMIC_STATE_3_SPEC_VERSION);
-
-
-	// I don't think belopw does anything
-	//VkPhysicalDeviceExtendedDynamicState3FeaturesEXT extendedDynamicState3Features{};
-	//extendedDynamicState3Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT;
-	//extendedDynamicState3Features.pNext = nullptr;
-
-	VkPhysicalDeviceRayTracingPipelineFeaturesKHR enabledRayTracingPipelineFeatures{};
-	enabledRayTracingPipelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
-	enabledRayTracingPipelineFeatures.rayTracingPipeline = VK_TRUE;
-	enabledRayTracingPipelineFeatures.pNext = nullptr;
-
-	VkPhysicalDeviceAccelerationStructureFeaturesKHR enabledAccelerationStructureFeatures{};
-	enabledAccelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
-	enabledAccelerationStructureFeatures.accelerationStructure = VK_TRUE;
-	enabledAccelerationStructureFeatures.pNext = &enabledRayTracingPipelineFeatures;
-
-	//VkPhysicalDeviceExtendedDynamicState3PropertiesEXT 
-
-	VkPhysicalDeviceFeatures features = {};
-	features.samplerAnisotropy = true;
-	features.shaderInt64 = true;
-	selector.set_required_features(features);
-
-	VkPhysicalDeviceVulkan12Features features12 = {};
-	features12.shaderSampledImageArrayNonUniformIndexing = true;
-	features12.runtimeDescriptorArray = true;
-	features12.descriptorBindingVariableDescriptorCount = true;
-	features12.descriptorBindingPartiallyBound = true;
-	features12.descriptorIndexing = true;
-	features12.bufferDeviceAddress = true;
-	selector.set_required_features_12(features12);
-
-	VkPhysicalDeviceVulkan13Features features13 = {};
-	features13.maintenance4 = true;
-	features13.dynamicRendering = true;
-	features13.pNext = &enabledAccelerationStructureFeatures;	// you probably want to confirm this chaining of pNexts works when shit goes wrong.
-	selector.set_required_features_13(features13);
-
-
-//	std::cout << "Selecting physical device\n";
-
-
-
-	vkb::PhysicalDevice physicalDevice = selector
-		.set_minimum_version(1, 3)
-		.set_surface(_surface)
-		.select()
-		.value();
-
-	//std::cout << "Selected physical device\n";
-
-	//create the final vulkan device
-
-	vkb::DeviceBuilder deviceBuilder{ physicalDevice };
-
-	// store these for some ray tracing stuff.
-	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &_memoryProperties);
-
-	//std::cout << "BBBBBBBBBBB\n";
-
-
-
-	// Query available device extensions
-	uint32_t extensionCount;
-	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, nullptr);
-	std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, availableExtensions.data());
-	// Check if extension is supported
-	bool maintenance4ExtensionSupported = false;
-	for (const auto& extension : availableExtensions) {
-		if (std::string(extension.extensionName) == VK_KHR_MAINTENANCE_4_EXTENSION_NAME) {
-			maintenance4ExtensionSupported = true;
-			std::cout << "VK_KHR_maintenance4 is supported\n";
-			break;
-		}
-	}
-	// Specify the extensions to enable
-	std::vector<const char*> enabledExtensions = {
-		VK_KHR_MAINTENANCE_4_EXTENSION_NAME
-	};
-	if (!maintenance4ExtensionSupported) {
-		throw std::runtime_error("Required extension not supported");
-	}
-	// Create a VkDeviceCreateInfo structure
-	/*VkDeviceCreateInfo createInfo = {};
-	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	createInfo.enabledExtensionCount = static_cast<uint32_t>(enabledExtensions.size());
-	createInfo.ppEnabledExtensionNames = enabledExtensions.data();
-	*/
-
-
-
-	vkb::Device vkbDevice = deviceBuilder.build().value();
-
-
-	// Get the VkDevice handle used in the rest of a vulkan application
-	_device = vkbDevice.device;
-	_chosenGPU = physicalDevice.physical_device;
-
-
-	// use vkbootstrap to get a Graphics queue
-	_graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
-
-	_graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
-
-	//initialize the memory allocator
-	VmaAllocatorCreateInfo allocatorInfo = {};
-	allocatorInfo.physicalDevice = _chosenGPU;
-	allocatorInfo.device = _device;
-	allocatorInfo.instance = _instance;
-	allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
-
-	vmaCreateAllocator(&allocatorInfo, &_allocator);
-
-	for (int i = 0; i < 10; i++) {
-		//	std::cout << "                                 bbb\n";
-	}
-
-
-	_mainDeletionQueue.push_function([&]() {
-		vmaDestroyAllocator(_allocator);
-		});
-
-	vkGetPhysicalDeviceProperties(_chosenGPU, &_gpuProperties);
-
-	//std::cout << "The gpu has a minimum buffer alignement of " << _gpuProperties.limits.minUniformBufferOffsetAlignment << std::endl;
-
-	for (int i = 0; i < 10; i++) {
-		//std::cout << "hellooo\n";
-	}
-
-	auto instanceVersion = VK_API_VERSION_1_0;
-	auto FN_vkEnumerateInstanceVersion = PFN_vkEnumerateInstanceVersion(vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceVersion"));
-	if (vkEnumerateInstanceVersion) {
-		vkEnumerateInstanceVersion(&instanceVersion);
-	}
-
-	// 3 macros to extract version info
-	uint32_t major = VK_VERSION_MAJOR(instanceVersion);
-	uint32_t minor = VK_VERSION_MINOR(instanceVersion);
-	uint32_t patch = VK_VERSION_PATCH(instanceVersion);
-
-	std::cout << "Vulkan: " << major << "." << minor << "." << patch << "\n\n";
-
-	if (printAvaliableExtensions) {
-		uint32_t deviceExtensionCount = 0;
-		vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &deviceExtensionCount, nullptr);
-		std::vector<VkExtensionProperties> deviceExtensions(deviceExtensionCount);
-		vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &deviceExtensionCount, deviceExtensions.data());
-		std::cout << "Available device extensions:\n";
-		for (const auto& extension : deviceExtensions) {
-			std::cout << ' ' << extension.extensionName << "\n";
-		}
-		std::cout << "\n";
-		uint32_t extensionCount = 0;
-		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-		std::vector<VkExtensionProperties> extensions(extensionCount);
-		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
-		std::cout << "Available instance extensions:\n";
-		for (const auto& extension : extensions) {
-			std::cout << ' ' << extension.extensionName << "\n";
-		}
-		std::cout << "\n";
-	}
-
-	// Get the ray tracing and accelertion structure related function pointers required by this sample
-	vkGetBufferDeviceAddressKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(vkGetDeviceProcAddr(_device, "vkGetBufferDeviceAddressKHR"));
-	vkCmdBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(_device, "vkCmdBuildAccelerationStructuresKHR"));
-	vkBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(_device, "vkBuildAccelerationStructuresKHR"));
-	vkCreateAccelerationStructureKHR = reinterpret_cast<PFN_vkCreateAccelerationStructureKHR>(vkGetDeviceProcAddr(_device, "vkCreateAccelerationStructureKHR"));
-	vkDestroyAccelerationStructureKHR = reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(vkGetDeviceProcAddr(_device, "vkDestroyAccelerationStructureKHR"));
-	vkGetAccelerationStructureBuildSizesKHR = reinterpret_cast<PFN_vkGetAccelerationStructureBuildSizesKHR>(vkGetDeviceProcAddr(_device, "vkGetAccelerationStructureBuildSizesKHR"));
-	vkGetAccelerationStructureDeviceAddressKHR = reinterpret_cast<PFN_vkGetAccelerationStructureDeviceAddressKHR>(vkGetDeviceProcAddr(_device, "vkGetAccelerationStructureDeviceAddressKHR"));
-	vkCmdTraceRaysKHR = reinterpret_cast<PFN_vkCmdTraceRaysKHR>(vkGetDeviceProcAddr(_device, "vkCmdTraceRaysKHR"));
-	vkGetRayTracingShaderGroupHandlesKHR = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(vkGetDeviceProcAddr(_device, "vkGetRayTracingShaderGroupHandlesKHR"));
-	vkCreateRayTracingPipelinesKHR = reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(vkGetDeviceProcAddr(_device, "vkCreateRayTracingPipelinesKHR"));
-
-	// Debug marker shit
-	vkSetDebugUtilsObjectNameEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(vkGetDeviceProcAddr(_device, "vkSetDebugUtilsObjectNameEXT"));
-
-	//pfnDebugMarkerSetObjectTag = reinterpret_cast<PFN_vkDebugMarkerSetObjectTagEXT>(vkGetDeviceProcAddr(_device, "vkDebugMarkerSetObjectTagEXT"));
-	//pfnDebugMarkerSetObjectName = reinterpret_cast<PFN_vkDebugMarkerSetObjectNameEXT>(vkGetDeviceProcAddr(_device, "vkDebugMarkerSetObjectNameEXT"));
-	//pfnCmdDebugMarkerBegin = reinterpret_cast<PFN_vkCmdDebugMarkerBeginEXT>(vkGetDeviceProcAddr(_device, "vkCmdDebugMarkerBeginEXT"));
-	//pfnCmdDebugMarkerEnd = reinterpret_cast<PFN_vkCmdDebugMarkerEndEXT>(vkGetDeviceProcAddr(_device, "vkCmdDebugMarkerEndEXT"));
-	//pfnCmdDebugMarkerInsert = reinterpret_cast<PFN_vkCmdDebugMarkerInsertEXT>(vkGetDeviceProcAddr(_device, "vkCmdDebugMarkerInsertEXT"));
-
-	// Get ray tracing pipeline properties, which will be used later on in the sample
-	_rayTracingPipelineProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
-	VkPhysicalDeviceProperties2 deviceProperties2{};
-	deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-	deviceProperties2.pNext = &_rayTracingPipelineProperties;
-	vkGetPhysicalDeviceProperties2(_chosenGPU, &deviceProperties2);
-
-	// Get acceleration structure properties, which will be used later on in the sample
-	accelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
-	VkPhysicalDeviceFeatures2 deviceFeatures2{};
-	deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-	deviceFeatures2.pNext = &accelerationStructureFeatures;
-	vkGetPhysicalDeviceFeatures2(_chosenGPU, &deviceFeatures2);
-}
-
-void VulkanEngine::create_swapchain()
-{
-	int width;
-	int height;
-	glfwGetFramebufferSize(_window, &width, &height);
-	_currentWindowExtent.width = width;
-	_currentWindowExtent.height = height;
-
-	vkb::SwapchainBuilder swapchainBuilder{ _chosenGPU,_device,_surface };
-
-	VkSurfaceFormatKHR format;
-	format.colorSpace = VkColorSpaceKHR::VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-	format.format = VkFormat::VK_FORMAT_R8G8B8A8_UNORM;
-	//swapchainBuilder.set_desired_format(format);
-
-	vkb::Swapchain vkbSwapchain = swapchainBuilder
-		//.use_default_format_selection()
-		//use vsync present mode
-		.set_desired_format(format)
-		.set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)
-		.set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
-		.set_desired_present_mode(VK_PRESENT_MODE_MAILBOX_KHR)
-		.set_desired_extent(_currentWindowExtent.width, _currentWindowExtent.height)
-		.set_image_usage_flags(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT) // added so you can blit into the swapchain
-		.build()
-		.value();
-
-
-	//store swapchain and its related images
-	_swapchain = vkbSwapchain.swapchain;
-	_swapchainImages = vkbSwapchain.get_images().value();
-	_swapchainImageViews = vkbSwapchain.get_image_views().value();
-
-	_swachainImageFormat = vkbSwapchain.image_format;
-
-}
-
-
-
-void VulkanEngine::create_render_targets()
+void Vulkan::create_render_targets()
 {
 	VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
 
@@ -1224,11 +1121,11 @@ void VulkanEngine::create_render_targets()
 
 	// RT image store 
 	{
-		VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+		VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;// VK_FORMAT_R8G8B8A8_UNORM;
 		VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 		_renderTargets.rt_scene = RenderTarget(_device, _allocator, format, width, height, usage, "rt scene render target");
 		_renderTargets.rt_normals = RenderTarget(_device, _allocator, format, width, height, usage, "rt normals render target");
-		_renderTargets.rt_indirect_noise = RenderTarget(_device, _allocator, VK_FORMAT_R32G32B32A32_SFLOAT, width, height, usage, "rt indirect noise render target");
+		_renderTargets.rt_indirect_noise = RenderTarget(_device, _allocator, format, width, height, usage, "rt indirect noise render target");
 	}
 
 	// GBuffer
@@ -1262,15 +1159,15 @@ void VulkanEngine::create_render_targets()
 	
 	// Blur target
 	VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-	width = 522 * 2;
-	height = 288 * 2;
-	_renderTargetDenoiseA = RenderTarget(_device, _allocator, format, width, height, usage, "denoise A render target");
-	_renderTargetDenoiseB = RenderTarget(_device, _allocator, format, width, height, usage, "denoise B render target");
+	//width = 522 * 2;
+	//height = 288 * 2;
+	_renderTargetDenoiseA = RenderTarget(_device, _allocator, VK_FORMAT_R32G32B32A32_SFLOAT, width, height, usage, "denoise A render target");
+	_renderTargetDenoiseB = RenderTarget(_device, _allocator, VK_FORMAT_R32G32B32A32_SFLOAT, width, height, usage, "denoise B render target");
 
 	_renderTargets.composite = RenderTarget(_device, _allocator, format, width, height, usage, "composite render targe");
 }
 
-void VulkanEngine::recreate_dynamic_swapchain()
+void Vulkan::recreate_dynamic_swapchain()
 {
 	std::cout << "Recreating swapchain...\n";
 
@@ -1290,11 +1187,11 @@ void VulkanEngine::recreate_dynamic_swapchain()
 
 	vkDestroySwapchainKHR(_device, _swapchain, nullptr);
 
-	create_swapchain();
+	CreateSwapchain();
 }
 
 
-void VulkanEngine::create_sync_structures()
+void Vulkan::create_sync_structures()
 {
 	VkFenceCreateInfo fenceCreateInfo = vkinit::fence_create_info(VK_FENCE_CREATE_SIGNALED_BIT);
 	VkSemaphoreCreateInfo semaphoreCreateInfo = vkinit::semaphore_create_info();
@@ -1308,7 +1205,7 @@ void VulkanEngine::create_sync_structures()
 	VK_CHECK(vkCreateFence(_device, &uploadFenceCreateInfo, nullptr, &_uploadContext._uploadFence));
 }
 
-void VulkanEngine::hotload_shaders()
+void Vulkan::hotload_shaders()
 {
 	std::cout << "Hotloading shaders...\n";
 
@@ -1327,14 +1224,14 @@ void VulkanEngine::hotload_shaders()
 	_raytracerPath.Cleanup(_device, _allocator);
 	_raytracerMousePick.Cleanup(_device, _allocator);
 
-	load_shaders();
+	LoadShaders();
 	create_pipelines();
 
 	init_raytracing();
 }
 
 
-void VulkanEngine::load_shaders()
+void Vulkan::LoadShaders()
 {
 	load_shader(_device, "text_blitter.vert", VK_SHADER_STAGE_VERTEX_BIT, &_text_blitter_vertex_shader);
 	load_shader(_device, "text_blitter.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_text_blitter_fragment_shader);
@@ -1353,72 +1250,13 @@ void VulkanEngine::load_shaders()
 	load_shader(_device, "composite.vert", VK_SHADER_STAGE_VERTEX_BIT, &_composite_vertex_shader);
 	load_shader(_device, "composite.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_composite_fragment_shader);
 	
-
-	for (int i = 0; i < 8; i++) {
-
-		VkShaderModule shaderModule = nullptr;
-		std::string name;
-
-		if (i == 0) {
-			shaderModule = _text_blitter_vertex_shader;
-			name = "text_blitter.vert";
-		}
-		if (i == 1) {
-			shaderModule = _text_blitter_fragment_shader;
-			name = "text_blitter.frag";
-		}
-		if (i == 2) {
-			shaderModule = _solid_color_vertex_shader;
-			name = "solid_color.vert";
-		}
-		if (i == 3) {
-			shaderModule = _solid_color_fragment_shader;
-			name = "solid_color.frag";
-		}
-		if (i == 4) {
-			shaderModule = _gbuffer_vertex_shader;
-			name = "gbuffer.vert";
-		}
-		if (i == 5) {
-			shaderModule = _gbuffer_fragment_shader;
-			name = "gbuffer.frag";
-		}
-		if (i == 6) {
-			shaderModule = _depth_aware_blur_vertex_shader;
-			name = "depthAwareBlur.vert";
-		}
-		if (i == 7) {
-			shaderModule = _text_blitter_fragment_shader;
-			name = "depthAwareBlur.frag";
-		}
-		if (i == 8) {
-			shaderModule = _denoiser_compute_shader;
-			name = "denoise.comp";
-		}
-		if (i == 9) {
-			shaderModule = _composite_vertex_shader;
-			name = "composite.vert";
-		}
-		if (i == 10) {
-			shaderModule = _composite_fragment_shader;
-			name = "composite.frag";
-		}
-
-		VkDebugUtilsObjectNameInfoEXT nameInfo = {};
-		nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
-		nameInfo.objectType = VK_OBJECT_TYPE_SHADER_MODULE;
-		nameInfo.objectHandle = (uint64_t)shaderModule;
-		nameInfo.pObjectName = name.c_str();
-		vkSetDebugUtilsObjectNameEXT(_device, &nameInfo);
-	}
-
 	_raytracer.LoadShaders(_device, "raygen.rgen", "miss.rmiss", "shadow.rmiss", "closesthit.rchit");
 	_raytracerPath.LoadShaders(_device, "path_raygen.rgen", "path_miss.rmiss", "path_shadow.rmiss", "path_closesthit.rchit");
 	_raytracerMousePick.LoadShaders(_device, "mousepick_raygen.rgen", "mousepick_miss.rmiss", "path_shadow.rmiss", "mousepick_closesthit.rchit");
 }
 
 
-void VulkanEngine::create_pipelines()
+void Vulkan::create_pipelines()
 {
 	// Denoise pipeline
 	{
@@ -1878,14 +1716,14 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass)
 }
 
 
-void VulkanEngine::draw_quad(Transform transform, Texture* texture)
+void Vulkan::draw_quad(Transform transform, Texture* texture)
 {
 
 }
 
 
 
-void VulkanEngine::upload_meshes() {
+void Vulkan::upload_meshes() {
 	for (Mesh& mesh : AssetManager::GetMeshList()) {
 		if (!mesh._uploadedToGPU) {
 			upload_mesh(mesh);
@@ -1895,7 +1733,7 @@ void VulkanEngine::upload_meshes() {
 }
 
 
-void VulkanEngine::upload_mesh(Mesh& mesh)
+void Vulkan::upload_mesh(Mesh& mesh)
 {
 	//std::cout << mesh._filename << " has " << mesh._vertices.size() << " vertices and " << mesh._indices.size() << " indices " << "\n";
 	// Vertices
@@ -2030,7 +1868,7 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 	mesh._uploadedToGPU = true;
 }
 
-AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags requiredFlags)
+AllocatedBuffer Vulkan::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags requiredFlags)
 {
 	//allocate vertex buffer
 	VkBufferCreateInfo bufferInfo = {};
@@ -2057,7 +1895,7 @@ AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags
 	return newBuffer;
 }
 
-void VulkanEngine::add_debug_name(VkBuffer buffer, const char* name) {
+void Vulkan::add_debug_name(VkBuffer buffer, const char* name) {
 	VkDebugUtilsObjectNameInfoEXT nameInfo = {};
 	nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
 	nameInfo.objectType = VK_OBJECT_TYPE_BUFFER;
@@ -2066,7 +1904,7 @@ void VulkanEngine::add_debug_name(VkBuffer buffer, const char* name) {
 	vkSetDebugUtilsObjectNameEXT(_device, &nameInfo);
 }
 
-void VulkanEngine::add_debug_name(VkDescriptorSetLayout descriptorSetLayout, const char* name) {
+void Vulkan::add_debug_name(VkDescriptorSetLayout descriptorSetLayout, const char* name) {
 	VkDebugUtilsObjectNameInfoEXT nameInfo = {};
 	nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
 	nameInfo.objectType = VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT;
@@ -2075,7 +1913,7 @@ void VulkanEngine::add_debug_name(VkDescriptorSetLayout descriptorSetLayout, con
 	vkSetDebugUtilsObjectNameEXT(_device, &nameInfo);
 }
 
-size_t VulkanEngine::pad_uniform_buffer_size(size_t originalSize)
+size_t Vulkan::pad_uniform_buffer_size(size_t originalSize)
 {
 	// Calculate required alignment based on minimum device offset alignment
 	size_t minUboAlignment = _gpuProperties.limits.minUniformBufferOffsetAlignment;
@@ -2088,7 +1926,7 @@ size_t VulkanEngine::pad_uniform_buffer_size(size_t originalSize)
 
 
 
-void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function)
+void Vulkan::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function)
 {
 	VkCommandBuffer cmd = _uploadContext._commandBuffer;
 	VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
@@ -2107,7 +1945,7 @@ void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& f
 	vkResetCommandPool(_device, _uploadContext._commandPool, 0);
 }
 
-void VulkanEngine::create_sampler() {
+void Vulkan::create_sampler() {
 
 	// Good as place as any for a turret
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);//VK_FILTER_LINEAR VK_FILTER_NEAREST
@@ -2129,7 +1967,7 @@ void VulkanEngine::create_sampler() {
 
 
 
-void VulkanEngine::create_descriptors()
+void Vulkan::create_descriptors()
 {
 	// Create a descriptor pool that will hold 10 uniform buffers
 	std::vector<VkDescriptorPoolSize> sizes = {
@@ -2202,12 +2040,11 @@ void VulkanEngine::create_descriptors()
 	add_debug_name(_denoiseBTextureDescriptorSet.layout, "_denoiseBTextureDescriptorSet");												// depth aware blur texture
 }
 
-void VulkanEngine::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-	auto enginePointer = reinterpret_cast<VulkanEngine*>(glfwGetWindowUserPointer(window));
-	enginePointer->_frameBufferResized = true;
+void Vulkan::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
+	_frameBufferResized = true;
 }
 
-uint32_t VulkanEngine::getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32* memTypeFound) const
+uint32_t Vulkan::getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32* memTypeFound)
 {
 	for (uint32_t i = 0; i < _memoryProperties.memoryTypeCount; i++) {
 		if ((typeBits & 1) == 1) {
@@ -2230,7 +2067,7 @@ uint32_t VulkanEngine::getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags pr
 }
 
 
-void VulkanEngine::createAccelerationStructureBuffer(AccelerationStructure& accelerationStructure, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo)
+void Vulkan::createAccelerationStructureBuffer(AccelerationStructure& accelerationStructure, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo)
 {
 	// Free the memory if it already exists (which is the case if hotloading shaders causes BLAS for each mesh to be generated)
 	/*if (accelerationStructure.buffer._buffer != VK_NULL_HANDLE) {
@@ -2250,7 +2087,7 @@ void VulkanEngine::createAccelerationStructureBuffer(AccelerationStructure& acce
 	add_debug_name(accelerationStructure.buffer._buffer, "Acceleration Structure Buffer");
 }
 
-uint64_t VulkanEngine::get_buffer_device_address(VkBuffer buffer)
+uint64_t Vulkan::get_buffer_device_address(VkBuffer buffer)
 {
 	VkBufferDeviceAddressInfoKHR bufferDeviceAI{};
 	bufferDeviceAI.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
@@ -2258,7 +2095,7 @@ uint64_t VulkanEngine::get_buffer_device_address(VkBuffer buffer)
 	return vkGetBufferDeviceAddressKHR(_device, &bufferDeviceAI);
 }
 
-RayTracingScratchBuffer VulkanEngine::createScratchBuffer(VkDeviceSize size)
+RayTracingScratchBuffer Vulkan::createScratchBuffer(VkDeviceSize size)
 {
 	RayTracingScratchBuffer scratchBuffer{};
 
@@ -2281,7 +2118,7 @@ RayTracingScratchBuffer VulkanEngine::createScratchBuffer(VkDeviceSize size)
 	return scratchBuffer;
 }
 
-void VulkanEngine::create_rt_buffers()
+void Vulkan::create_rt_buffers()
 {
 	//std::vector<Mesh*> meshes = Scene::GetMeshList();
 	//std::vector<Mesh>& meshes = AssetManager::GetMeshList();
@@ -2402,7 +2239,7 @@ void VulkanEngine::create_rt_buffers()
 	_indexBufferDeviceAddress.deviceAddress = get_buffer_device_address(_rtIndexBuffer._buffer);
 }
 	 
-AccelerationStructure VulkanEngine::createBottomLevelAccelerationStructure(Mesh* mesh)
+AccelerationStructure Vulkan::createBottomLevelAccelerationStructure(Mesh* mesh)
 {
 	VkDeviceOrHostAddressConstKHR vertexBufferDeviceAddress{};
 	VkDeviceOrHostAddressConstKHR indexBufferDeviceAddress{};
@@ -2496,7 +2333,7 @@ AccelerationStructure VulkanEngine::createBottomLevelAccelerationStructure(Mesh*
 }
 
 
-void VulkanEngine::create_top_level_acceleration_structure(std::vector<VkAccelerationStructureInstanceKHR> instances, AccelerationStructure& outTLAS)
+void Vulkan::create_top_level_acceleration_structure(std::vector<VkAccelerationStructureInstanceKHR> instances, AccelerationStructure& outTLAS)
 {
 	if (instances.size() == 0)
 		return;
@@ -2627,7 +2464,7 @@ void VulkanEngine::create_top_level_acceleration_structure(std::vector<VkAcceler
 
 
 
-void VulkanEngine::create_buffers() {
+void Vulkan::create_buffers() {
 
 	// Dynamic
 	for (int i = 0; i < FRAME_OVERLAP; i++) {
@@ -2644,7 +2481,7 @@ void VulkanEngine::create_buffers() {
 	// none as of yet. besides TLAS but that is created elsewhere.
 }
 
-void VulkanEngine::UpdateBuffers() {
+void Vulkan::UpdateBuffers() {
 
 	CameraData camData;
 	camData.proj = GameData::GetProjectionMatrix();
@@ -2724,7 +2561,7 @@ void VulkanEngine::UpdateBuffers() {
 	get_current_frame()._lightRenderInfoBufferInventory.MapRange(_allocator, lightRenderInfoInventory.data(), sizeof(LightRenderInfo) * lightRenderInfoInventory.size());
 }
 
-void VulkanEngine::update_static_descriptor_set() {
+void Vulkan::update_static_descriptor_set() {
 	
 	// Sample
 	VkDescriptorImageInfo samplerImageInfo = {};
@@ -2732,7 +2569,7 @@ void VulkanEngine::update_static_descriptor_set() {
 	_staticDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_SAMPLER, &samplerImageInfo);
 
 	// All textures
-	VkDescriptorImageInfo	textureImageInfo[TEXTURE_ARRAY_SIZE];
+	VkDescriptorImageInfo textureImageInfo[TEXTURE_ARRAY_SIZE];
 	for (uint32_t i = 0; i < TEXTURE_ARRAY_SIZE; ++i) {
 		textureImageInfo[i].sampler = nullptr;
 		textureImageInfo[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -2765,6 +2602,7 @@ void VulkanEngine::update_static_descriptor_set() {
 		_renderTargets.gBufferNormal.insertImageBarrier(cmd, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 		_renderTargets.gBufferRMA.insertImageBarrier(cmd, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 		_gbufferDepthTarget.InsertImageBarrier(cmd, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+		//_renderTargetDenoiseA.insertImageBarrier(cmd, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 		});
 
 
@@ -2789,23 +2627,15 @@ void VulkanEngine::update_static_descriptor_set() {
 
 	storageImageDescriptor2.imageView = _gbufferDepthTarget._view;
 	_samplerDescriptorSet.Update(_device, 4, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
-	//storageImageDescriptor2.imageView = _renderTargets.rt_inventory._view;
-	//_samplerDescriptorSet.Update(_device, 5, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
-	// denoise textures1
-	//																	YOU REMOVED THIS TO SHOWCASE AT TAS THING. YOU COMMENTED OUT ALL THE OTHER DNEOIES STUFF AND THIS WAS GIVING YOU VALIDATION ERRORS
-	VkDescriptorImageInfo storageImageDescriptor3{};
-	storageImageDescriptor3.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-	storageImageDescriptor3.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	storageImageDescriptor3.sampler = _sampler;
-	storageImageDescriptor3.imageView = _renderTargetDenoiseA._view;
-	_denoiseATextureDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor3);
-	storageImageDescriptor3.imageView = _renderTargetDenoiseB._view;
-	_denoiseBTextureDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor3);
-	
+	storageImageDescriptor2.imageView = _renderTargetDenoiseA._view;
+	_denoiseATextureDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
+
+	storageImageDescriptor2.imageView = _renderTargetDenoiseB._view;
+	_denoiseBTextureDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);	
 }
 
-void VulkanEngine::UpdateDynamicDescriptorSet() {
+void Vulkan::UpdateDynamicDescriptorSet() {
 
 	_dynamicDescriptorSetInventory.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &get_current_frame()._inventoryTLAS.handle);
 	_dynamicDescriptorSetInventory.Update(_device, 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, get_current_frame()._inventoryCamDataBuffer.buffer);
@@ -2822,7 +2652,7 @@ void VulkanEngine::UpdateDynamicDescriptorSet() {
 
 
 
-void VulkanEngine::blit_render_target(VkCommandBuffer commandBuffer, RenderTarget& source, RenderTarget& destination, VkFilter filter) {
+void Vulkan::blit_render_target(VkCommandBuffer commandBuffer, RenderTarget& source, RenderTarget& destination, VkFilter filter) {
 	VkImageBlit region;
 	region.srcOffsets[0].x = 0;
 	region.srcOffsets[0].y = 0;
@@ -2850,7 +2680,7 @@ void VulkanEngine::blit_render_target(VkCommandBuffer commandBuffer, RenderTarge
 	vkCmdBlitImage(commandBuffer, source._image, srcLayout, destination._image, dstLayout, regionCount, &region, filter);
 }
 
-void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
+void Vulkan::build_rt_command_buffers(int swapchainIndex)
 {
 	// Now fill your command buffer
 	int32_t frameIndex = _frameNumber % FRAME_OVERLAP;
@@ -3076,7 +2906,7 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 
 	//////////////////////
 	// Denoise Pass(es) //
-	/*
+	//if (false)
 	{
 		
 		// begin by blitting the noisy image into denoiseB texture
@@ -3185,7 +3015,7 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 3, _denoiseATextureDescriptorSet);
 		mesh->draw(commandBuffer, 0);
 		vkCmdEndRendering(commandBuffer);
-	}*/
+	}
 
 
 	////////////////////
@@ -3586,7 +3416,7 @@ void VulkanEngine::build_rt_command_buffers(int swapchainIndex)
 	}
 }
 
-void VulkanEngine::AddDebugText() {
+void Vulkan::AddDebugText() {
 	TextBlitter::ResetDebugText();
 
 	if (_debugMode == DebugMode::RAY) {
@@ -3606,7 +3436,7 @@ void VulkanEngine::AddDebugText() {
 	}
 }
 
-void VulkanEngine::get_required_lines() {
+void Vulkan::get_required_lines() {
 
 	// Generate buffer shit
 	static bool runOnce = true;
@@ -3684,7 +3514,7 @@ void VulkanEngine::get_required_lines() {
 }
 
 
-void VulkanEngine::cmd_SetViewportSize(VkCommandBuffer commandBuffer, int width, int height) {
+void Vulkan::cmd_SetViewportSize(VkCommandBuffer commandBuffer, int width, int height) {
 	VkViewport viewport{};
 	viewport.width = width;
 	viewport.height = height;
@@ -3700,22 +3530,22 @@ void VulkanEngine::cmd_SetViewportSize(VkCommandBuffer commandBuffer, int width,
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 }
 
-void VulkanEngine::cmd_SetViewportSize(VkCommandBuffer commandBuffer, RenderTarget renderTarget) {
+void Vulkan::cmd_SetViewportSize(VkCommandBuffer commandBuffer, RenderTarget renderTarget) {
 	cmd_SetViewportSize(commandBuffer, renderTarget._extent.width, renderTarget._extent.height);
 }
 
-void VulkanEngine::cmd_BindPipeline(VkCommandBuffer commandBuffer, HellPipeline& pipeline) {
+void Vulkan::cmd_BindPipeline(VkCommandBuffer commandBuffer, HellPipeline& pipeline) {
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
 }
 
-void VulkanEngine::cmd_BindDescriptorSet(VkCommandBuffer commandBuffer, HellPipeline& pipeline, uint32_t setIndex, HellDescriptorSet& descriptorSet) {
+void Vulkan::cmd_BindDescriptorSet(VkCommandBuffer commandBuffer, HellPipeline& pipeline, uint32_t setIndex, HellDescriptorSet& descriptorSet) {
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, setIndex, 1, &descriptorSet.handle, 0, nullptr);
 }
 
-void VulkanEngine::cmd_BindRayTracingPipeline(VkCommandBuffer commandBuffer, VkPipeline pipeline) {
+void Vulkan::cmd_BindRayTracingPipeline(VkCommandBuffer commandBuffer, VkPipeline pipeline) {
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline);
 }
 
-void VulkanEngine::cmd_BindRayTracingDescriptorSet(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, uint32_t setIndex, HellDescriptorSet& descriptorSet) {
+void Vulkan::cmd_BindRayTracingDescriptorSet(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, uint32_t setIndex, HellDescriptorSet& descriptorSet) {
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, setIndex, 1, &descriptorSet.handle, 0, nullptr);
 }

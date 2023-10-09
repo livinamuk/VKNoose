@@ -2,6 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include "shaderc/shaderc.hpp"
+#include "../vk_engine.h"
 
 std::string read_file(std::string filepath)
 {
@@ -115,6 +116,15 @@ bool load_shader(VkDevice device, std::string filePath, VkShaderStageFlagBits fl
 	*outShaderModule = shaderModule;
 
 	//std::cout << "Loaded shader: " << filePath << "\n";
+
+
+	VkDebugUtilsObjectNameInfoEXT nameInfo = {};
+	nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+	nameInfo.objectType = VK_OBJECT_TYPE_SHADER_MODULE;
+	nameInfo.objectHandle = (uint64_t)shaderModule;
+	nameInfo.pObjectName = filePath.c_str();
+	Vulkan::vkSetDebugUtilsObjectNameEXT(Vulkan::GetDevice(), &nameInfo);
+
 	return true;
 }
 

@@ -9,10 +9,10 @@ layout(location = 2) rayPayloadEXT Payload payload;
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
 layout(set = 0, binding = 1) uniform CameraData_ { CameraData data; } cam;
 
-layout(set = 1, binding = 4, rgba8) uniform image2D image;
-layout(set = 1, binding = 5) writeonly buffer MousepickData { uint i[]; } mousepickData;
+layout(set = 1, binding = 4, rgba8) uniform image2D image_firstBounce;
+//layout(set = 1, binding = 5) writeonly buffer MousepickData { uint i[]; } mousepickData;
 layout(set = 1, binding = 6, rgba8) uniform image2D image_normals;
-layout(set = 1, binding = 7, rgba8) uniform image2D image_depth;
+layout(set = 1, binding = 7, rgba8) uniform image2D image_secondBounce;
 
 // Random number generation using pcg32i_random_t, using inc = 1. Our random state is a uint.
 uint stepRNG(uint rngState) {
@@ -78,6 +78,7 @@ void main()
 	
     vec3 color = vec3(0.0);
     vec3 firstBounce = vec3(0.0);
+    vec3 secondBounce = vec3(0.0);
 	
 	
 	// Initial seed
@@ -123,13 +124,12 @@ void main()
 		const vec2 screenUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
 		vec2 d2 = screenUV * 2.0 - 1.0;	
 		vec4 direction = cam.data.viewInverse*vec4(normalize(target.xyz / target.w), 0);
-		vec3 rayDirection = normalize(direction.xyz);
-			
+				
 		origin = cam.data.viewInverse * vec4(0,0,0,1);
 		target = cam.data.projInverse * vec4(d2.x, d2.y, 1, 1);			
 						
 		rayPayload.nextRayOrigin = origin.xyz;
-		rayPayload.nextRayDirection = rayDirection;
+		rayPayload.nextRayDirection = normalize(direction.xyz);;
 		rayPayload.nextFactor = vec3(1.0);
 		
 		vec3 contribution = vec3(1.0);
@@ -138,7 +138,7 @@ void main()
 		for (int j = 0; j < 1; j++) 
 		{				
 			rayPayload.bounce = 0;
-			traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, rayPayload.nextRayOrigin, tmin, rayDirection, tmax, 0);				
+			traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, rayPayload.nextRayOrigin, tmin, rayPayload.nextRayDirection, tmax, 0);				
 			vertexNormal = rayPayload.vertexNormal * 0.5 + 0.5;
 
 			meshIndex = rayPayload.meshIndex;
@@ -156,6 +156,10 @@ void main()
 				transparentAccumulation.xyz += rayPayload.color * rayPayload.alpha;
 					
 				hitTranslucent = true;
+				j--;
+			}
+			// Mirror 
+			else if (rayPayload.hitType == HIT_TYPE_MIRROR || rayPayload.hitType == HIT_TYPE_GLASS) {				
 				j--;
 			}
 		}		
@@ -177,6 +181,9 @@ void main()
 			vec3 diffuseDir = getNormalSpace(finalNormal) * localDiffuseDir;
 			indirectRayDIrection = diffuseDir;
 
+			// Check if ray points INSIDE geometry, interestingly this is so rare so you just ignore it.
+			//float dotTest = dot(diffuseDir, finalNormal);
+
 			rayPayload.bounce = 1; 
 			traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, indirectRayOrigin, tmin, indirectRayDIrection, tmax, 0);
 				
@@ -184,6 +191,12 @@ void main()
 
 			vec3 col = indirectContribution;// + firstBounce;
 			newFinal = col;
+
+			secondBounce += col;
+
+		//	secondBounce = rayPayload.nextFactor;
+
+			//newFinal = vec3(dotTest);
 		}	
 		
 		
@@ -194,10 +207,11 @@ void main()
 	}
 
 
-
+	
 	color = totalColor / sampleCount;
-
-	//color = firstBounce;
+	secondBounce = secondBounce / sampleCount;
+	//color.xyz = mix(firstBounce, color, 0.8);
+	//color += firstBounce;
 
 	// Tonemap
 	color.xyz = pow(color.xyz, vec3(1.0/2.2)); 
@@ -231,19 +245,24 @@ void main()
 		color *= vec3(0.325);
 	}
 
-//	color = firstBounce;
-
+	color = firstBounce;
+	//secondBounce = finalNormal;
 
 	if (rayPayload.writeToImageStore == 1) 
 	{
 
 		// Is this inventory screen?
 		if (cam.data.inventoryOpen == 2) {
-			imageStore(image, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(color, 0));
+			imageStore(image_firstBounce, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(firstBounce, 0));
+			imageStore(image_secondBounce, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(secondBounce, 0));
+			imageStore(image_normals, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(finalNormal, 0));
 		} 
 		// Otherwise draw at actual x/y
 		else {
-			imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(color, 0));
+			imageStore(image_firstBounce, ivec2(gl_LaunchIDEXT.xy), vec4(firstBounce, 0));
+			imageStore(image_secondBounce, ivec2(gl_LaunchIDEXT.xy), vec4(secondBounce, 0));
+			imageStore(image_normals, ivec2(gl_LaunchIDEXT.xy), vec4(finalNormal, 0));
+			//imageStore(image_normals, ivec2(gl_LaunchIDEXT.xy), vec4(color, 0));
 		}
 	}
 //	if (rayPayload.writeToImageStore == 1)

@@ -525,7 +525,7 @@ void Scene::Init()
 	cube2.SetName("Cube2");
 	cube2.SetMaterialType(MaterialType::GLASS);
 
-	GameObject& cube3 = _gameObjects.emplace_back(GameObject());
+	/*GameObject& cube3 = _gameObjects.emplace_back(GameObject());
 	cube3.SetModel("Cube");
 	cube3.SetMeshMaterial("Red");
 	cube3.SetScale(glm::vec3(0.5, 0.174, 0.5));
@@ -533,7 +533,7 @@ void Scene::Init()
 	cube3.SetRotationY(0.2);
 	cube3.SetParentName("Cube2");
 	cube3.SetName("Cube3");
-	cube3.SetMaterialType(MaterialType::TRANSLUCENT);
+	cube3.SetMaterialType(MaterialType::TRANSLUCENT);*/
 	//cube2.EnableCollision();
 	//cube2.SetBoundingBoxFromMesh(0);
 

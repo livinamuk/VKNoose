@@ -21,6 +21,7 @@
 #include "Renderer/Shader.h"
 #include "UI/TextBlitter.h"
 
+
 constexpr unsigned int FRAME_OVERLAP = 2;
 
 class PipelineBuilder {
@@ -129,8 +130,21 @@ struct RayTracingScratchBuffer
 };
 
 
-class VulkanEngine {
-public:
+namespace Vulkan {
+
+	void Init();
+	void CreateWindow();
+	void CreateInstance();
+	void SelectPhysicalDevice(); 
+	void LoadShaders();
+	void CreateSwapchain();
+	
+	void cleanup_shaders();
+	void hotload_shaders();
+
+	VmaAllocator GetAllocator();
+	VkDevice GetDevice();
+
 
 	void create_buffers();
 	void UpdateBuffers();
@@ -145,37 +159,37 @@ public:
 	void cmd_BindRayTracingPipeline(VkCommandBuffer commandBuffer, VkPipeline pipeline);
 	void cmd_BindRayTracingDescriptorSet(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, uint32_t setIndex, HellDescriptorSet& descriptorSet);
 
-	uint32_t _frameIndex;
+	inline uint32_t _frameIndex;
 
-	HellDescriptorSet _staticDescriptorSet;
-	HellDescriptorSet _dynamicDescriptorSet;
-	HellDescriptorSet _dynamicDescriptorSetInventory;
-	HellDescriptorSet _samplerDescriptorSet;
-	HellDescriptorSet _denoiseATextureDescriptorSet;
-	HellDescriptorSet _denoiseBTextureDescriptorSet;
+	inline HellDescriptorSet _staticDescriptorSet;
+	inline HellDescriptorSet _dynamicDescriptorSet;
+	inline HellDescriptorSet _dynamicDescriptorSetInventory;
+	inline HellDescriptorSet _samplerDescriptorSet;
+	inline HellDescriptorSet _denoiseATextureDescriptorSet;
+	inline HellDescriptorSet _denoiseBTextureDescriptorSet;
 
-	HellPipeline _textBlitterPipeline;
-	HellPipeline _rasterPipeline;
-	HellPipeline _denoisePipeline;
-	HellPipeline _computePipeline;
-	HellPipeline _compositePipeline;
+	inline HellPipeline _textBlitterPipeline;
+	inline HellPipeline _rasterPipeline;
+	inline HellPipeline _denoisePipeline;
+	inline HellPipeline _computePipeline;
+	inline HellPipeline _compositePipeline;
 
-	RenderTarget _renderTargetDenoiseA;
-	RenderTarget _renderTargetDenoiseB;
+	inline RenderTarget _renderTargetDenoiseA;
+	inline RenderTarget _renderTargetDenoiseB;
 	
-	VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeaturesKHR{};
+	inline VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeaturesKHR{};
 
-	VkSampler _sampler; 
+	inline VkSampler _sampler;
 
-	bool _shouldClose{ false };
+	inline bool _shouldClose{ false };
 	 
 	// Render target shit
-	VkExtent2D _currentWindowExtent{ 512 , 288  };
+	inline VkExtent2D _currentWindowExtent{ 512 , 288  };
 	//VkExtent2D _fullscreenModeExtent{ 512 , 288  };
-	const VkExtent2D _windowedModeExtent{ 512 * 4, 288 * 4 };
-	const VkExtent3D _renderTargetPresentExtent = { 512 , 288  , 1 };
+	inline const VkExtent2D _windowedModeExtent{ 512 * 4, 288 * 4 };
+	inline const VkExtent3D _renderTargetPresentExtent = { 512 , 288  , 1 };
 	
-	struct RenderTargets {
+	inline struct RenderTargets {
 		RenderTarget present;
 		RenderTarget rt_scene;
 		RenderTarget rt_normals;
@@ -188,60 +202,58 @@ public:
 		RenderTarget composite;
 	} _renderTargets;
 
-	GLFWwindow* _window;
+	inline GLFWwindow* _window;
 
-	int _frameNumber{ 0 };
+	inline int _frameNumber{ 0 };
 	//int _selectedShader{ 0 };
-	DebugMode _debugMode = DebugMode::NONE;
+	inline DebugMode _debugMode = DebugMode::NONE;
 
-	VkInstance _instance;
-	VkDebugUtilsMessengerEXT _debug_messenger;
-	VkPhysicalDevice _chosenGPU;
-	VkDevice _device;
+	inline VkInstance _instance;
+	inline VkPhysicalDevice _physicalDevice;
 
-	VkPhysicalDeviceProperties _gpuProperties;
+	inline VkPhysicalDeviceProperties _gpuProperties;
 
-	FrameData _frames[FRAME_OVERLAP];
+	inline FrameData _frames[FRAME_OVERLAP];
 
-	VkQueue _graphicsQueue;
-	uint32_t _graphicsQueueFamily;
+	inline VkQueue _graphicsQueue;
+	inline uint32_t _graphicsQueueFamily;
 
-	VkSurfaceKHR _surface;
-	VkSwapchainKHR _swapchain;
-	VkFormat _swachainImageFormat;
+	inline VkSurfaceKHR _surface;
+	inline VkSwapchainKHR _swapchain;
+	inline VkFormat _swachainImageFormat;
 
-	std::vector<VkFramebuffer> _framebuffers;
-	std::vector<VkImage> _swapchainImages;
-	std::vector<VkImageView> _swapchainImageViews;
+	inline std::vector<VkFramebuffer> _framebuffers;
+	inline std::vector<VkImage> _swapchainImages;
+	inline std::vector<VkImageView> _swapchainImageViews;
 
-	DeletionQueue _mainDeletionQueue;
+	inline DeletionQueue _mainDeletionQueue;
 
-	VmaAllocator _allocator; //vma lib allocator
+	
 
-	HellDepthTarget _presentDepthTarget;
-	HellDepthTarget _gbufferDepthTarget;
+	inline HellDepthTarget _presentDepthTarget;
+	inline HellDepthTarget _gbufferDepthTarget;
 
-	VkFormat _depthFormat;
+	inline VkFormat _depthFormat;
 
-	VkDescriptorPool _descriptorPool;
+	inline VkDescriptorPool _descriptorPool;
 
-	UploadContext _uploadContext;
+	inline UploadContext _uploadContext;
 
 	// Shaders
-	VkShaderModule _gbuffer_vertex_shader = nullptr;
-	VkShaderModule _gbuffer_fragment_shader = nullptr;
-	VkShaderModule _solid_color_vertex_shader = nullptr;
-	VkShaderModule _solid_color_fragment_shader = nullptr;
-	VkShaderModule _text_blitter_vertex_shader = nullptr;
-	VkShaderModule _text_blitter_fragment_shader = nullptr;
-	VkShaderModule _depth_aware_blur_vertex_shader = nullptr;
-	VkShaderModule _depth_aware_blur_fragment_shader = nullptr;
-	VkShaderModule _denoiser_compute_shader = nullptr;
-	VkShaderModule _composite_vertex_shader = nullptr;
-	VkShaderModule _composite_fragment_shader = nullptr;
+	inline VkShaderModule _gbuffer_vertex_shader = nullptr;
+	inline VkShaderModule _gbuffer_fragment_shader = nullptr;
+	inline VkShaderModule _solid_color_vertex_shader = nullptr;
+	inline VkShaderModule _solid_color_fragment_shader = nullptr;
+	inline VkShaderModule _text_blitter_vertex_shader = nullptr;
+	inline VkShaderModule _text_blitter_fragment_shader = nullptr;
+	inline VkShaderModule _depth_aware_blur_vertex_shader = nullptr;
+	inline VkShaderModule _depth_aware_blur_fragment_shader = nullptr;
+	inline VkShaderModule _denoiser_compute_shader = nullptr;
+	inline VkShaderModule _composite_vertex_shader = nullptr;
+	inline VkShaderModule _composite_fragment_shader = nullptr;
 
 	//initializes everything in the engine
-	void init();
+	
 	void init_raytracing();
 	void cleanup();
 	void draw();
@@ -252,71 +264,71 @@ public:
 	// Pipelines
 
 
-	VkPipeline _linelistPipeline;
-	VkPipelineLayout _linelistPipelineLayout;
+	inline VkPipeline _linelistPipeline;
+	inline VkPipelineLayout _linelistPipelineLayout;
 
-	FrameData& get_current_frame();
-	FrameData& get_last_frame();
+	inline FrameData& get_current_frame();
+	inline FrameData& get_last_frame();
 
-	Mesh _lineListMesh;
+	inline Mesh _lineListMesh;
 
 
-	HellRaytracer _raytracer;
-	HellRaytracer _raytracerPath;
-	HellRaytracer _raytracerMousePick;
+	inline HellRaytracer _raytracer;
+	inline HellRaytracer _raytracerPath;
+	inline HellRaytracer _raytracerMousePick;
 
-	bool _collisionEnabled = true;
-	bool _debugScene = false;
-	bool _renderGBuffer = false;// true;
-	bool _usePathRayTracer = true;// true;
+	inline bool _collisionEnabled = true;
+	inline bool _debugScene = false;
+	inline bool _renderGBuffer = false;// true;
+	inline bool _usePathRayTracer = true;// true;
 
 		// Ray tracing
 
 		RayTracingScratchBuffer createScratchBuffer(VkDeviceSize size);
-		uint32_t getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32* memTypeFound = nullptr) const;
-		VkPhysicalDeviceMemoryProperties _memoryProperties;
+		uint32_t getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32* memTypeFound = nullptr);
+		inline VkPhysicalDeviceMemoryProperties _memoryProperties;
 
-		PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR;
-		PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR;
-		PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR;
-		PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR;
-		PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR;
-		PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR;
-		PFN_vkBuildAccelerationStructuresKHR vkBuildAccelerationStructuresKHR;
-		PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR;
-		PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR;
-		PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR;
-		PFN_vkDebugMarkerSetObjectTagEXT pfnDebugMarkerSetObjectTag;
-		PFN_vkDebugMarkerSetObjectNameEXT pfnDebugMarkerSetObjectName;
-		PFN_vkCmdDebugMarkerBeginEXT pfnCmdDebugMarkerBegin;
-		PFN_vkCmdDebugMarkerEndEXT pfnCmdDebugMarkerEnd;
-		PFN_vkCmdDebugMarkerInsertEXT pfnCmdDebugMarkerInsert; 
-		PFN_vkSetDebugUtilsObjectNameEXT vkSetDebugUtilsObjectNameEXT;
+		inline PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR;
+		inline PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR;
+		inline PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR;
+		inline PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR;
+		inline PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR;
+		inline PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR;
+		inline PFN_vkBuildAccelerationStructuresKHR vkBuildAccelerationStructuresKHR;
+		inline PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR;
+		inline PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR;
+		inline PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR;
+		inline PFN_vkDebugMarkerSetObjectTagEXT pfnDebugMarkerSetObjectTag;
+		inline PFN_vkDebugMarkerSetObjectNameEXT pfnDebugMarkerSetObjectName;
+		inline PFN_vkCmdDebugMarkerBeginEXT pfnCmdDebugMarkerBegin;
+		inline PFN_vkCmdDebugMarkerEndEXT pfnCmdDebugMarkerEnd;
+		inline PFN_vkCmdDebugMarkerInsertEXT pfnCmdDebugMarkerInsert;
+		inline PFN_vkSetDebugUtilsObjectNameEXT vkSetDebugUtilsObjectNameEXT;
 
-			VkPhysicalDeviceRayTracingPipelinePropertiesKHR  _rayTracingPipelineProperties{};
-			VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{};
+		inline VkPhysicalDeviceRayTracingPipelinePropertiesKHR  _rayTracingPipelineProperties{};
+		inline VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{};
 
 			void create_rt_buffers();
-			AccelerationStructure createBottomLevelAccelerationStructure(Mesh* mesh);
+			inline AccelerationStructure createBottomLevelAccelerationStructure(Mesh* mesh);
 			void create_top_level_acceleration_structure(std::vector<VkAccelerationStructureInstanceKHR> instances, AccelerationStructure& outTLAS);
 			
 			void build_rt_command_buffers(int swapchainIndex);
-			AllocatedBuffer _rtVertexBuffer;
-			AllocatedBuffer _rtIndexBuffer;
-			AllocatedBuffer _mousePickResultBuffer;
-			AllocatedBuffer _mousePickResultCPUBuffer; // for mouse picking
-			uint32_t _rtIndexCount;
+			inline AllocatedBuffer _rtVertexBuffer;
+			inline AllocatedBuffer _rtIndexBuffer;
+			inline AllocatedBuffer _mousePickResultBuffer;
+			inline AllocatedBuffer _mousePickResultCPUBuffer; // for mouse picking
+			inline uint32_t _rtIndexCount;
 
-			VkDeviceOrHostAddressConstKHR _vertexBufferDeviceAddress{};
-			VkDeviceOrHostAddressConstKHR _indexBufferDeviceAddress{};
-			VkDeviceOrHostAddressConstKHR _transformBufferDeviceAddress{};
+			inline VkDeviceOrHostAddressConstKHR _vertexBufferDeviceAddress{};
+			inline VkDeviceOrHostAddressConstKHR _indexBufferDeviceAddress{};
+			inline VkDeviceOrHostAddressConstKHR _transformBufferDeviceAddress{};
 
-			AllocatedBuffer _rtInstancesBuffer;
+			inline AllocatedBuffer _rtInstancesBuffer;
 
 
 
-	bool _frameBufferResized = false;
-	bool was_frame_buffer_resized() { return _frameBufferResized; }
+	
+	//bool was_frame_buffer_resized() { return _frameBufferResized; }
 	static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 
 
@@ -335,9 +347,6 @@ public:
 	//VkCommandBuffer beginSingleTimeCommands();
 	//void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 
-private:
-	void init_vulkan();
-	void create_swapchain();
 	//void init_commands();
 	void create_sync_structures();
 	void create_descriptors();
@@ -346,9 +355,7 @@ private:
 	void upload_mesh(Mesh& mesh);
 
 	void recreate_dynamic_swapchain();
-	void load_shaders();
-	void cleanup_shaders();
-	void hotload_shaders();
+
 
 	void create_command_buffers();
 	void create_pipelines();

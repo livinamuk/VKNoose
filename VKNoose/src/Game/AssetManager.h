@@ -94,10 +94,10 @@ namespace AssetManager
 	bool convert_image(const std::string inputPath, const std::string outputPath);
 
 	void Init();
-	void LoadFont(VulkanEngine& engine);
+	void LoadFont();
 	void LoadHardcodedMesh();
 	void LoadModels();
-	void LoadTextures(VulkanEngine& engine);
+	void LoadTextures();
 	void BuildMaterials();
 
 	//int CreateMesh(); 
@@ -125,7 +125,7 @@ namespace AssetManager
 
 	std::vector<Mesh>& GetMeshList();
 
-	bool load_image_from_file(VulkanEngine& engine, const char* file, Texture& outTexture, VkFormat imageFormat, bool generateMips = false);
+	bool load_image_from_file(const char* file, Texture& outTexture, VkFormat imageFormat, bool generateMips = false);
 
 	int GetNumberOfTextures();
 	bool TextureExists(const std::string& name);

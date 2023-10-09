@@ -16,7 +16,7 @@ struct CameraData {
 #define HIT_TYPE_UNDEFINED      0
 #define HIT_TYPE_SOLID          1
 #define HIT_TYPE_TRANSULUCENT   2
-#define HIT_TYPE_MIRRORS        3
+#define HIT_TYPE_MIRROR         3
 #define HIT_TYPE_GLASS          4
 #define HIT_TYPE_MISS           5
 
