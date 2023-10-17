@@ -89,7 +89,7 @@ void main()
 	uint rngState = resolution.x * pixel.y + pixel.x + cam.data.frameIndex * 45678;
 	
 
-	int sampleCount = 4;
+	int sampleCount = 1;
 	vec3 totalColor = vec3(0);
 
 	vec3 finalNormal = vec3(0);
@@ -192,8 +192,10 @@ void main()
 			vec3 col = indirectContribution;// + firstBounce;
 			newFinal = col;
 
-			secondBounce += col;
+			//secondBounce += col;
+			secondBounce += mix(firstBounce, newFinal, 0.8);
 
+			secondBounce = indirectContribution;
 		//	secondBounce = rayPayload.nextFactor;
 
 			//newFinal = vec3(dotTest);

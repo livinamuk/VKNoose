@@ -129,6 +129,16 @@ namespace Util {
 	inline void SetTangentsFromVertices(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
 		if (vertices.size() > 0) {
 			for (int i = 0; i < indices.size(); i += 3) {
+
+				if (i + 2 > indices.size()) {
+					std::cout << "you have a problem\n";
+					//return;
+				}
+				if (indices[i + 2] > vertices.size()) {
+					std::cout << "you have another problem\n";
+					//return;
+				}
+
 				Vertex* vert0 = &vertices[indices[i]];
 				Vertex* vert1 = &vertices[indices[i + 1]];
 				Vertex* vert2 = &vertices[indices[i + 2]];

@@ -3,6 +3,10 @@
 #include "Player.h"
 
 namespace GameData {	
+
+	void Init();
+	void Update();
+
 	void AddInventoryItem(std::string name);
 	void RemoveInventoryItem(int index);
 	void RemoveInventoryItemByName(std::string name);
@@ -19,6 +23,7 @@ namespace GameData {
 	glm::vec3 GetCameraPosition();
 	void InitInventoryItemData(); 
 
+	float GetDeltaTime();
 
 	extern float _cameraZoom;
 

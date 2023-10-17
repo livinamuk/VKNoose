@@ -136,6 +136,7 @@
     <ClInclude Include="src\IO\keycodes.h" />
     <ClInclude Include="src\Profiler.h" />
     <ClInclude Include="src\Renderer\Material.hpp" />
+    <ClInclude Include="src\Renderer\Pipeline.hpp" />
     <ClInclude Include="src\Renderer\RasterRenderer.h" />
     <ClInclude Include="src\Renderer\Shader.h" />
     <ClInclude Include="src\UI\TextBlitter.h" />

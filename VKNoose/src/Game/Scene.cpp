@@ -73,7 +73,7 @@ void Scene::Init()
 	//bathroom_ceiling.SetScale(glm::vec3(1, -1, 1));
 
 	GameObject& skull = _gameObjects.emplace_back(GameObject());
-	skull.SetModel("skull");
+	skull.SetModel("BlackSkull");
 	skull.SetRotationY(3.7f);
 	skull.SetPosition(glm::vec3(-4, 0, -4));
 	skull.SetScale(2);
@@ -144,7 +144,7 @@ void Scene::Init()
 	}
 
 	GameObject& skull2 = _gameObjects.emplace_back(GameObject());
-	skull2.SetModel("skull");
+	skull2.SetModel("BlackSkull");
 	skull2.SetParentName("ChestOfDrawers");
 	skull2.SetRotationY(1.6f);
 	skull2.SetPosition(glm::vec3(-0.4f, 1.15f, -1.675f + 2.0f));
@@ -156,7 +156,7 @@ void Scene::Init()
 	
 
 	GameObject& wife = _gameObjects.emplace_back(GameObject());
-	wife.SetModel("wife");
+	wife.SetModel("Wife");
 	wife.SetName("Wife");
 	wife.SetPosition(0.6f, 2.6f, 0.9f);
 	wife.SetRotationY(-1.75f);
@@ -166,9 +166,12 @@ void Scene::Init()
 	wife.SetMeshMaterialByMeshName("CC_Base_Teeth", "WifeTeeth");
 	wife.SetMeshMaterialByMeshName("CC_Game_Body", "WifeSkin");
 	wife.SetMeshMaterialByMeshName("CC_Game_Tongue", "WifeSkin");
-	wife.SetMeshMaterialByMeshName("F_BS_wDress_L", "WifeDress");
-	wife.SetMeshMaterialByMeshName("WifeDress_low", "WifeDress"); 
+	wife.SetMeshMaterialByMeshName("Dress", "WifeDress");
+	wife.SetMeshMaterialByMeshName("F_BS_wDress_L", "WifeDress2");
+	wife.SetMeshMaterialByMeshName("WifeDress_low", "WifeDress2");
+	wife.SetMeshMaterialByMeshName("WifeDress_low_0", "WifeDress2");
 	wife.SetMeshMaterialByMeshName("Noose_pivot", "Noose");
+	wife.SetMeshMaterialByMeshName("Noose", "Noose");
 	wife.SetMeshMaterialByMeshName("Object001", "Noose");
 	wife.SetMeshMaterialByMeshName("Rope_Low", "Noose");
 
@@ -201,7 +204,7 @@ void Scene::Init()
 	float hallDoorX = 0.5f;
 
 	GameObject& door0 = _gameObjects.emplace_back(GameObject());
-	door0.SetModel("door");
+	door0.SetModel("Door");
 	door0.SetName("Door");
 	door0.SetMeshMaterial("Door");
 	door0.SetRotationY(NOOSE_HALF_PI);
@@ -214,14 +217,14 @@ void Scene::Init()
 	door0.SetOpenAxis(OpenAxis::ROTATION_NEG_Y);
 
 	GameObject& doorFrame0 = _gameObjects.emplace_back(GameObject());
-	doorFrame0.SetModel("door_frame"); 
+	doorFrame0.SetModel("DoorFrame"); 
 	doorFrame0.SetName("DoorFrame");
 	doorFrame0.SetMeshMaterial("Door");
 	doorFrame0.SetRotationY(NOOSE_HALF_PI);
 	doorFrame0.SetPosition(hallDoorX, 0, -2.05 + 0.2f);
 
 	GameObject& door1 = _gameObjects.emplace_back(GameObject());
-	door1.SetModel("door");
+	door1.SetModel("Door");
 	door1.SetName("Door");
 	door1.SetMeshMaterial("Door");
 	door1.SetRotationY(NOOSE_HALF_PI);
@@ -234,7 +237,7 @@ void Scene::Init()
 
 
 	GameObject& doorFrame1 = _gameObjects.emplace_back(GameObject());
-	doorFrame1.SetModel("door_frame");
+	doorFrame1.SetModel("DoorFrame");
 	doorFrame1.SetName("DoorFrame");
 	doorFrame1.SetMeshMaterial("Door");
 	doorFrame1.SetRotationY(-NOOSE_HALF_PI);
@@ -251,7 +254,7 @@ void Scene::Init()
 	lightSwitch.SetInteract(InteractType::CALLBACK_ONLY, "", Callbacks::TurnBedroomLightOff);
 
 	GameObject& vase = _gameObjects.emplace_back(GameObject());
-	vase.SetModel("vase");
+	vase.SetModel("Vase");
 	vase.SetRotationY(-0.6f - NOOSE_HALF_PI);
 	vase.SetPosition(1.6f - 0.4f, 1.49f, 0.395f);
 	vase.SetMeshMaterial("Vase");
@@ -265,7 +268,7 @@ void Scene::Init()
 	keyInVase.SetName("Small Key");
 	
 	GameObject& flowers = _gameObjects.emplace_back(GameObject());
-	flowers.SetModel("flowers");
+	flowers.SetModel("Flowers");
 	flowers.SetRotationY(-0.6f - NOOSE_HALF_PI);
 	flowers.SetPosition(1.6f - 0.4f, 1.49f, 0.395f);
 	flowers.SetMeshMaterial("Flowers");
@@ -484,7 +487,7 @@ void Scene::Init()
 
 
 	GameObject& bed = _gameObjects.emplace_back(GameObject());
-	bed.SetModel("Bed");
+	bed.SetModel("BedNoPillows");
 	bed.SetMeshMaterial("BedFabrics");
 	bed.SetPosition(-2.75, 0.0, 0);
 	bed.SetRotationY(NOOSE_PI / 2);
@@ -670,7 +673,7 @@ void Scene::Init()
 		trim.SetPosition(wall._begin.x, CEILING_HEIGHT - 2.4f, wall._begin.z);
 		trim.SetRotationY(Util::YRotationBetweenTwoPoints(wall._begin, wall._end));
 		trim.SetScaleX(glm::distance(wall._end, wall._begin));
-		trim.SetModel("trims_ceiling");
+		trim.SetModel("TrimCeiling");
 		trim.SetMeshMaterial("Trims");
 	}
 }
@@ -706,9 +709,9 @@ void Scene::UpdateInventoryScene(float deltaTime) {
 
 	// If inventory is closed, snap the camera to the next item, so that nothing is scrolling when you re-open the inventory
 	if (!GameData::inventoryOpen) {
-		camXOffset = _selectedInventoryItemIndex;
-		zoomTarget = 0;
-		zoomValue = 0;
+		camXOffset = (float)_selectedInventoryItemIndex;
+		zoomTarget = 0.0f;
+		zoomValue = 0.0f;
 		return;
 	}
 
@@ -825,10 +828,10 @@ void Scene::UpdateInventoryScene(float deltaTime) {
 	else if (GameData::_inventoryViewMode == InventoryViewMode::EXAMINE) {
 
 		if (Input::MouseWheelUp()) {
-			zoomTarget += 0.1;
+			zoomTarget += 0.1f;
 		}
 		if (Input::MouseWheelDown()) {
-			zoomTarget -= 0.1;
+			zoomTarget -= 0.1f;
 		}
 
 		zoomTarget = std::min(0.40f, zoomTarget);
@@ -963,7 +966,7 @@ void Scene::Update(float deltaTime) {
 		if (wifeNew)
 			Scene::GetGameObjectByName("Wife")->SetModel("wife");
 		else
-			Scene::GetGameObjectByName("Wife")->SetModel("wife2");
+			Scene::GetGameObjectByName("Wife")->SetModel("WifeOld");
 	}
 
 	if (camera._state == Camera::State::USING_LAPTOP) {
@@ -1103,12 +1106,12 @@ void Scene::Update(float deltaTime) {
 	}
 	if (!forceDisable) {
 		sway += (3.89845f * deltaTime);
-		offset = sin(sway) * 0.03;
+		offset = sin(sway) * 0.03f;
 	}
 	GameObject* wife = GetGameObjectByName("Wife");
 	if (wife) {
 		wife->SetRotationX(0.075f - offset * 0.045f);
-		wife->SetRotationY(-1.75 + offset);
+		wife->SetRotationY(-1.75f + offset);
 		wife->SetRotationZ(-offset * 0.045f);
 	}
 

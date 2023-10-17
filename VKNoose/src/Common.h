@@ -74,6 +74,12 @@ struct VertexInputDescription {
 	std::vector<VkVertexInputBindingDescription> bindings;
 	std::vector<VkVertexInputAttributeDescription> attributes;
 	VkPipelineVertexInputStateCreateFlags flags = 0;
+
+	void Reset() {
+		bindings.clear();
+		attributes.clear();
+		flags = 0;
+	}
 };
 
 struct Vertex {

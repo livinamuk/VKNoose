@@ -126,26 +126,3 @@ void HellBuffer::MapRange(VmaAllocator allocator, void* srcData, size_t size) {
 void HellBuffer::Destroy(VmaAllocator allocator) {
 	vmaDestroyBuffer(allocator, buffer, allocation);
 }
-
-
-///////////////////
-// Hell Pipeline //
-
-void HellPipeline::PushDescriptorSetLayout(VkDescriptorSetLayout layout) {
-	descriptorSetLayouts.push_back(layout);
-}
-
-void HellPipeline::CreatePipelineLayout(VkDevice device) {
-	VkPipelineLayoutCreateInfo info{};
-	info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	info.setLayoutCount = descriptorSetLayouts.size();
-	info.pSetLayouts = descriptorSetLayouts.data();
-	info.pNext = nullptr;
-	VK_CHECK(vkCreatePipelineLayout(device, &info, nullptr, &layout));
-}
-
-void HellPipeline::Cleanup(VkDevice device) {
-	vkDestroyPipeline(device, handle, nullptr);
-	vkDestroyPipelineLayout(device, layout, nullptr);
-	descriptorSetLayouts.clear();
-}

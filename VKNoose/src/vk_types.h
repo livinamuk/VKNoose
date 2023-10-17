@@ -52,15 +52,6 @@ struct HellBuffer {
 	void Destroy(VmaAllocator allocator);
 };
 
-struct HellPipeline {
-	VkPipeline handle;
-	VkPipelineLayout layout;
-	std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
-	void PushDescriptorSetLayout(VkDescriptorSetLayout layout);
-	void CreatePipelineLayout(VkDevice device);
-	void Cleanup(VkDevice device);
-};
-
 struct HellDepthTarget {
 	VkImage _image = VK_NULL_HANDLE;
 	VkImageView _view = VK_NULL_HANDLE;

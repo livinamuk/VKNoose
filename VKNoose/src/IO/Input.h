@@ -1,11 +1,10 @@
 #pragma once
-#include <GLFW/glfw3.h>
 #include "keycodes.h"
 
-namespace Input 
-{
-	void Init(int windowWidth, int windowHeight);
-	void Update(GLFWwindow* window);
+namespace Input {
+
+	void SetMousePos(int x, int y);
+	void Update();
 	bool KeyPressed(unsigned int keycode);
 	bool KeyDown(unsigned int keycode);
 	float GetMouseOffsetX();
@@ -18,6 +17,7 @@ namespace Input
 	bool MouseWheelDown();
 	void PreventRightMouseHold();
 	void ForceSetStoredMousePosition(int x, int y);
+
 	inline int _mouseWheelValue = 0;
 	inline int _sensitivity = 100;
 }

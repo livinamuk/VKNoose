@@ -21,45 +21,9 @@
 #include "Renderer/Shader.h"
 #include "UI/TextBlitter.h"
 
+#include "Renderer/Pipeline.hpp"
 
 constexpr unsigned int FRAME_OVERLAP = 2;
-
-class PipelineBuilder {
-public:
-
-	std::vector<VkPipelineShaderStageCreateInfo> _shaderStages;
-	VkPipelineVertexInputStateCreateInfo _vertexInputInfo;
-	VkPipelineInputAssemblyStateCreateInfo _inputAssembly;
-	VkViewport _viewport;
-	VkRect2D _scissor;
-	VkPipelineRasterizationStateCreateInfo _rasterizer;
-	VkPipelineColorBlendAttachmentState _colorBlendAttachment;
-	VkPipelineMultisampleStateCreateInfo _multisampling;
-	VkPipelineLayout _pipelineLayout;
-	VkPipelineDepthStencilStateCreateInfo _depthStencil;
-	VkPipeline build_pipeline(VkDevice device, VkRenderPass pass);
-	VkPipeline build_dynamic_rendering_pipeline(VkDevice device, const VkFormat* swapchainFormat, VkFormat depthFormat, int colorAttachmentCount);
-};
-
-
-struct DeletionQueue
-{
-	std::deque<std::function<void()>> deletors;
-
-	void push_function(std::function<void()>&& function) {
-		deletors.push_back(function);
-	}
-
-	void flush() {
-		// reverse iterate the deletion queue to execute all the functions
-		for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
-			(*it)(); //call functors
-		}
-
-		deletors.clear();
-	}
-};
-
 
 struct CameraData {
 	glm::mat4 proj;
@@ -97,14 +61,12 @@ struct RenderObject {
 
 #define TEXTURE_ARRAY_SIZE 256
 #define MAX_RENDER_OBJECTS_3D 1000
-#define MAX_RENDER_OBJECTS_2D 1000
+#define MAX_RENDER_OBJECTS_2D 5000
 #define MAX_LIGHTS 16
 
 struct FrameData {
 	VkSemaphore _presentSemaphore, _renderSemaphore;
 	VkFence _renderFence;
-
-	DeletionQueue _frameDeletionQueue;
 
 	VkCommandPool _commandPool;
 	VkCommandBuffer _commandBuffer;
@@ -132,7 +94,9 @@ struct RayTracingScratchBuffer
 
 namespace Vulkan {
 
-	void Init();
+	inline bool _loaded = false;
+
+	void InitMinimum();
 	void CreateWindow();
 	void CreateInstance();
 	void SelectPhysicalDevice(); 
@@ -141,6 +105,28 @@ namespace Vulkan {
 	
 	void cleanup_shaders();
 	void hotload_shaders();
+
+	void RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuffer);
+	void BlitRenderTargetIntoSwapChain(VkCommandBuffer commandBuffer, RenderTarget& renderTarget, uint32_t swapchainImageIndex);
+	void PrepareSwapchainForPresent(VkCommandBuffer commandBuffer, uint32_t swapchainImageIndex);
+
+	void ToggleFullscreen();
+	bool ProgramShouldClose();
+	bool ProgramIsMinimized();
+
+	void UpdateBuffers2D();
+
+	void LoadNextItem();
+
+	void AddLoadingText(std::string text);
+
+	GLFWwindow* GetWindow();
+
+	inline bool _forceCloseWindow { false };
+
+	inline Pipeline _compositePipeline;
+	inline Pipeline _textBlitterPipeline;
+	inline Pipeline _linesPipeline;
 
 	VmaAllocator GetAllocator();
 	VkDevice GetDevice();
@@ -154,8 +140,8 @@ namespace Vulkan {
 	// Commands
 	void cmd_SetViewportSize(VkCommandBuffer commandBuffer, int width, int height);
 	void cmd_SetViewportSize(VkCommandBuffer commandBuffer, RenderTarget renderTarget);
-	void cmd_BindPipeline(VkCommandBuffer commandBuffer, HellPipeline& pipeline);
-	void cmd_BindDescriptorSet(VkCommandBuffer commandBuffer, HellPipeline& pipeline, uint32_t setIndex, HellDescriptorSet& descriptorSet);
+	void cmd_BindPipeline(VkCommandBuffer commandBuffer, Pipeline& pipeline);
+	void cmd_BindDescriptorSet(VkCommandBuffer commandBuffer, Pipeline& pipeline, uint32_t setIndex, HellDescriptorSet& descriptorSet);
 	void cmd_BindRayTracingPipeline(VkCommandBuffer commandBuffer, VkPipeline pipeline);
 	void cmd_BindRayTracingDescriptorSet(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, uint32_t setIndex, HellDescriptorSet& descriptorSet);
 
@@ -168,11 +154,8 @@ namespace Vulkan {
 	inline HellDescriptorSet _denoiseATextureDescriptorSet;
 	inline HellDescriptorSet _denoiseBTextureDescriptorSet;
 
-	inline HellPipeline _textBlitterPipeline;
-	inline HellPipeline _rasterPipeline;
-	inline HellPipeline _denoisePipeline;
-	inline HellPipeline _computePipeline;
-	inline HellPipeline _compositePipeline;
+	//inline HellPipeline _rasterPipeline;
+	//inline HellPipeline _denoisePipeline;
 
 	inline RenderTarget _renderTargetDenoiseA;
 	inline RenderTarget _renderTargetDenoiseB;
@@ -180,9 +163,7 @@ namespace Vulkan {
 	inline VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeaturesKHR{};
 
 	inline VkSampler _sampler;
-
-	inline bool _shouldClose{ false };
-	 
+		 
 	// Render target shit
 	inline VkExtent2D _currentWindowExtent{ 512 , 288  };
 	//VkExtent2D _fullscreenModeExtent{ 512 , 288  };
@@ -202,7 +183,6 @@ namespace Vulkan {
 		RenderTarget composite;
 	} _renderTargets;
 
-	inline GLFWwindow* _window;
 
 	inline int _frameNumber{ 0 };
 	//int _selectedShader{ 0 };
@@ -225,10 +205,6 @@ namespace Vulkan {
 	inline std::vector<VkFramebuffer> _framebuffers;
 	inline std::vector<VkImage> _swapchainImages;
 	inline std::vector<VkImageView> _swapchainImageViews;
-
-	inline DeletionQueue _mainDeletionQueue;
-
-	
 
 	inline HellDepthTarget _presentDepthTarget;
 	inline HellDepthTarget _gbufferDepthTarget;
@@ -255,17 +231,15 @@ namespace Vulkan {
 	//initializes everything in the engine
 	
 	void init_raytracing();
-	void cleanup();
-	void draw();
-	void update(float deltaTime);
-	void run();
-	void render_loading_screen();
+	void Cleanup();
+	void RenderGameFrame();
+	void RenderLoadingFrame();
 
 	// Pipelines
 
 
-	inline VkPipeline _linelistPipeline;
-	inline VkPipelineLayout _linelistPipelineLayout;
+	//inline VkPipeline _linelistPipeline;
+	//inline VkPipelineLayout _linelistPipelineLayout;
 
 	inline FrameData& get_current_frame();
 	inline FrameData& get_last_frame();

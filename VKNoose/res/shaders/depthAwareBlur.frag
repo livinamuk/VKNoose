@@ -59,7 +59,7 @@ void main()
 
     vec3 result = vec3(0);
     int count = 0;
-    int range = 1;
+    int range = 2;
 
     for (int x = -range; x <= range; x++) {    
         for (int y = -range; y <= range; y++) {

@@ -1535,7 +1535,7 @@ Result<Device> DeviceBuilder::build() const {
 
 
 
-	std::cout << "extensions.size(): " << extensions.size() << "\n";
+	//std::cout << "extensions.size(): " << extensions.size() << "\n";
 
 
 

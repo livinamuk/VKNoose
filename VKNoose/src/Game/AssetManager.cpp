@@ -29,6 +29,7 @@ namespace AssetManager {
 	std::vector<uint32_t> _indices;		// ALL of em
 	uint32_t _vertexOffset = 0;			// insert index for next mesh
 	uint32_t _indexOffset = 0;			// insert index for next mesh
+	std::string _loadLog;
 }
 
 void ImageData::free() {
@@ -308,8 +309,8 @@ int AssetManager::CreateMesh(std::vector<Vertex>& vertices, std::vector<uint32_t
 	for (int i = 0; i < indices.size(); i++)
 		_indices[_indexOffset + i] = indices[i];*/
 
-	_vertexOffset += vertices.size();
-	_indexOffset += indices.size();
+	_vertexOffset += (uint32_t)vertices.size();
+	_indexOffset += (uint32_t)indices.size();
 	return _meshes.size() - 1;
 }
 
@@ -381,7 +382,7 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 			imageExtent.depth = 1;
 
 			if (generateMips) {
-				outTexture._mipLevels = floor(log2(std::max(outTexture._width, outTexture._height))) + 1;
+				outTexture._mipLevels = (uint32_t)floor(log2(std::max(outTexture._width, outTexture._height))) + 1;
 			}
 			else {
 				outTexture._mipLevels = 1;
@@ -449,7 +450,7 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 					vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
 
 					// Now walk the mip chain and copy down mips from n-1 to n
-					for (int32_t i = 1; i < outTexture._mipLevels; i++)
+					for (uint32_t i = 1; i < outTexture._mipLevels; i++)
 					{
 						VkImageBlit imageBlit{};
 
@@ -560,7 +561,7 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 		imageExtent.depth = 1;
 
 		if (generateMips) {
-			outTexture._mipLevels = floor(log2(std::max(outTexture._width, outTexture._height))) + 1;
+			outTexture._mipLevels = (uint32_t)floor(log2(std::max(outTexture._width, outTexture._height))) + 1;
 		}
 		else {
 			outTexture._mipLevels = 1;
@@ -628,7 +629,7 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 				vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
 
 				// Now walk the mip chain and copy down mips from n-1 to n
-				for (int32_t i = 1; i < outTexture._mipLevels; i++)
+				for (uint32_t i = 1; i < outTexture._mipLevels; i++)
 				{
 					VkImageBlit imageBlit{};
 
@@ -802,8 +803,11 @@ void AssetManager::SaveImageDataU8(std::string path, int width, int height, int 
 	//stbi_write_png(path.c_str(), width, height, channels, data, width * channels);
 }
 
-void AssetManager::LoadTextures() {
-	for (const auto& entry : std::filesystem::directory_iterator("res/textures/")) {
+bool AssetManager::LoadNextTexture() {
+
+	static auto allFiles = std::filesystem::directory_iterator("res/textures/");
+
+	for (const auto& entry : allFiles) {
 		FileInfo info = Util::GetFileInfo(entry);
 		if (info.filetype == "png" || info.filetype == "tga" || info.filetype == "jpg") {
 			if (!TextureExists(info.filename)) {
@@ -814,9 +818,13 @@ void AssetManager::LoadTextures() {
 				}
 				load_image_from_file(info.fullpath.c_str(), texture, imageFormat, false); // no mips
 				AddTexture(texture);
+				Vulkan::AddLoadingText(info.fullpath);
+				return true;
 			}
 		}
 	}
+	// Everything is loaded
+	return false;
 }
 
 void AssetManager::BuildMaterials() {
@@ -876,65 +884,6 @@ void AssetManager::LoadHardcodedMesh() {
 		model._meshIndices.push_back(CreateMesh(vertices, indices));
 		_models["fullscreen_quad"] = model;
 	}
-}
-
-void AssetManager::LoadModels() {
-
-	_models["MacbookClosed"] = Model("res/models/MacbookClosed.obj");
-	_models["MacbookScreen"] = Model("res/models/MacbookScreen.obj");
-	_models["MacbookBody"] = Model("res/models/MacbookBody.obj");
-	_models["WineGlass"] = Model("res/models/WineGlass.obj");
-	_models["FallenChairTop"] = Model("res/models/FallenChairTop.obj");
-	_models["KeyInVase"] = Model("res/models/KeyInVase.obj");
-	_models["FallenChairBottom"] = Model("res/models/FallenChairBottom.obj");
-	_models["wife"] = Model("res/models/WifeNude.obj");
-	_models["wife2"] = Model("res/models/WifeOld.obj");
-	_models["door"] = Model("res/models/Door.obj");
-	_models["skull"] = Model("res/models/BlackSkull.obj");
-	_models["skull2"] = Model("res/models/BlackSkull2.obj");
-	_models["door_frame"] = Model("res/models/DoorFrame.obj");
-	_models["trims_ceiling"] = Model("res/models/TrimCeiling.obj");
-	_models["flowers"] = Model("res/models/Flowers.obj");
-	_models["vase"] = Model("res/models/Vase.obj");
-	//_models["chest_of_drawers"] = Model("res/models/ChestOfDrawers.obj");
-	_models["LightSwitchOn"] = Model("res/models/LightSwitchOn.obj");
-	_models["LightSwitchOff"] = Model("res/models/LightSwitchOff.obj");
-
-	_models["DrawerFrame"] = Model("res/models/DrawerFrame.obj");
-	_models["DrawerTopLeft"] = Model("res/models/DrawerTopLeft.obj");
-	_models["DrawerTopRight"] = Model("res/models/DrawerTopRight.obj");
-	_models["DrawerSecond"] = Model("res/models/DrawerSecond.obj");
-	_models["DrawerThird"] = Model("res/models/DrawerThird.obj");
-	_models["DrawerFourth"] = Model("res/models/DrawerFourth.obj");
-	_models["Diary"] = Model("res/models/Diary.obj");
-	_models["Toilet"] = Model("res/models/Toilet.obj");
-	_models["ToiletSeat"] = Model("res/models/ToiletSeat.obj");
-	_models["ToiletLid"] = Model("res/models/ToiletLid.obj");
-	_models["SmallKey"] = Model("res/models/SmallKey.obj");
-	_models["SmallChestOfDrawersFrame"] = Model("res/models/SmallChestOfDrawersFrame.obj");
-	_models["SmallDrawerFourth"] = Model("res/models/SmallDrawerFourth.obj");
-	_models["SmallDrawerThird"] = Model("res/models/SmallDrawerThird.obj");
-	_models["SmallDrawerSecond"] = Model("res/models/SmallDrawerSecond.obj");
-	_models["SmallDrawerTop"] = Model("res/models/SmallDrawerTop.obj");
-	_models["ToiletPaper"] = Model("res/models/ToiletPaper.obj");
-	_models["CabinetBody"] = Model("res/models/CabinetBody.obj");
-	_models["CabinetDoor"] = Model("res/models/CabinetDoor.obj");
-	_models["CabinetMirror"] = Model("res/models/CabinetMirror.obj");
-	_models["Basin"] = Model("res/models/Basin.obj");
-	_models["Towel"] = Model("res/models/Towel.obj");
-	_models["Heater"] = Model("res/models/Heater.obj");
-	_models["BathroomBin"] = Model("res/models/BathroomBin.obj");
-	_models["BathroomBinLid"] = Model("res/models/BathroomBinLid.obj");
-	_models["BathroomBinPedal"] = Model("res/models/BathroomBinPedal.obj");
-	_models["YourPhone"] = Model("res/models/YourPhone.obj");
-	_models["Bed"] = Model("res/models/BedNoPillows.obj");
-	_models["PillowHers"] = Model("res/models/PillowHers.obj");
-	_models["PillowHis"] = Model("res/models/PillowHis.obj");
-	_models["Cube"] = Model("res/models/Cube.obj");
-	_models["Sphere"] = Model("res/models/Sphere.obj");
-	_models["MacbookScreenDisplay"] = Model("res/models/MacbookScreenDisplay.obj");
-	_models["Lamp"] = Model("res/models/Lamp.obj");
-
 
 	{
 		// Floor 
@@ -966,7 +915,7 @@ void AssetManager::LoadModels() {
 		model._meshIndices.push_back(CreateMesh(vertices, indices));
 		model._filename = "Floor";
 		_models["floor"] = model;
-	} 
+	}
 
 	{
 		// bathroom floor 
@@ -1079,6 +1028,28 @@ void AssetManager::LoadModels() {
 		model._meshIndices.push_back(CreateMesh(vertices, indices));
 		_models["ceiling"] = model;
 	}
+}
+
+bool AssetManager::LoadNextModel() {
+
+	static auto allFiles = std::filesystem::directory_iterator("res/models/");
+
+	for (const auto& entry : allFiles) {
+		FileInfo info = Util::GetFileInfo(entry);
+		if (info.filetype == "obj") {
+
+			// If model doesn't exist, then create it
+			if (_models.find(info.filename) != _models.end()) {
+			}
+			else {
+				_models[info.filename] = Model(info.fullpath.c_str());
+				Vulkan::AddLoadingText(info.fullpath);
+				return true;
+			}
+		}
+	}
+	// Everything is loaded
+	return false;	
 }
 
 

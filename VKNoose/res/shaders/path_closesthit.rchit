@@ -66,9 +66,9 @@ float rand(vec3 co){ return rand(co.xy+rand(co.z)); }
 vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic, float ao, vec3 worldPos, vec3 camPos, Light light, int materialType) {
 	
 	// compute direct light	  
-	float fresnelReflect = 0.7;											// this is what they used for box, 1.0 for demon
+	float fresnelReflect = 0.8;											// this is what they used for box, 1.0 for demon
 	vec3 viewDir = normalize(camPos.xyz - worldPos);    
-	float lightRadiance = 15;
+	float lightRadiance = 20;
     vec3 lightDir = normalize(light.position.xyz - worldPos);           // they use something more sophisticated with a sphere
 	float lightDist = max(length(light.position.xyz - worldPos), 0.1);
 	float lightAttenuation = 1.0 / (lightDist*lightDist);
@@ -83,6 +83,7 @@ vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic,
 	if(irradiance > 0.0) { 
 		vec3 brdf = microfacetBRDF(lightDir, viewDir, normal, baseColor, metallic, fresnelReflect, roughness, specularContribution);
 		radiance += brdf * irradiance * light.color.xyz; // diffuse shading
+	//	radiance = irradiance * light.color.xyz; // diffuse shading
 	}
 	
 	// to prevent fireflies
@@ -289,7 +290,7 @@ void main()
 	//	 Store the final color   //
 
 	// Hit was transparent
-	if (baseColor.a < 0.90 ) {
+	if (baseColor.a < 0.99 ) {
 		rayPayload.hitType = HIT_TYPE_TRANSULUCENT;
 		rayPayload.nextRayDirection = gl_WorldRayDirectionEXT;
 		rayPayload.nextRayOrigin = worldPos + (gl_WorldRayDirectionEXT * 0.001);

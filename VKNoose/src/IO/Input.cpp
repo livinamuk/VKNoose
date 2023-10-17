@@ -1,4 +1,6 @@
 #include "Input.h"
+#include "../vk_engine.h"
+#include <GLFW/glfw3.h>
 
 bool _keyPressed[372];
 bool _keyDown[372];
@@ -7,29 +9,21 @@ double _mouseX = 0;
 double _mouseY = 0;
 double _mouseOffsetX;
 double _mouseOffsetY;
-
 bool _mouseWheelUp = false;
 bool _mouseWheelDown = false;
-
 bool _leftMouseDown = false;
 bool _rightMouseDown = false;
-
 bool _leftMousePressed = false;
 bool _rightMousePressed = false;
-
 bool _leftMouseDownLastFrame = false;
 bool _rightMouseDownLastFrame = false;
-
 bool _preventRightMouseHoldTillNextClick = false;
 
-void Input::Init(int windowWidth, int windowHeight)
-{
-    _mouseX = windowWidth / 2;
-    _mouseY = windowHeight / 2;
-}
+void Input::Update() {
 
-void Input::Update(GLFWwindow* window)
-{
+    glfwPollEvents();
+    GLFWwindow* window = Vulkan::GetWindow();
+
     // Wheel
     _mouseWheelUp = false;
     _mouseWheelDown = false;
@@ -42,8 +36,7 @@ void Input::Update(GLFWwindow* window)
     _mouseWheelValue = 0;
 
     // Keyboard
-    for (int i = 30; i < 350; i++) 
-    {
+    for (int i = 30; i < 350; i++) {
         // down
         if (glfwGetKey(window, i) == GLFW_PRESS)
             _keyDown[i] = true;
@@ -86,62 +79,57 @@ void Input::Update(GLFWwindow* window)
         _preventRightMouseHoldTillNextClick = false;
 }
 
-bool Input::KeyPressed(unsigned int keycode)
-{
+bool Input::KeyPressed(unsigned int keycode) {
 	return _keyPressed[keycode];
 }
 
-bool Input::KeyDown(unsigned int keycode)
-{
+bool Input::KeyDown(unsigned int keycode) {
 	return _keyDown[keycode];
 }
 
-float Input::GetMouseOffsetX()
-{
+float Input::GetMouseOffsetX() {
     return (float)_mouseOffsetX;
 }
 
-float Input::GetMouseOffsetY() 
-{
+float Input::GetMouseOffsetY() {
     return (float)_mouseOffsetY;
 }
 
-bool Input::LeftMouseDown()
-{
+bool Input::LeftMouseDown() {
     return _leftMouseDown;
 }
 
-bool Input::RightMouseDown()
-{
+bool Input::RightMouseDown() {
     return _rightMouseDown && !_preventRightMouseHoldTillNextClick;
 }
 
-bool Input::LeftMousePressed()
-{
+bool Input::LeftMousePressed() {
     return _leftMousePressed;
 }
 
-bool Input::RightMousePressed()
-{
+bool Input::RightMousePressed() {
     return _rightMousePressed;
 }
 
-bool Input::MouseWheelDown()
-{
+bool Input::MouseWheelDown() {
     return _mouseWheelDown;
 }
 
-bool Input::MouseWheelUp()
-{
+bool Input::MouseWheelUp() {
     return _mouseWheelUp;
 }
 
-void Input::PreventRightMouseHold()
-{
+void Input::PreventRightMouseHold() {
     _preventRightMouseHoldTillNextClick = true;
 }
 
 void Input::ForceSetStoredMousePosition(int x, int y) {
     _mouseX = x;
     _mouseY = y;
+}
+
+void Input::SetMousePos(int x, int y) {
+    _mouseX = x;
+    _mouseY = y;
+    glfwSetCursorPos(Vulkan::GetWindow(), x, y);
 }

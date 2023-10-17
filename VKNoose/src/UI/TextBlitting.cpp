@@ -7,9 +7,9 @@ namespace TextBlitter {
 
 	int _xMargin = 16;
 	int _yMargin = 16;
-	int _xDebugMargin = 6;
-	int _yDebugMargin = 288 - 20;
 	int _lineHeight = 16;
+	int _xDebugMargin = 0;// 6;
+	//int _yDebugMargin = -1; // this is set realtime so that things start at the top of the screen, which depends on render target height
 	int _charSpacing = 0;
 	int _spaceWidth = 6;
 	std::string _charSheet = "•!\"#$%&\'••*+,-./0123456789:;<=>?_ABCDEFGHIJKLMNOPQRSTUVWXYZ\\^_`abcdefghijklmnopqrstuvwxyz";
@@ -19,6 +19,8 @@ namespace TextBlitter {
 	float _textSpeed = 200.0f;
 	float _countdownTimer = 0;
 	float _delayTimer = 0;
+
+	float _scale = 0.5f;
 
 	enum QuestionState { CLOSED, TYPING_QUESTION, SELECTED_YES, SELECTED_NO } _questionState;
 	std::string _questionText = "";
@@ -68,7 +70,7 @@ namespace TextBlitter {
 		_countdownTimer = 0;
 	}
 
-	void TextBlitter::Update(float deltaTime) {
+	void TextBlitter::Update(float deltaTime, float renderTargetWidth, float renderTargetHeight) {
 
 		_objectData.clear();
 
@@ -184,8 +186,6 @@ namespace TextBlitter {
 
 				float texWidth = _charExtents[charPos].width;
 				float texWHeight = _charExtents[charPos].height;
-				float renderTargetWidth = 512;
-				float renderTargetHeight = 288;
 
 				float width = (1.0f / renderTargetWidth) * texWidth;
 				float height = (1.0f / renderTargetHeight) * texWHeight;
@@ -212,9 +212,10 @@ namespace TextBlitter {
 		}
 
 		// Debug text
+		float yDebugMargin = renderTargetHeight - _lineHeight;
 		color = 0;
 		xcursor = _xDebugMargin;
-		ycursor = _yDebugMargin;
+		ycursor = yDebugMargin;
 		for (int i = 0; i < _debugTextToBilt.length(); i++)
 		{
 			char character = _debugTextToBilt[i];
@@ -243,10 +244,13 @@ namespace TextBlitter {
 			}
 			size_t charPos = _charSheet.find(character);
 
+			if (charPos == std::string::npos) {
+				//std::cout << character << " was not found in _charSheet\n";
+				continue;
+			}
+
 			float texWidth = _charExtents[charPos].width;
 			float texWHeight = _charExtents[charPos].height;
-			float renderTargetWidth = 512;
-			float renderTargetHeight = 288;
 
 			float width = (1.0f / renderTargetWidth) * texWidth;
 			float height = (1.0f / renderTargetHeight) * texWHeight;
@@ -344,8 +348,6 @@ namespace TextBlitter {
 
 				float texWidth = _charExtents[charPos].width;
 				float texWHeight = _charExtents[charPos].height;
-				float renderTargetWidth = 512;
-				float renderTargetHeight = 288;
 
 				float width = (1.0f / renderTargetWidth) * texWidth * blitXY.scale;
 				float height = (1.0f / renderTargetHeight) * texWHeight * blitXY.scale;
@@ -362,9 +364,9 @@ namespace TextBlitter {
 				data.index_basecolor = charPos;
 				data.index_color = color;
 				data.xClipMin = 0;
-				data.xClipMax = 1000;
+				data.xClipMax = 99999;
 				data.yClipMin = 0;
-				data.yClipMax = 1000; // 512 x 288 didn't work. she was clipper prematurely. this is a hack to fix a bug mate.
+				data.yClipMax = 99999; // 512 x 288 didn't work. she was clipper prematurely. this is a hack to fix a bug mate.
 				_objectData.push_back(data);
 
 				xcursor += texWidth + _charSpacing;

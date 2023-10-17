@@ -26,13 +26,17 @@ void main() {
     }
     outFragColor.rgb *= color;
 
-    
-    if (gl_FragCoord.x < xClipMin)
+  
+   /* if (gl_FragCoord.x < xClipMin)
         outFragColor.a = 0;    
     if (gl_FragCoord.x > xClipMax)
         outFragColor.a = 0;
     if (gl_FragCoord.y > 430 - yClipMin)
         outFragColor.a = 0;
     if (gl_FragCoord.y < 430 - yClipMax)
-        outFragColor.a = 0;
+        outFragColor.a = 0;*/
+        
+
+
+       // outFragColor.r = 1;
 }

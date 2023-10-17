@@ -45,6 +45,8 @@ void main()
 	
 	//finalColor = secondBounce;
 
+	
+
     // Tonemap
 	finalColor = pow(finalColor, vec3(1.0/2.2)); 
 	finalColor = Tonemap_ACES(finalColor);

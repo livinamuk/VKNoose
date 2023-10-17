@@ -24,19 +24,24 @@ vkb::Instance _bootstrapInstance;
 VkDebugUtilsMessengerEXT _debugMessenger;
 VmaAllocator _allocator;
 VkDevice _device;
+GLFWwindow* _window;
+float _deltaTime;
+std::vector<std::string> _loadingText;
+
+RenderTarget _loadingScreenRenderTarget;
 
 void Vulkan::CreateWindow() {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-	_window = glfwCreateWindow(_windowedModeExtent.width, _windowedModeExtent.height, "Fuck", nullptr, nullptr);
+	_window = glfwCreateWindow(_windowedModeExtent.width, _windowedModeExtent.height, "Unloved", nullptr, nullptr);
 	//glfwSetWindowUserPointer(_window, this);
 	glfwSetFramebufferSizeCallback(_window, framebufferResizeCallback);
 }
 
 void Vulkan::CreateInstance() {
 	vkb::InstanceBuilder builder;
-	builder.set_app_name("Example Vulkan Application");
+	builder.set_app_name("Unloved");
 	builder.request_validation_layers(_enableValidationLayers);
 	builder.use_default_debug_messenger();
 	builder.require_api_version(1, 3, 0);
@@ -110,7 +115,7 @@ void Vulkan::SelectPhysicalDevice() {
 	for (const auto& extension : availableExtensions) {
 		if (std::string(extension.extensionName) == VK_KHR_MAINTENANCE_4_EXTENSION_NAME) {
 			maintenance4ExtensionSupported = true;
-			std::cout << "VK_KHR_maintenance4 is supported\n";
+			//std::cout << "VK_KHR_maintenance4 is supported\n";
 			break;
 		}
 	}
@@ -235,274 +240,156 @@ VkDevice Vulkan::GetDevice() {
 	return _device;
 }
 
-void Vulkan::Init()
+void Vulkan::InitMinimum()
 {
 	CreateWindow();
 	CreateInstance();
 	SelectPhysicalDevice();
-		
-	LoadShaders();
 
 	CreateSwapchain();
-	create_render_targets();	
+
+	load_shader(_device, "text_blitter.vert", VK_SHADER_STAGE_VERTEX_BIT, &_text_blitter_vertex_shader);
+	load_shader(_device, "text_blitter.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_text_blitter_fragment_shader);
+
+	VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+	VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	_loadingScreenRenderTarget = RenderTarget(_device, _allocator, format, 512 * 2, 288 * 2, usage, "Loading Screen Render Target");
+
 	create_command_buffers();	
 	create_sync_structures();
 	create_sampler();	
 	create_descriptors();
-	create_pipelines();
-
+	
+	// Create text blitter pipeline and pipeline layout
+	_textBlitterPipeline.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
+	_textBlitterPipeline.PushDescriptorSetLayout(_staticDescriptorSet.layout);
+	_textBlitterPipeline.CreatePipelineLayout(_device);
+	_textBlitterPipeline.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
+	_textBlitterPipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	_textBlitterPipeline.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	_textBlitterPipeline.SetCullModeFlags(VK_CULL_MODE_NONE);
+	_textBlitterPipeline.SetColorBlending(true);
+	_textBlitterPipeline.SetDepthTest(false);
+	_textBlitterPipeline.SetDepthWrite(false);
+	_textBlitterPipeline.Build(_device, _text_blitter_vertex_shader, _text_blitter_fragment_shader, 1);
+	
 	AssetManager::Init();
 	AssetManager::LoadFont();
 	AssetManager::LoadHardcodedMesh();
 
-	bool thereAreFilesToLoad = true;
-
-	AssetManager::LoadTextures();		// Loads everything in res/textures, excluding the already loaded font characters 
-	AssetManager::LoadModels();			// Loads the hardcoded model paths, and also creates the floor and ceiling meshes
-	AssetManager::BuildMaterials();	
-	Scene::Init();						// Scene::Init creates wall geometry, and thus must run before upload_meshes
-	Laptop::Init();
-
 	upload_meshes();
-	
-	Input::Init(_windowedModeExtent.width, _windowedModeExtent.height);
-	Audio::Init();
+
+	// Sampler
+	VkDescriptorImageInfo samplerImageInfo = {};
+	samplerImageInfo.sampler = _sampler;
+	_staticDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_SAMPLER, &samplerImageInfo);
+
+	// All textures
+	VkDescriptorImageInfo textureImageInfo[TEXTURE_ARRAY_SIZE];
+	for (uint32_t i = 0; i < TEXTURE_ARRAY_SIZE; ++i) {
+		textureImageInfo[i].sampler = nullptr;
+		textureImageInfo[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		textureImageInfo[i].imageView = (i < AssetManager::GetNumberOfTextures()) ? AssetManager::GetTexture(i)->imageView : AssetManager::GetTexture(0)->imageView; // Fill with dummy if you excede the amount of textures we loaded off disk. Can't have no junk data.
+	}
+	_staticDescriptorSet.Update(_device, 1, TEXTURE_ARRAY_SIZE, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, textureImageInfo);
 
 	create_buffers();
 
+	bool thereAreFilesToLoad = true;
 
-	create_rt_buffers();
-	
-	vkDeviceWaitIdle(_device);
-	create_top_level_acceleration_structure(Scene::GetMeshInstancesForSceneAccelerationStructure(), _frames[0]._sceneTLAS);
-	create_top_level_acceleration_structure(Scene::GetMeshInstancesForInventoryAccelerationStructure(), _frames[0]._inventoryTLAS);
-	vkDeviceWaitIdle(_device);
-
-	init_raytracing();
-
-	update_static_descriptor_set();
-
-	// Make sure all that shit above is done before trying to draw anything. 
-	vkDeviceWaitIdle(_device);
-
-
-
-
-
-	/*while (!_shouldClose && !glfwWindowShouldClose(_window)) {
-		render_loading_screen();
-	}*/
+	Vulkan::ToggleFullscreen();
 }
 
-void Vulkan::render_loading_screen() {
-
-	std::string testText = "shit\nfuck\n";
-	TextBlitter::BlitAtPosition(testText, 0, 288 - TextBlitter::GetLineHeight(), false, 1.0f);
-	glfwPollEvents();
-
-	if (glfwGetKey(_window, GLFW_KEY_BACKSPACE) == GLFW_PRESS) {
-		_shouldClose = true;
-	}
-
-	Input::Update(_window);
-	TextBlitter::Update(0.1f);
-
-	// Skip if window is miniized
-	int width, height;
-	glfwGetFramebufferSize(_window, &width, &height);
-	while (width == 0 || height == 0) {
-		return;
-	}
-
-	// Update per frame buffers
-	// Queue all text characters for rendering
-	int quadMeshIndex = AssetManager::GetModel("blitter_quad")->_meshIndices[0];
-	for (auto& instanceInfo : TextBlitter::_objectData) {
-		RasterRenderer::SubmitUI(quadMeshIndex, instanceInfo.index_basecolor, instanceInfo.index_color, instanceInfo.modelMatrix, RasterRenderer::Destination::MAIN_UI, instanceInfo.xClipMin, instanceInfo.xClipMax, instanceInfo.yClipMin, instanceInfo.yClipMax); // Todo: You are storing color in the normals. Probably not a major deal but could be confusing at some point down the line.
-	}
-	// 2D instance data
-	get_current_frame()._meshInstances2DBuffer.MapRange(_allocator, RasterRenderer::_instanceData2D, sizeof(GPUObjectData2D) * RasterRenderer::instanceCount);
-	
-	// This is ugly and dumb, find a better way to do this when you can be fucked.
-	vkDeviceWaitIdle(_device);
-	_dynamicDescriptorSet.Update(_device, 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstances2DBuffer.buffer);
-	vkDeviceWaitIdle(_device);
-
-	// Presumably wait for any previous rendering to finish
-	vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, 1000000000);
-	uint32_t swapchainImageIndex;
-	VkResult result = vkAcquireNextImageKHR(_device, _swapchain, 1000000000, get_current_frame()._presentSemaphore, nullptr, &swapchainImageIndex);
-
-	// Handle resize
-	if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-		recreate_dynamic_swapchain();
-		return;
-	}
-	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-		throw std::runtime_error("failed to acquire swap chain image!");
-	}
-
-	result = vkResetFences(_device, 1, &get_current_frame()._renderFence);
-	if (result != VK_SUCCESS) {
-		std::cout << "ResetFences failed with: " << result << "\n";
-	}
-
-	VkCommandBuffer commandBuffer = _frames[_frameNumber % FRAME_OVERLAP]._commandBuffer;
-	VK_CHECK(vkResetCommandBuffer(commandBuffer, 0));
-
-	// Trace dem rays
-	//build_rt_command_buffers(swapchainImageIndex);
-
-
-	// Now fill your command buffer
-	int32_t frameIndex = _frameNumber % FRAME_OVERLAP;
-	//VkCommandBuffer commandBuffer = _frames[frameIndex]._commandBuffer;
-	VkCommandBufferBeginInfo cmdBufInfo = vkinit::command_buffer_begin_info();
-	VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-
-	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &cmdBufInfo));
-
-	// UI //
-	_renderTargets.present.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-
-	VkImageSubresourceRange range;
-	range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	range.baseMipLevel = 0;
-	range.levelCount = 1;
-	range.baseArrayLayer = 0;
-	range.layerCount = 1;
-
-	///////////////
-	// Render UI //
-	{
-		std::vector<VkRenderingAttachmentInfoKHR> colorAttachments;
-		VkRenderingAttachmentInfoKHR colorAttachment = {};
-		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		colorAttachment.clearValue = { 0.0, 0.0, 0, 0 };
-		colorAttachment.imageView = _renderTargets.present._view;
-		colorAttachments.push_back(colorAttachment);
-
-		VkRenderingInfoKHR renderingInfo{};
-		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-		renderingInfo.renderArea = { 0, 0, _renderTargets.present._extent.width, _renderTargets.present._extent.height };
-		renderingInfo.layerCount = 1;
-		renderingInfo.colorAttachmentCount = colorAttachments.size();
-		renderingInfo.pColorAttachments = colorAttachments.data();
-		renderingInfo.pDepthAttachment = nullptr;
-		renderingInfo.pStencilAttachment = nullptr;
-
-		vkCmdBeginRendering(commandBuffer, &renderingInfo);
-		cmd_SetViewportSize(commandBuffer, _renderTargets.present);
-		cmd_BindPipeline(commandBuffer, _textBlitterPipeline);
-		cmd_BindDescriptorSet(commandBuffer, _textBlitterPipeline, 0, _dynamicDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _textBlitterPipeline, 1, _staticDescriptorSet);
-	
-
-		// Draw Text plus maybe crosshair
-		for (int i = 0; i < RasterRenderer::instanceCount; i++) {
-			if (RasterRenderer::_UIToRender[i].destination == RasterRenderer::Destination::MAIN_UI)
-				RasterRenderer::DrawMesh(commandBuffer, i);
-		}
-		RasterRenderer::ClearQueue();
-
-		vkCmdEndRendering(commandBuffer);
-	}
-
-	///////////////////////////////////////////
-	// Blit present image into the swapchain //
-	{
-		_renderTargets.present.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_MEMORY_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-
-		// Prepare swapchain as destination for copy
-		VkImageMemoryBarrier swapChainBarrier = {};
-		swapChainBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		swapChainBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		swapChainBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		swapChainBarrier.image = _swapchainImages[swapchainImageIndex];
-		swapChainBarrier.subresourceRange = range;
-		swapChainBarrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-		swapChainBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &swapChainBarrier);
-
-		VkImageBlit region;
-		region.srcOffsets[0].x = 0;
-		region.srcOffsets[0].y = 0;
-		region.srcOffsets[0].z = 0;
-		region.srcOffsets[1].x = _renderTargets.present._extent.width;
-		region.srcOffsets[1].y = _renderTargets.present._extent.height;
-		region.srcOffsets[1].z = 1;	region.srcOffsets[0].x = 0;
-		region.dstOffsets[0].x = 0;
-		region.dstOffsets[0].y = 0;
-		region.dstOffsets[0].z = 0;
-		region.dstOffsets[1].x = _currentWindowExtent.width;
-		region.dstOffsets[1].y = _currentWindowExtent.height;
-		region.dstOffsets[1].z = 1;
-		region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		region.srcSubresource.mipLevel = 0;
-		region.srcSubresource.baseArrayLayer = 0;
-		region.srcSubresource.layerCount = 1;
-		region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		region.dstSubresource.mipLevel = 0;
-		region.dstSubresource.baseArrayLayer = 0;
-		region.dstSubresource.layerCount = 1;
-		VkImageLayout srcLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		VkImageLayout dstLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		uint32_t regionCount = 1;
-
-		// Blit the image into the swapchain
-		region.srcOffsets[1].x = _renderTargets.present._extent.width;
-		region.srcOffsets[1].y = _renderTargets.present._extent.height;
-		region.dstOffsets[1].x = _currentWindowExtent.width;
-		region.dstOffsets[1].y = _currentWindowExtent.height;
-		vkCmdBlitImage(commandBuffer, _renderTargets.present._image, srcLayout, _swapchainImages[swapchainImageIndex], dstLayout, regionCount, &region, VkFilter::VK_FILTER_NEAREST);
-
-		// Prepare swap chain for present
-		swapChainBarrier = {};
-		swapChainBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		swapChainBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		swapChainBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		swapChainBarrier.image = _swapchainImages[swapchainImageIndex];
-		swapChainBarrier.subresourceRange = range;
-		swapChainBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-		swapChainBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &swapChainBarrier);
-	}
-
-	vkEndCommandBuffer(commandBuffer);
-
-
-
-
-	VkSubmitInfo submit = vkinit::submit_info(&commandBuffer);
-	VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	submit.pWaitDstStageMask = &waitStage;
-	submit.waitSemaphoreCount = 1;
-	submit.pWaitSemaphores = &get_current_frame()._presentSemaphore;
-	submit.signalSemaphoreCount = 1;
-	submit.pSignalSemaphores = &get_current_frame()._renderSemaphore;
-	VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit, get_current_frame()._renderFence));
-
-	VkPresentInfoKHR presentInfo = vkinit::present_info();
-	presentInfo.pSwapchains = &_swapchain;
-	presentInfo.swapchainCount = 1;
-	presentInfo.pWaitSemaphores = &get_current_frame()._renderSemaphore;
-	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pImageIndices = &swapchainImageIndex;
-	result = vkQueuePresentKHR(_graphicsQueue, &presentInfo);
-
-	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || _frameBufferResized) {
-		_frameBufferResized = false;
-		recreate_dynamic_swapchain();
-	}
-	else if (result != VK_SUCCESS) {
-		throw std::runtime_error("failed to present swap chain image!");
-	}
-
-	_frameNumber++;
+void Vulkan::AddLoadingText(std::string text) {
+	_loadingText.push_back(text);
 }
+
+void Vulkan::LoadNextItem() {
+
+	// These return false if there is nothing to load
+	// meaning it will work its way down this function each game loop until everything is loaded
+
+	if (AssetManager::LoadNextTexture())
+		return;
+
+	if (AssetManager::LoadNextModel()) 
+		return;
+	else
+		upload_meshes();
+
+	static bool shadersLoaded = false;
+	static bool shadersLoadedMessageSeen = false;
+	if (!shadersLoadedMessageSeen) {
+		shadersLoadedMessageSeen = true;
+		AddLoadingText("Compiling shaders...");
+		return;
+	}
+	if (!shadersLoaded) {
+		shadersLoaded = true;
+		LoadShaders();
+	}
+
+	static bool pipelinesCreated = false;
+	static bool pipelinesCreatedMessageSeen = false;	
+	if (!pipelinesCreatedMessageSeen) {
+		pipelinesCreatedMessageSeen = true;
+		AddLoadingText("Creating pipelines...");
+		return;
+	}
+	if (!pipelinesCreated) {
+		pipelinesCreated = true;
+		create_pipelines();;
+	}
+
+	static bool renderTargetsCreated = false;
+	static bool renderTargetsCreatedMessageSeen = false;
+	if (!renderTargetsCreatedMessageSeen) {
+		renderTargetsCreatedMessageSeen = true;
+		AddLoadingText("Creating render targets...");
+		return;
+	}
+	if (!renderTargetsCreated) {
+		renderTargetsCreated = true;
+		create_render_targets();
+	}
+
+	static bool rtSetup = false;
+	static bool rtSetupMSG = false;
+	if (!rtSetupMSG) {
+		rtSetupMSG = true;
+		AddLoadingText("Initilizing raytracing...");
+		return;
+	}
+	if (!rtSetup) {
+		rtSetup = true;
+		AssetManager::BuildMaterials();
+		Laptop::Init();
+		Audio::Init();
+		Scene::Init();						// Scene::Init creates wall geometry, and thus must run before upload_meshes
+		create_rt_buffers();
+		create_top_level_acceleration_structure(Scene::GetMeshInstancesForSceneAccelerationStructure(), _frames[0]._sceneTLAS);
+		create_top_level_acceleration_structure(Scene::GetMeshInstancesForInventoryAccelerationStructure(), _frames[0]._inventoryTLAS);
+		init_raytracing();
+		update_static_descriptor_set();
+		Input::SetMousePos(_windowedModeExtent.width / 2, _windowedModeExtent.height / 2);
+	}
+
+	static bool meshUploaded = false;
+	static bool meshUploadedMSG = false;
+	if (!meshUploadedMSG) {
+		meshUploadedMSG = true;
+		AddLoadingText("Uploading mesh...");
+		return;
+	}
+	if (!meshUploaded) {
+		meshUploaded = true;
+		upload_meshes();
+	}
+
+	_loaded = true;
+	TextBlitter::ResetDebugText();
+}
+
 
 void Vulkan::cleanup_shaders()
 {
@@ -519,7 +406,7 @@ void Vulkan::cleanup_shaders()
 	vkDestroyShaderModule(_device, _composite_fragment_shader, nullptr);
 }
 
-void Vulkan::cleanup()
+void Vulkan::Cleanup()
 {
 	//make sure the gpu has stopped doing its things
 	vkDeviceWaitIdle(_device);
@@ -528,14 +415,13 @@ void Vulkan::cleanup()
 
 	// Pipelines
 	_textBlitterPipeline.Cleanup(_device);
-	_rasterPipeline.Cleanup(_device);
-	_denoisePipeline.Cleanup(_device);
 	_compositePipeline.Cleanup(_device);
-	vkDestroyPipeline(_device, _linelistPipeline, nullptr);
-	vkDestroyPipelineLayout(_device, _linelistPipelineLayout, nullptr);
+	_linesPipeline.Cleanup(_device);
+
 	// Command pools
 	vkDestroyCommandPool(_device, _uploadContext._commandPool, nullptr);
 	vkDestroyFence(_device, _uploadContext._uploadFence, nullptr);
+
 	// Frame data
 	for (int i = 0; i < FRAME_OVERLAP; i++) {
 		vkDestroyCommandPool(_device, _frames[i]._commandPool, nullptr);
@@ -544,6 +430,7 @@ void Vulkan::cleanup()
 		vkDestroySemaphore(_device, _frames[i]._renderSemaphore, nullptr);
 	}
 	// Render targets
+	_loadingScreenRenderTarget.cleanup(_device, _allocator);
 	_renderTargets.present.cleanup(_device, _allocator);
 	_renderTargets.gBufferBasecolor.cleanup(_device, _allocator);
 	_renderTargets.gBufferNormal.cleanup(_device, _allocator);
@@ -633,29 +520,6 @@ void Vulkan::init_raytracing()
 	_raytracerMousePick.CreateShaderBindingTable(_device, _allocator, _rayTracingPipelineProperties);	
 }
 
-/*
-
-void Vulkan::createRayTracingPipeline()
-{
-	// IMPORTANT: This is the set order
-
-	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
-	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutCreateInfo.setLayoutCount = rtDescriptorSetLayouts.size();
-	pipelineLayoutCreateInfo.pSetLayouts = rtDescriptorSetLayouts.data();
-	VK_CHECK(vkCreatePipelineLayout(_device, &pipelineLayoutCreateInfo, nullptr, &_raytracer.pipelineLayout));
-
-	VkRayTracingPipelineCreateInfoKHR rayTracingPipelineCI{};
-	rayTracingPipelineCI.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
-	rayTracingPipelineCI.stageCount = static_cast<uint32_t>(_raytracer.shaderStages.size());
-	rayTracingPipelineCI.pStages = _raytracer.shaderStages.data();
-	rayTracingPipelineCI.groupCount = static_cast<uint32_t>(_raytracer.shaderGroups.size());
-	rayTracingPipelineCI.pGroups = _raytracer.shaderGroups.data();
-	rayTracingPipelineCI.maxPipelineRayRecursionDepth = 2;
-	rayTracingPipelineCI.layout = _raytracer.pipelineLayout;
-	VK_CHECK(vkCreateRayTracingPipelinesKHR(_device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rayTracingPipelineCI, nullptr, &_raytracer.pipeline));
-
-}*/
 
 void Vulkan::cleanup_raytracing()
 {
@@ -707,135 +571,149 @@ void Vulkan::create_command_buffers()
 	VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_uploadContext._commandBuffer));
 }
 
-void Vulkan::update(float deltaTime)
-{
-	static float noise = 0;
-	noise += deltaTime;
 
-	if (noise > 0.05f) {
-		_frameIndex++;
-		noise = 0;
+
+void Vulkan::RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuffer) {
+
+	std::vector<VkRenderingAttachmentInfoKHR> colorAttachments;
+	VkRenderingAttachmentInfoKHR colorAttachment = {};
+	colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+	colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	colorAttachment.clearValue = { 0.0, 0.0, 0, 0 };
+	colorAttachment.imageView = _loadingScreenRenderTarget._view;
+	colorAttachments.push_back(colorAttachment);
+
+	VkRenderingInfoKHR renderingInfo{};
+	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+	renderingInfo.renderArea = { 0, 0, _loadingScreenRenderTarget._extent.width, _loadingScreenRenderTarget._extent.height };
+	renderingInfo.layerCount = 1;
+	renderingInfo.colorAttachmentCount = colorAttachments.size();
+	renderingInfo.pColorAttachments = colorAttachments.data();
+	renderingInfo.pDepthAttachment = nullptr;
+	renderingInfo.pStencilAttachment = nullptr;
+
+	vkCmdBeginRendering(commandBuffer, &renderingInfo);
+	cmd_SetViewportSize(commandBuffer, _loadingScreenRenderTarget);
+	cmd_BindPipeline(commandBuffer, _textBlitterPipeline);
+	cmd_BindDescriptorSet(commandBuffer, _textBlitterPipeline, 0, _dynamicDescriptorSet);
+	cmd_BindDescriptorSet(commandBuffer, _textBlitterPipeline, 1, _staticDescriptorSet);
+
+	// Draw Text plus maybe crosshair
+	for (int i = 0; i < RasterRenderer::instanceCount; i++) {
+		if (RasterRenderer::_UIToRender[i].destination == RasterRenderer::Destination::MAIN_UI)
+			RasterRenderer::DrawMesh(commandBuffer, i);
 	}
+	RasterRenderer::ClearQueue();
 
-	//camera projection
-	if (!GameData::inventoryOpen) {
-
-		// uaing laptop
-		if (GameData::GetPlayer().m_camera._state == Camera::State::USING_LAPTOP) {
-			static float targetZoom = 0.475f;
-			GameData::_cameraZoom = Util::FInterpTo(GameData::_cameraZoom, targetZoom, deltaTime, 40);
-		} 
-		// not using laptop
-		else {
-
-			if (Input::RightMouseDown()) {
-				GameData::_cameraZoom -= (5.3f * deltaTime);
-			}
-			else {
-				GameData::_cameraZoom += (5.3f * deltaTime);
-			}
-			// max and min zoom limit
-			GameData::_cameraZoom = std::min(1.0f, GameData::_cameraZoom);
-			GameData::_cameraZoom = std::max(0.7f, GameData::_cameraZoom);
-		}
-
-		
-	}
-
-	int width, height;
-	glfwGetFramebufferSize(_window, &width, &height);
-	for (GameObject& gameObject : Scene::GetGameObjects()) {
-
-		if (gameObject.GetName() == "Cube") {
-			if (!_debugScene) {
-				gameObject.SetScale(0);
-				//gameObject.DisableCollision();
-			}
-			else {
-				gameObject.SetScale(glm::vec3(0.5, 0.95, 0.4));
-				//gameObject.EnableCollision();
-			}
-		}
-		if (gameObject.GetName() == "Cube2") {
-			if (!_debugScene) {
-				gameObject.SetScale(0);
-				//gameObject.DisableCollision();
-			}
-			else {
-				gameObject.SetScale(glm::vec3(0.4, 1.2, 0.4));
-				//gameObject.EnableCollision();
-			}
-		}
-
-		if (gameObject.GetName() == "Bed") {
-			if (_debugScene) {
-				gameObject.DisableCollision();
-				gameObject.SetScale(0);
-			}
-			else {
-				gameObject.SetScale(1);
-				gameObject.EnableCollision();
-			}
-		}
-	}
+	vkCmdEndRendering(commandBuffer);
 }
 
-void Vulkan::draw()
+
+void Vulkan::BlitRenderTargetIntoSwapChain(VkCommandBuffer commandBuffer, RenderTarget& renderTarget, uint32_t swapchainImageIndex) {
+	renderTarget.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_MEMORY_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+	VkImageSubresourceRange range;
+	range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	range.baseMipLevel = 0;
+	range.levelCount = 1;
+	range.baseArrayLayer = 0;
+	range.layerCount = 1;
+	VkImageMemoryBarrier swapChainBarrier = {};
+	swapChainBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	swapChainBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	swapChainBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	swapChainBarrier.image = _swapchainImages[swapchainImageIndex];
+	swapChainBarrier.subresourceRange = range;
+	swapChainBarrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	swapChainBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+	vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &swapChainBarrier);
+	VkImageBlit region;
+	region.srcOffsets[0].x = 0;
+	region.srcOffsets[0].y = 0;
+	region.srcOffsets[0].z = 0;
+	region.srcOffsets[1].x = renderTarget._extent.width;
+	region.srcOffsets[1].y = renderTarget._extent.height;
+	region.srcOffsets[1].z = 1;	region.srcOffsets[0].x = 0;
+	region.dstOffsets[0].x = 0;
+	region.dstOffsets[0].y = 0;
+	region.dstOffsets[0].z = 0;
+	region.dstOffsets[1].x = _currentWindowExtent.width;
+	region.dstOffsets[1].y = _currentWindowExtent.height;
+	region.dstOffsets[1].z = 1;
+	region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.srcSubresource.mipLevel = 0;
+	region.srcSubresource.baseArrayLayer = 0;
+	region.srcSubresource.layerCount = 1;
+	region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.dstSubresource.mipLevel = 0;
+	region.dstSubresource.baseArrayLayer = 0;
+	region.dstSubresource.layerCount = 1;
+	VkImageLayout srcLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	VkImageLayout dstLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	uint32_t regionCount = 1;
+	region.srcOffsets[1].x = renderTarget._extent.width;
+	region.srcOffsets[1].y = renderTarget._extent.height;
+	region.dstOffsets[1].x = _currentWindowExtent.width;
+	region.dstOffsets[1].y = _currentWindowExtent.height;
+	vkCmdBlitImage(commandBuffer, renderTarget._image, srcLayout, _swapchainImages[swapchainImageIndex], dstLayout, regionCount, &region, VkFilter::VK_FILTER_NEAREST);
+
+}
+
+void Vulkan::PrepareSwapchainForPresent(VkCommandBuffer commandBuffer, uint32_t swapchainImageIndex) {
+	VkImageSubresourceRange range;
+	range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	range.baseMipLevel = 0;
+	range.levelCount = 1;
+	range.baseArrayLayer = 0;
+	range.layerCount = 1;
+	VkImageMemoryBarrier swapChainBarrier = {};
+	swapChainBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	swapChainBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	swapChainBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	swapChainBarrier.image = _swapchainImages[swapchainImageIndex];
+	swapChainBarrier.subresourceRange = range;
+	swapChainBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+	swapChainBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &swapChainBarrier);
+}
+
+
+void Vulkan::RenderLoadingFrame()
 {
-	// Skip if window is miniized
-	int width, height;
-	glfwGetFramebufferSize(_window, &width, &height);
-	while (width == 0 || height == 0) {
+	if (ProgramIsMinimized())
 		return;
-	}
 
-	// Recreate TLAS for current frame
-	vmaDestroyBuffer(_allocator, get_current_frame()._sceneTLAS.buffer._buffer, get_current_frame()._sceneTLAS.buffer._allocation);
-	vkDestroyAccelerationStructureKHR(_device, get_current_frame()._sceneTLAS.handle, nullptr);
-	create_top_level_acceleration_structure(Scene::GetMeshInstancesForSceneAccelerationStructure(), get_current_frame()._sceneTLAS);
+	AddDebugText();
+	TextBlitter::Update(GameData::GetDeltaTime(), _loadingScreenRenderTarget._extent.width, _loadingScreenRenderTarget._extent.height);
 
-	vmaDestroyBuffer(_allocator, get_current_frame()._inventoryTLAS.buffer._buffer, get_current_frame()._inventoryTLAS.buffer._allocation);
-	vkDestroyAccelerationStructureKHR(_device, get_current_frame()._inventoryTLAS.handle, nullptr);
-	create_top_level_acceleration_structure(Scene::GetMeshInstancesForInventoryAccelerationStructure(), get_current_frame()._inventoryTLAS);
-
-	// Build a vector of all the yellow debug lines you need to draw, if any
-	get_required_lines();
-
-	// Update per frame buffers
-	UpdateBuffers();
-
-	// Update per frame descriptor sets
-	UpdateDynamicDescriptorSet();
-
-	// Presumably wait for any previous rendering to finish
-	vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, 1000000000);
-	uint32_t swapchainImageIndex;
-	VkResult result = vkAcquireNextImageKHR(_device, _swapchain, 1000000000, get_current_frame()._presentSemaphore, nullptr, &swapchainImageIndex);
-
-	// Handle resize
-	if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-		recreate_dynamic_swapchain();
-		return;
-	}
-	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-		throw std::runtime_error("failed to acquire swap chain image!");
-	}
-
-	// vkDeviceWaitIdle(_device); 
-	// You were able to remove the line above because you added a TLAS to each frame in flight
-	// You're still not 100% confident you have all this frame in flight shit working correctly so keep that in mind
-
-	result = vkResetFences(_device, 1, &get_current_frame()._renderFence);
-	if (result != VK_SUCCESS) {
-		std::cout << "ResetFences failed with: " << result << "\n";
-	}
-
+	int32_t frameIndex = _frameNumber % FRAME_OVERLAP;
+	VkFence renderFence = get_current_frame()._renderFence;
+	VkSemaphore presentSemaphore = get_current_frame()._presentSemaphore;
 	VkCommandBuffer commandBuffer = _frames[_frameNumber % FRAME_OVERLAP]._commandBuffer;
+	VkCommandBufferBeginInfo commandBufferInfo = vkinit::command_buffer_begin_info();
+
+	vkWaitForFences(_device, 1, &renderFence, VK_TRUE, UINT64_MAX);
+
+	UpdateBuffers2D();
+	_dynamicDescriptorSet.Update(_device, 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstances2DBuffer.buffer);
+
+	vkResetFences(_device, 1, &renderFence);
+
+	uint32_t swapchainImageIndex;
+	VkResult result = vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, presentSemaphore, VK_NULL_HANDLE, &swapchainImageIndex);
+
 	VK_CHECK(vkResetCommandBuffer(commandBuffer, 0));
+	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferInfo));
 
-	// Trace dem rays
-	build_rt_command_buffers(swapchainImageIndex);
+	_loadingScreenRenderTarget.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 
+	RecordAssetLoadingRenderCommands(commandBuffer);
+
+	BlitRenderTargetIntoSwapChain(commandBuffer, _loadingScreenRenderTarget, swapchainImageIndex);
+	PrepareSwapchainForPresent(commandBuffer, swapchainImageIndex);
+
+	VK_CHECK(vkEndCommandBuffer(commandBuffer));
 
 	VkSubmitInfo submit = vkinit::submit_info(&commandBuffer);
 	VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -846,244 +724,143 @@ void Vulkan::draw()
 	submit.pSignalSemaphores = &get_current_frame()._renderSemaphore;
 	VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit, get_current_frame()._renderFence));
 
-	VkPresentInfoKHR presentInfo = vkinit::present_info();
-	presentInfo.pSwapchains = &_swapchain;
-	presentInfo.swapchainCount = 1;
-	presentInfo.pWaitSemaphores = &get_current_frame()._renderSemaphore;
-	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pImageIndices = &swapchainImageIndex;
-	result = vkQueuePresentKHR(_graphicsQueue, &presentInfo);
+	VkPresentInfoKHR presentInfo2 = vkinit::present_info();
+	presentInfo2.pSwapchains = &_swapchain;
+	presentInfo2.swapchainCount = 1;
+	presentInfo2.pWaitSemaphores = &get_current_frame()._renderSemaphore;
+	presentInfo2.waitSemaphoreCount = 1;
+	presentInfo2.pImageIndices = &swapchainImageIndex;
+	result = vkQueuePresentKHR(_graphicsQueue, &presentInfo2);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || _frameBufferResized) {
 		_frameBufferResized = false;
 		recreate_dynamic_swapchain();
 	}
-	else if (result != VK_SUCCESS) {
-		throw std::runtime_error("failed to present swap chain image!");
+}
+
+
+void Vulkan::RenderGameFrame()
+{
+	if (ProgramIsMinimized())
+		return;
+
+	TextBlitter::Update(GameData::GetDeltaTime(), _renderTargets.present._extent.width, _renderTargets.present._extent.height);
+
+	int32_t frameIndex = _frameNumber % FRAME_OVERLAP;
+	VkFence renderFence = get_current_frame()._renderFence;
+	VkSemaphore presentSemaphore = get_current_frame()._presentSemaphore;
+	VkCommandBuffer commandBuffer = _frames[_frameNumber % FRAME_OVERLAP]._commandBuffer;
+	VkCommandBufferBeginInfo commandBufferInfo = vkinit::command_buffer_begin_info();
+
+	vkWaitForFences(_device, 1, &renderFence, VK_TRUE, UINT64_MAX);
+
+	// Prep
+	{
+		// Recreate TLAS for current frame
+		vmaDestroyBuffer(_allocator, get_current_frame()._sceneTLAS.buffer._buffer, get_current_frame()._sceneTLAS.buffer._allocation);
+		vkDestroyAccelerationStructureKHR(_device, get_current_frame()._sceneTLAS.handle, nullptr);
+		create_top_level_acceleration_structure(Scene::GetMeshInstancesForSceneAccelerationStructure(), get_current_frame()._sceneTLAS);
+		vmaDestroyBuffer(_allocator, get_current_frame()._inventoryTLAS.buffer._buffer, get_current_frame()._inventoryTLAS.buffer._allocation);
+		vkDestroyAccelerationStructureKHR(_device, get_current_frame()._inventoryTLAS.handle, nullptr);
+		create_top_level_acceleration_structure(Scene::GetMeshInstancesForInventoryAccelerationStructure(), get_current_frame()._inventoryTLAS);
+
+		get_required_lines();
+		UpdateBuffers();
+		UpdateBuffers2D();
+		UpdateDynamicDescriptorSet();
+	}
+
+	vkResetFences(_device, 1, &renderFence);
+
+	uint32_t swapchainImageIndex;
+	VkResult result = vkAcquireNextImageKHR(_device, _swapchain, UINT64_MAX, presentSemaphore, VK_NULL_HANDLE, &swapchainImageIndex);
+
+	VK_CHECK(vkResetCommandBuffer(commandBuffer, 0));
+	//VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferInfo));
+
+	//_renderTargets.present.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+
+	//RecordCommandsAssetLoading(commandBuffer);
+	build_rt_command_buffers(swapchainImageIndex);
+
+	//BlitRenderTargetIntoSwapChain(commandBuffer, _renderTargets.present, swapchainImageIndex);
+	//PrepareSwapchainForPresent(commandBuffer, swapchainImageIndex);
+
+	//VK_CHECK(vkEndCommandBuffer(commandBuffer));
+
+	VkSubmitInfo submit = vkinit::submit_info(&commandBuffer);
+	VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	submit.pWaitDstStageMask = &waitStage;
+	submit.waitSemaphoreCount = 1;
+	submit.pWaitSemaphores = &get_current_frame()._presentSemaphore;
+	submit.signalSemaphoreCount = 1;
+	submit.pSignalSemaphores = &get_current_frame()._renderSemaphore;
+	VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit, get_current_frame()._renderFence));
+
+	VkPresentInfoKHR presentInfo2 = vkinit::present_info();
+	presentInfo2.pSwapchains = &_swapchain;
+	presentInfo2.swapchainCount = 1;
+	presentInfo2.pWaitSemaphores = &get_current_frame()._renderSemaphore;
+	presentInfo2.waitSemaphoreCount = 1;
+	presentInfo2.pImageIndices = &swapchainImageIndex;
+	result = vkQueuePresentKHR(_graphicsQueue, &presentInfo2);
+
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || _frameBufferResized) {
+		_frameBufferResized = false;
+		recreate_dynamic_swapchain();
 	}
 
 	_frameNumber++;
 }
 
-void Vulkan::run()
-{
-	auto currentTime = std::chrono::high_resolution_clock::now();
 
-	//double t = 0.0;
-	//double dt = 1 / 60.0;
-	//double accumulator = 0.0;
-	//double fixedStep = 1.0 / 60.0;
-	
-	float accumulator = 0;
-	const float DESIRED_FRAMETIME = 1.0f / 60.0f;
-	const float maxDeltaTime = DESIRED_FRAMETIME * 4;
+void Vulkan::ToggleFullscreen() {
+	static double lastXPositionWhenWindowed = 0;
+	static double lastYPositionWhenWindowed = 0;
+	static bool _windowed = true;
 
-	while (!_shouldClose && !glfwWindowShouldClose(_window)) {
+	_windowed = !_windowed;
 
-
-			glfwPollEvents();
-
-			if (glfwGetKey(_window, GLFW_KEY_BACKSPACE) == GLFW_PRESS) {
-				_shouldClose = true;
-			}
-
-			Input::Update(_window);
-			Audio::Update();
-
-			static double lastTime = glfwGetTime();
-			float currenttime = glfwGetTime();
-			double deltaTime = currenttime - lastTime;
-
-			Scene::Update(deltaTime);
-			TextBlitter::Update(deltaTime); 
-
-			lastTime = currenttime;
+	if (!_windowed) {
+		GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+		const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+		_currentWindowExtent = { (unsigned int)mode->width , (unsigned int)mode->height };
+		glfwSetWindowMonitor(_window, monitor, 0, 0, mode->width, mode->width, mode->refreshRate);
+		glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		recreate_dynamic_swapchain();
+		_frameBufferResized = false;
 
 
-
-			if (deltaTime > 0.25)
-				deltaTime = 0.25;
-
-
-			double dt = 0.01;
-			accumulator += deltaTime;
-
-			while (accumulator >= dt)
-			{
-				accumulator -= dt;
-			}
-
-
-			accumulator += deltaTime;
-
-			float DESIRED_UPDATE_TIME = 1.0f / 60.0f;
-
-			//while (accumulator > DESIRED_UPDATE_TIME)
-			{
-			//	accumulator -= DESIRED_UPDATE_TIME;
-			}
-
-
-			//float totalDeltaTime = frameTime / DESIRED_FRAMETIME;
-			//int i = 0;
-			//int MAX_PHYSICS_STEPS = 4;
-		/*	while (totalDeltaTime > 0.0f && i < MAX_PHYSICS_STEPS) {
-
-				float deltaTime = std::min(totalDeltaTime, maxDeltaTime);
-				
-				i++;
-				totalDeltaTime -= deltaTime;
-			}*/
-		//	std::cout << deltaTime << "   " << "\n";
-
-			GameData::GetPlayer().m_interactDisabled = false;
-			GameData::GetPlayer().m_movementDisabled = false;
-			GameData::GetPlayer().m_mouselookDisabled = false;
-	
-			if (GameData::GetPlayer().m_camera._state == Camera::State::USING_LAPTOP) {
-				GameData::GetPlayer().m_interactDisabled = true;
-				GameData::GetPlayer().m_movementDisabled = true;
-				GameData::GetPlayer().m_mouselookDisabled = true;
-			}
-
-			if (TextBlitter::QuestionIsOpen()) {
-				GameData::GetPlayer().m_interactDisabled = true;
-				GameData::GetPlayer().m_movementDisabled = true;
-				GameData::GetPlayer().m_mouselookDisabled = true;
-			}
-			
-			if (!GameData::inventoryOpen) {
-				GameData::GetPlayer().UpdateMovement(deltaTime);
-
-				std::vector collisionLines = Scene::GetCollisionLineVertices();
-
-				if (_collisionEnabled) {
-					GameData::GetPlayer().EvaluateCollsions(collisionLines);
-				}
-				GameData::GetPlayer().UpdateMouselook(deltaTime);
-			}
-			GameData::GetPlayer().UpdateCamera(deltaTime, GameData::inventoryOpen);
-
-			// Update laptop if using it
-			if (GameData::GetPlayer().m_camera._state == Camera::State::USING_LAPTOP) {
-				Laptop::Update(deltaTime);
-			}
-
-			//auto newTime = std::chrono::high_resolution_clock::now();
-			//float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
-			//currentTime = newTime;
-
-
-			int width, height;
-			glfwGetFramebufferSize(_window, &width, &height);
-			while (width == 0 || height == 0) {
-				//	return;
-			}
-
-
-			
-			if (Input::KeyPressed(HELL_KEY_R)) {
-				TextBlitter::ResetBlitter();
-				Audio::PlayAudio("RE_bleep.wav", 0.9f);
-				GameData::CleanInventory();
-				Scene::Init();
-				Laptop::Init();
-
-
-			}
-			/*if (Input::KeyPressed(HELL_KEY_SPACE)) {
-				TextBlitter::AskQuestion("Take the [g]HANDGUN BULLETS[w]?");
-			}*/
-
-			static double lastXPositionWhenWindowed = 0;
-			static double lastYPositionWhenWindowed = 0;
-
-			if (Input::KeyPressed(HELL_KEY_F)) {
-				static bool _windowed = true;
-				_windowed = !_windowed;
-				if (!_windowed) {
-					GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-					const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-					_currentWindowExtent = { (unsigned int)mode->width , (unsigned int)mode->height };
-					glfwSetWindowMonitor(_window, monitor, 0, 0, mode->width, mode->width, mode->refreshRate);
-					glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-					recreate_dynamic_swapchain();
-					_frameBufferResized = false;
-
-					// Store the old mouse position
-					glfwGetCursorPos(_window, &lastXPositionWhenWindowed, &lastYPositionWhenWindowed);
-					// Prevent the camera jumping position from a large x,y mouse offset]
-					double centerX = mode->width / 2;
-					double centerY = mode->height / 2;
-					Input::ForceSetStoredMousePosition(centerX, centerY);
-					// Move cursor to that same position
-					glfwSetCursorPos(_window, centerX, centerY);
-				}
-				else {
-					glfwSetWindowMonitor(_window, nullptr, 0, 0, _windowedModeExtent.width, _windowedModeExtent.height, 0);
-					glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-					recreate_dynamic_swapchain();
-					_frameBufferResized = false;
-					// Restore the old mouse position
-					glfwSetCursorPos(_window, lastXPositionWhenWindowed, lastYPositionWhenWindowed);
-					// Prevent the camera jumping position from a large x,y mouse offset]
-					Input::ForceSetStoredMousePosition(lastXPositionWhenWindowed, lastYPositionWhenWindowed);
-				}
-			}
-
-			if (Input::KeyPressed(HELL_KEY_H)) {
-				hotload_shaders();
-			}
-
-
-			if (Input::KeyPressed(HELL_KEY_Y)) {
-				_debugScene = !_debugScene;
-				Audio::PlayAudio("RE_bleep.wav", 0.5f);
-			}
-
-			if (Input::KeyPressed(HELL_KEY_G)) {
-				GameData::CleanInventory();
-				for (auto& itemData : GameData::_inventoryItemDataContainer)
-					GameData::AddInventoryItem(itemData.name);
-				Audio::PlayAudio("RE_bleep.wav", 0.5f);
-				TextBlitter::Type("GIVEN ALL ITEMS.");
-			}
-
-			if (Input::KeyPressed(HELL_KEY_U)) {
-				_renderGBuffer = !_renderGBuffer;
-				Audio::PlayAudio("RE_bleep.wav", 0.5f);
-			}
-			if (Input::KeyPressed(HELL_KEY_T)) {
-				_usePathRayTracer = !_usePathRayTracer;
-				Audio::PlayAudio("RE_bleep.wav", 0.5f);
-			}
-
-			if (Input::KeyPressed(HELL_KEY_B)) {
-				Audio::PlayAudio("RE_bleep.wav", 0.5f);
-				int debugModeIndex = (int)_debugMode;
-				debugModeIndex++;
-				if (debugModeIndex == (int)DebugMode::DEBUG_MODE_COUNT) {
-					debugModeIndex = 0;
-				}
-				debugModeIndex;
-				_debugMode = (DebugMode)debugModeIndex;
-			}
-			if (Input::KeyPressed(HELL_KEY_C)) {
-				GameData::GetPlayer().m_camera._disableHeadBob = !GameData::GetPlayer().m_camera._disableHeadBob;
-				Audio::PlayAudio("RE_bleep.wav", 0.5f);
-			}
-			
-			if (Input::KeyPressed(HELL_KEY_M)) {
-				_collisionEnabled = !_collisionEnabled;
-				Audio::PlayAudio("RE_bleep.wav", 0.5f);
-			}
-
-			// CORRECTION MULTIPLIER VALUE: 62.375249500998
-			update(deltaTime);
-
-			draw();
-		
+		// Store the old mouse position
+		glfwGetCursorPos(_window, &lastXPositionWhenWindowed, &lastYPositionWhenWindowed);
+		// Prevent the camera jumping position from a large x,y mouse offset]
+		double centerX = mode->width / 2;
+		double centerY = mode->height / 2;
+		Input::ForceSetStoredMousePosition(centerX, centerY);
+		// Move cursor to that same position
+		glfwSetCursorPos(_window, centerX, centerY);
 	}
+	else {
+		glfwSetWindowMonitor(_window, nullptr, 0, 0, _windowedModeExtent.width, _windowedModeExtent.height, 0);
+		glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		recreate_dynamic_swapchain();
+		_frameBufferResized = false;
+		// Restore the old mouse position
+		glfwSetCursorPos(_window, lastXPositionWhenWindowed, lastYPositionWhenWindowed);
+		// Prevent the camera jumping position from a large x,y mouse offset]
+		Input::ForceSetStoredMousePosition(lastXPositionWhenWindowed, lastYPositionWhenWindowed);
+	}
+}
+
+
+bool Vulkan::ProgramShouldClose() {
+	return (glfwWindowShouldClose(_window) || _forceCloseWindow);
+}
+
+bool Vulkan::ProgramIsMinimized() {
+	int width, height;
+	glfwGetFramebufferSize(_window, &width, &height);
+	return (width == 0 || height == 0);
 }
 
 FrameData& Vulkan::get_current_frame() {
@@ -1144,6 +921,8 @@ void Vulkan::create_render_targets()
 	}
 	
 
+	
+
 	//depth image size will match the window
 	VkExtent3D depthImageExtent = {
 		_renderTargets.present._extent.width,
@@ -1161,8 +940,8 @@ void Vulkan::create_render_targets()
 	VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	//width = 522 * 2;
 	//height = 288 * 2;
-	_renderTargetDenoiseA = RenderTarget(_device, _allocator, VK_FORMAT_R32G32B32A32_SFLOAT, width, height, usage, "denoise A render target");
-	_renderTargetDenoiseB = RenderTarget(_device, _allocator, VK_FORMAT_R32G32B32A32_SFLOAT, width, height, usage, "denoise B render target");
+	_renderTargetDenoiseA = RenderTarget(_device, _allocator, format, width, height, usage, "denoise A render target");
+	_renderTargetDenoiseB = RenderTarget(_device, _allocator, format, width, height, usage, "denoise B render target");
 
 	_renderTargets.composite = RenderTarget(_device, _allocator, format, width, height, usage, "composite render targe");
 }
@@ -1211,6 +990,30 @@ void Vulkan::hotload_shaders()
 
 	vkDeviceWaitIdle(_device);
 
+	_raytracer.Cleanup(_device, _allocator);
+	_raytracerPath.Cleanup(_device, _allocator);
+	_raytracerMousePick.Cleanup(_device, _allocator);
+
+	//load_shader(_device, "composite.vert", VK_SHADER_STAGE_VERTEX_BIT, &_composite_vertex_shader);
+	//load_shader(_device, "composite.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_composite_fragment_shader);
+
+	//_raytracer.LoadShaders(_device, "raygen.rgen", "miss.rmiss", "shadow.rmiss", "closesthit.rchit");
+	//_raytracerPath.LoadShaders(_device, "path_raygen.rgen", "path_miss.rmiss", "path_shadow.rmiss", "path_closesthit.rchit");
+	//_raytracerMousePick.LoadShaders(_device, "mousepick_raygen.rgen", "mousepick_miss.rmiss", "path_shadow.rmiss", "mousepick_closesthit.rchit");
+
+	LoadShaders();
+
+	create_pipelines();
+
+	init_raytracing();
+}
+/*
+void Vulkan::hotload_shaders()
+{
+	std::cout << "Hotloading shaders...\n";
+
+	vkDeviceWaitIdle(_device);
+
 	_compositePipeline.Cleanup(_device);
 	_denoisePipeline.Cleanup(_device);
 	_rasterPipeline.Cleanup(_device);
@@ -1228,14 +1031,11 @@ void Vulkan::hotload_shaders()
 	create_pipelines();
 
 	init_raytracing();
-}
+}*/
 
 
 void Vulkan::LoadShaders()
 {
-	load_shader(_device, "text_blitter.vert", VK_SHADER_STAGE_VERTEX_BIT, &_text_blitter_vertex_shader);
-	load_shader(_device, "text_blitter.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_text_blitter_fragment_shader);
-
 	load_shader(_device, "solid_color.vert", VK_SHADER_STAGE_VERTEX_BIT, &_solid_color_vertex_shader);
 	load_shader(_device, "solid_color.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_solid_color_fragment_shader);
 
@@ -1259,7 +1059,7 @@ void Vulkan::LoadShaders()
 void Vulkan::create_pipelines()
 {
 	// Denoise pipeline
-	{
+	/* {
 		_denoisePipeline.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
 		_denoisePipeline.PushDescriptorSetLayout(_staticDescriptorSet.layout);
 		_denoisePipeline.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
@@ -1280,37 +1080,43 @@ void Vulkan::create_pipelines()
 		pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
 		pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, _depth_aware_blur_vertex_shader));
 		pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, _depth_aware_blur_fragment_shader));
-		_denoisePipeline.handle = pipelineBuilder.build_dynamic_rendering_pipeline(_device, &_swachainImageFormat, _depthFormat, 1);
-	}
+		_denoisePipeline.handle = pipelineBuilder.build_dynamic_rendering_pipeline(_device, _depthFormat, 1);
+	}*/
 
 	// Commposite pipeline
-	{
-		_compositePipeline.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
-		_compositePipeline.PushDescriptorSetLayout(_staticDescriptorSet.layout);
-		_compositePipeline.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
-		_compositePipeline.PushDescriptorSetLayout(_denoiseATextureDescriptorSet.layout);
-		_compositePipeline.PushDescriptorSetLayout(_denoiseBTextureDescriptorSet.layout);
-		_compositePipeline.CreatePipelineLayout(_device);
-		VertexInputDescription vertexDescription = Util::get_vertex_description_position_and_texcoords_only();
-		PipelineBuilder pipelineBuilder;
-		pipelineBuilder._pipelineLayout = _compositePipeline.layout;
-		pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
-		pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-		pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE);
-		pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
-		pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state(false);
-		pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(false, false, VK_COMPARE_OP_LESS_OR_EQUAL);
-		pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
-		pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = vertexDescription.attributes.size();
-		pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
-		pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
-		pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, _composite_vertex_shader));
-		pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, _composite_fragment_shader));
-		_compositePipeline.handle = pipelineBuilder.build_dynamic_rendering_pipeline(_device, &_swachainImageFormat, _depthFormat, 1);
-	}
+	_compositePipeline.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
+	_compositePipeline.PushDescriptorSetLayout(_staticDescriptorSet.layout);
+	_compositePipeline.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
+	_compositePipeline.PushDescriptorSetLayout(_denoiseATextureDescriptorSet.layout);
+	_compositePipeline.PushDescriptorSetLayout(_denoiseBTextureDescriptorSet.layout);
+	_compositePipeline.CreatePipelineLayout(_device);
+	_compositePipeline.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
+	_compositePipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	_compositePipeline.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	_compositePipeline.SetCullModeFlags(VK_CULL_MODE_NONE);
+	_compositePipeline.SetColorBlending(false);
+	_compositePipeline.SetDepthTest(false);
+	_compositePipeline.SetDepthWrite(false);
+	_compositePipeline.Build(_device, _composite_vertex_shader, _composite_fragment_shader, 1);
+	
+	// Lines pipeline
+	_linesPipeline.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
+	_linesPipeline.PushDescriptorSetLayout(_staticDescriptorSet.layout);
+	_linesPipeline.SetPushConstantSize(sizeof(LineShaderPushConstants));
+	_linesPipeline.SetPushConstantCount(1);
+	_linesPipeline.CreatePipelineLayout(_device);
+	_linesPipeline.SetVertexDescription(VertexDescriptionType::POSITION);
+	_linesPipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
+	_linesPipeline.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	_linesPipeline.SetCullModeFlags(VK_CULL_MODE_NONE);
+	_linesPipeline.SetColorBlending(false);
+	_linesPipeline.SetDepthTest(false);
+	_linesPipeline.SetDepthWrite(false);
+	_linesPipeline.Build(_device, _solid_color_vertex_shader, _solid_color_fragment_shader, 1);
+
 
 	// Raster pipeline
-	{
+	/* {
 		// Text blitter pipeline layout
 		_rasterPipeline.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
 		_rasterPipeline.PushDescriptorSetLayout(_staticDescriptorSet.layout);
@@ -1332,396 +1138,9 @@ void Vulkan::create_pipelines()
 		pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, _gbuffer_vertex_shader));
 		pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, _gbuffer_fragment_shader));
 
-		_rasterPipeline.handle = pipelineBuilder.build_dynamic_rendering_pipeline(_device, &_swachainImageFormat, _depthFormat, 3);
-	}
-
-	{
-		// Text blitter pipeline layout
-		_textBlitterPipeline.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
-		_textBlitterPipeline.PushDescriptorSetLayout(_staticDescriptorSet.layout);
-		_textBlitterPipeline.CreatePipelineLayout(_device);
-
-		VertexInputDescription vertexDescription = Util::get_vertex_description_position_and_texcoords_only();
-		PipelineBuilder pipelineBuilder;
-		pipelineBuilder._pipelineLayout = _textBlitterPipeline.layout;
-		pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
-		pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST );
-		pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE);
-		pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
-		pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state(false);
-		pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(false, false, VK_COMPARE_OP_LESS_OR_EQUAL);
-		pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
-		pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = vertexDescription.attributes.size();
-		pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
-		pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
-		pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, _text_blitter_vertex_shader));
-		pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, _text_blitter_fragment_shader));
-
-		_textBlitterPipeline.handle = pipelineBuilder.build_dynamic_rendering_pipeline(_device, &_swachainImageFormat, _depthFormat, 1);
-	}
-
-	// Line list pipeline layout
-	{
-		VkPushConstantRange push_constant;
-		push_constant.offset = 0;
-		push_constant.size = sizeof(LineShaderPushConstants);
-		push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-		VkPipelineLayoutCreateInfo pipelineLayoutInfo = vkinit::pipeline_layout_create_info();
-		pipelineLayoutInfo.pPushConstantRanges = &push_constant;
-		pipelineLayoutInfo.pushConstantRangeCount = 1;
-
-		VK_CHECK(vkCreatePipelineLayout(_device, &pipelineLayoutInfo, nullptr, &_linelistPipelineLayout));
-
-		VertexInputDescription vertexDescription = Util::get_vertex_description_position_only();
-
-		PipelineBuilder pipelineBuilder;
-		pipelineBuilder._pipelineLayout = _linelistPipelineLayout;
-		pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
-		pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
-		pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE);
-		pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
-		pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state(false);
-		pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
-		pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
-		pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = vertexDescription.attributes.size();
-		pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
-		pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
-		pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, _solid_color_vertex_shader));
-		pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, _solid_color_fragment_shader));
-
-		_linelistPipeline = pipelineBuilder.build_dynamic_rendering_pipeline(_device, &_swachainImageFormat, _depthFormat, 1);
-	}
-
-
-
-
-
-/*
-	VkDescriptorSetLayout computePipelineSetLayout;
-	VkPipelineLayout computePipelinePipelineLayout;
-	VkDescriptorPool computePipelineDescriptorPool;
-	VkDescriptorSet computePipelineDescriptorSet;
-	HellBuffer positionBuffer;
-	HellBuffer velocityBuffer;
-	VkPipelineCache pipelineCache;
-	VkPipeline computePipeline;
-
-	positionBuffer.Create(_allocator, SIZE, BUFFERU
-		
-	//void BasicCompute::initComputePipelineLayout()
-	{
-		VkDescriptorSetLayoutBinding bindings[2] = { { 0 } };
-		bindings[0].binding = 0;
-		bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		bindings[0].descriptorCount = 1;
-		bindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-		bindings[1].binding = 1;
-		bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		bindings[1].descriptorCount = 1;
-		bindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-		VkDescriptorSetLayoutCreateInfo info = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-		info.bindingCount = 2;
-		info.pBindings = bindings;
-		VK_CHECK(vkCreateDescriptorSetLayout(_device, &info, nullptr, &computePipelineSetLayout));
-
-		VkPipelineLayoutCreateInfo layoutInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
-		layoutInfo.setLayoutCount = 1;
-		layoutInfo.pSetLayouts = &computePipelineSetLayout;
-		VK_CHECK(vkCreatePipelineLayout(_device, &layoutInfo, nullptr, &computePipelinePipelineLayout));
-	}
-
-
-	//void BasicCompute::initComputeDescriptorSet()
-	{
-		static const VkDescriptorPoolSize poolSizes[2] = {
-			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 }, { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
-		};
-
-		VkDescriptorPoolCreateInfo poolInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-		poolInfo.poolSizeCount = 2;
-		poolInfo.pPoolSizes = poolSizes;
-		poolInfo.maxSets = 1;
-		VK_CHECK(vkCreateDescriptorPool(_device, &poolInfo, nullptr, &computePipelineDescriptorPool));
-
-		VkDescriptorSetAllocateInfo allocInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
-		allocInfo.descriptorPool = computePipelineDescriptorPool;
-		allocInfo.descriptorSetCount = 1;
-		allocInfo.pSetLayouts = &computePipelineSetLayout;
-		VK_CHECK(vkAllocateDescriptorSets(_device, &allocInfo, &computePipelineDescriptorSet));
-
-		VkWriteDescriptorSet writes[2] = {
-			{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET }, { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET },
-		};
-
-		const VkDescriptorBufferInfo bufferInfo[2] = {
-			{ positionBuffer.buffer, 0, positionBuffer.size }, { velocityBuffer.buffer, 0, velocityBuffer.size },
-		};
-
-		writes[0].dstSet = computePipelineDescriptorSet;
-		writes[0].dstBinding = 0;
-		writes[0].descriptorCount = 1;
-		writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		writes[0].pBufferInfo = &bufferInfo[0];
-
-		writes[1].dstSet = computePipelineDescriptorSet;
-		writes[1].dstBinding = 1;
-		writes[1].descriptorCount = 1;
-		writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		writes[1].pBufferInfo = &bufferInfo[1];
-
-		vkUpdateDescriptorSets(_device, 2, writes, 0, nullptr);
-	}
-
-
-
-
-
-
-	
-
-
-
-
-
-
-
-
-	// Compute pipeline
-	if (false)
-	{
-		VkDescriptorSetLayoutBinding bindings[2] = { { 0 } };
-		bindings[0].binding = 0;
-		bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		bindings[0].descriptorCount = 1;
-		bindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-		bindings[1].binding = 1;
-		bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		bindings[1].descriptorCount = 1;
-		bindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-
-		VkComputePipelineCreateInfo info = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
-		info.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		info.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-		info.stage.module = _denoiser_compute_shader;// loadShaderModule(device, "shaders/particle.comp.spv");
-		info.stage.pName = "main";
-		info.layout = computePipelinePipelineLayout;
-		VK_CHECK(vkCreateComputePipelines(_device, pipelineCache, 1, &info, nullptr, &computePipeline));
-		// Pipeline is baked, we can delete the shader module now.
-		vkDestroyShaderModule(_device, info.stage.module, nullptr);
-
-
-
-
-
-
-		// Text blitter pipeline layout
-		_computePipeline.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
-		_computePipeline.PushDescriptorSetLayout(_staticDescriptorSet.layout);
-		_computePipeline.CreatePipelineLayout(_device);
-
-		VertexInputDescription vertexDescription = Util::get_vertex_description();
-		PipelineBuilder pipelineBuilder;
-		pipelineBuilder._pipelineLayout = _computePipeline.layout;
-		//pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
-		//pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-		//pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE); // VK_CULL_MODE_NONE
-		//pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
-		//pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state(false);
-		//pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
-		//pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
-		//pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = vertexDescription.attributes.size();
-		//pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
-		//pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
-		pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_COMPUTE_BIT, _denoiser_compute_shader));
-
-		_computePipeline.handle = pipelineBuilder.build_dynamic_rendering_pipeline(_device, &_swachainImageFormat, _depthFormat, 3);
+		_rasterPipeline.handle = pipelineBuilder.build_dynamic_rendering_pipeline(_device, _depthFormat, 3);
 	}*/
 }
-
-VkPipeline PipelineBuilder::build_dynamic_rendering_pipeline(VkDevice device, const VkFormat* swapchainFormat, VkFormat depthFormat, int colorAttachmentCount)
-{
-	VkPipelineViewportStateCreateInfo viewportState = {};
-	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-	viewportState.pNext = nullptr;
-	viewportState.viewportCount = 1;
-	viewportState.scissorCount = 1;
-
-	VkPipelineColorBlendStateCreateInfo colorBlending = {};
-	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	colorBlending.pNext = nullptr;
-	colorBlending.logicOpEnable = VK_FALSE;
-	colorBlending.logicOp = VK_LOGIC_OP_COPY;
-	colorBlending.attachmentCount = colorAttachmentCount;
-
-	std::vector<VkPipelineColorBlendAttachmentState> blendAttachmentStates;
-	for (int i = 0; i < colorAttachmentCount; i++) {
-		VkPipelineColorBlendAttachmentState att_state0 = {};
-		att_state0.colorWriteMask = 0xF;
-		att_state0.blendEnable = VK_TRUE;
-		att_state0.colorBlendOp = VK_BLEND_OP_ADD;
-		att_state0.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-		att_state0.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-		att_state0.alphaBlendOp = VK_BLEND_OP_ADD;
-		att_state0.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		att_state0.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		blendAttachmentStates.push_back(att_state0);
-	}
-	colorBlending.pAttachments = blendAttachmentStates.data();
-
-	std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };// , VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY
-	VkPipelineDynamicStateCreateInfo dynamicState{};
-	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
-	dynamicState.pDynamicStates = dynamicStates.data();
-
-	//build the actual pipeline
-	//we now use all of the info structs we have been writing into into this one to create the pipeline
-	VkGraphicsPipelineCreateInfo pipelineInfo = {};
-	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipelineInfo.pNext = nullptr;
-
-	pipelineInfo.stageCount = _shaderStages.size();
-	pipelineInfo.pStages = _shaderStages.data();
-	pipelineInfo.pVertexInputState = &_vertexInputInfo;
-	pipelineInfo.pInputAssemblyState = &_inputAssembly;
-	pipelineInfo.pViewportState = &viewportState;
-	pipelineInfo.pRasterizationState = &_rasterizer;
-	pipelineInfo.pMultisampleState = &_multisampling;
-	pipelineInfo.pColorBlendState = &colorBlending;
-	pipelineInfo.pDepthStencilState = &_depthStencil;
-	pipelineInfo.layout = _pipelineLayout;
-	pipelineInfo.renderPass = nullptr;
-	pipelineInfo.subpass = 0;
-	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
-	pipelineInfo.pDynamicState = &dynamicState;
-
-	// New create info to define color, depth and stencil attachments at pipeline create time
-	std::vector<VkFormat> formats;
-	for (int i = 0; i < colorAttachmentCount; i++) {
-		formats.push_back(VK_FORMAT_R8G8B8A8_UNORM);
-	}
-	VkPipelineRenderingCreateInfoKHR pipelineRenderingCreateInfo{};
-	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
-	pipelineRenderingCreateInfo.colorAttachmentCount = colorAttachmentCount;
-	pipelineRenderingCreateInfo.pColorAttachmentFormats = formats.data();// swapchainFormat;
-	pipelineRenderingCreateInfo.depthAttachmentFormat = depthFormat;
-	pipelineRenderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;// depthFormat;
-	// Chain into the pipeline creat einfo
-	pipelineInfo.pNext = &pipelineRenderingCreateInfo;
-
-	//its easy to error out on create graphics pipeline, so we handle it a bit better than the common VK_CHECK case
-	VkPipeline newPipeline;
-	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &newPipeline) != VK_SUCCESS) {
-		std::cout << "failed to create pipline\n";
-		return VK_NULL_HANDLE; // failed to create graphics pipeline
-	}
-	else
-	{
-		return newPipeline;
-	}
-}
-
-VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass)
-{
-	//make viewport state from our stored viewport and scissor.
-		//at the moment we wont support multiple viewports or scissors
-	VkPipelineViewportStateCreateInfo viewportState = {};
-	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-	viewportState.pNext = nullptr;
-
-	viewportState.viewportCount = 1;
-	//viewportState.pViewports = &_viewport;
-	viewportState.scissorCount = 1;
-	//viewportState.pScissors = &_scissor;
-
-
-	VkPipelineColorBlendAttachmentState att_state0 = {};
-	att_state0.colorWriteMask = 0xF;
-	att_state0.blendEnable = VK_TRUE;
-	att_state0.colorBlendOp = VK_BLEND_OP_ADD;
-	att_state0.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-	att_state0.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-	att_state0.alphaBlendOp = VK_BLEND_OP_ADD;
-	att_state0.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	att_state0.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-
-
-
-	//setup dummy color blending. We arent using transparent objects yet
-	//the blending is just "no blend", but we do write to the color attachment
-	VkPipelineColorBlendStateCreateInfo colorBlending = {};
-	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	colorBlending.pNext = nullptr;
-
-	colorBlending.logicOpEnable = VK_FALSE;
-	colorBlending.logicOp = VK_LOGIC_OP_COPY;
-	colorBlending.attachmentCount = 1;
-	colorBlending.pAttachments = &att_state0;// _colorBlendAttachment;
-
-
-
-	std::vector<VkDynamicState> dynamicStates = {
-		  VK_DYNAMIC_STATE_VIEWPORT,
-		  VK_DYNAMIC_STATE_SCISSOR
-	};
-	VkPipelineDynamicStateCreateInfo dynamicState{};
-	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
-	dynamicState.pDynamicStates = dynamicStates.data();
-
-	/*VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
-	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	inputAssembly.pNext = nullptr;
-	inputAssembly.flags = 0;
-	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	inputAssembly.primitiveRestartEnable = VK_FALSE;
-	*/
-	//build the actual pipeline
-	//we now use all of the info structs we have been writing into into this one to create the pipeline
-	VkGraphicsPipelineCreateInfo pipelineInfo = {};
-	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipelineInfo.pNext = nullptr;
-
-	pipelineInfo.stageCount = _shaderStages.size();
-	pipelineInfo.pStages = _shaderStages.data();
-	pipelineInfo.pVertexInputState = &_vertexInputInfo;
-	pipelineInfo.pInputAssemblyState = &_inputAssembly;
-	pipelineInfo.pViewportState = &viewportState;
-	pipelineInfo.pRasterizationState = &_rasterizer;
-	pipelineInfo.pMultisampleState = &_multisampling;
-	pipelineInfo.pColorBlendState = &colorBlending;
-	pipelineInfo.pDepthStencilState = &_depthStencil;
-	pipelineInfo.layout = _pipelineLayout;
-	pipelineInfo.renderPass = pass;
-	pipelineInfo.subpass = 0;
-	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
-	//
-	pipelineInfo.pDynamicState = &dynamicState;
-
-	//its easy to error out on create graphics pipeline, so we handle it a bit better than the common VK_CHECK case
-	VkPipeline newPipeline;
-	if (vkCreateGraphicsPipelines(
-		device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &newPipeline) != VK_SUCCESS) {
-		std::cout << "failed to create pipline\n";
-		return VK_NULL_HANDLE; // failed to create graphics pipeline
-	}
-	else
-	{
-		return newPipeline;
-	}
-}
-
-
-void Vulkan::draw_quad(Transform transform, Texture* texture)
-{
-
-}
-
-
 
 void Vulkan::upload_meshes() {
 	for (Mesh& mesh : AssetManager::GetMeshList()) {
@@ -1731,7 +1150,6 @@ void Vulkan::upload_meshes() {
 		}
 	}
 }
-
 
 void Vulkan::upload_mesh(Mesh& mesh)
 {
@@ -1988,7 +1406,7 @@ void Vulkan::create_descriptors()
 
 	// Dynamic 
 	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 0, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// acceleration structure
-	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 1, VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// camera data
+	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// camera data
 	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// all 3D mesh instances
 	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, 1, VK_SHADER_STAGE_VERTEX_BIT);																			// all 2d mesh instances
 	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);																	// light positions and colors
@@ -1997,7 +1415,7 @@ void Vulkan::create_descriptors()
 	add_debug_name(_dynamicDescriptorSet.layout, "DynamicDescriptorSetLayout");
 	// Dynamic inventory
 	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 0, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// acceleration structure
-	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// camera data
+	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// camera data
 	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// all 3D mesh instances
 	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, 1, VK_SHADER_STAGE_VERTEX_BIT);																			// all 2d mesh instances
 	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);																	// light positions and colors
@@ -2481,6 +1899,39 @@ void Vulkan::create_buffers() {
 	// none as of yet. besides TLAS but that is created elsewhere.
 }
 
+
+void Vulkan::UpdateBuffers2D() {
+
+	// Queue all text characters for rendering
+	int quadMeshIndex = AssetManager::GetModel("blitter_quad")->_meshIndices[0];
+	for (auto& instanceInfo : TextBlitter::_objectData) {
+			RasterRenderer::SubmitUI(quadMeshIndex, instanceInfo.index_basecolor, instanceInfo.index_color, instanceInfo.modelMatrix, RasterRenderer::Destination::MAIN_UI, instanceInfo.xClipMin, instanceInfo.xClipMax, instanceInfo.yClipMin, instanceInfo.yClipMax); // Todo: You are storing color in the normals. Probably not a major deal but could be confusing at some point down the line.
+	}
+
+	if (_loaded) {
+		// Add the crosshair
+		if (!GameData::inventoryOpen && GameData::GetPlayer().m_camera._state != Camera::State::USING_LAPTOP) {
+
+			std::string cursor = "CrosshairDot";
+
+			// Interactable?
+			if (Scene::_hoveredGameObject) {
+				if (Scene::_hoveredGameObject->IsInteractable() || Scene::_hoveredGameObject->_interactAffectsThisObjectInstead != "") {
+					cursor = "CrosshairSquare";
+				}
+			}
+			// Draw it
+			RasterRenderer::DrawQuad(cursor, 512 / 2, 288 / 2, RasterRenderer::Destination::MAIN_UI, true);
+		}
+
+		// Laptop UI
+		Laptop::PrepareUIForRaster();
+	}
+
+	// 2D instance data
+	get_current_frame()._meshInstances2DBuffer.MapRange(_allocator, RasterRenderer::_instanceData2D, sizeof(GPUObjectData2D) * RasterRenderer::instanceCount);
+}
+
 void Vulkan::UpdateBuffers() {
 
 	CameraData camData;
@@ -2511,40 +1962,14 @@ void Vulkan::UpdateBuffers() {
 	inventoryCamData.viewInverse = glm::inverse(inventoryCamData.view);
 	inventoryCamData.viewPos = glm::vec4(camera.m_viewPos, 1.0f);
 	inventoryCamData.vertexSize = sizeof(Vertex);
-	inventoryCamData.frameIndex = _frameIndex;
+	inventoryCamData.frameIndex = _frameIndex++;
 	inventoryCamData.inventoryOpen = 2; // 2 is actually inventory render
 	inventoryCamData.wallPaperALBIndex = AssetManager::GetTextureIndex("WallPaper_ALB");
 	get_current_frame()._inventoryCamDataBuffer.Map(_allocator, &inventoryCamData);
 
-	AddDebugText();
-
-	// Queue all text characters for rendering
-	int quadMeshIndex = AssetManager::GetModel("blitter_quad")->_meshIndices[0];
-	for (auto& instanceInfo : TextBlitter::_objectData) {
-		RasterRenderer::SubmitUI(quadMeshIndex, instanceInfo.index_basecolor, instanceInfo.index_color, instanceInfo.modelMatrix, RasterRenderer::Destination::MAIN_UI, instanceInfo.xClipMin, instanceInfo.xClipMax, instanceInfo.yClipMin, instanceInfo.yClipMax); // Todo: You are storing color in the normals. Probably not a major deal but could be confusing at some point down the line.
-	}
-
-	// Add the crosshair
-	if (!GameData::inventoryOpen && GameData::GetPlayer().m_camera._state != Camera::State::USING_LAPTOP) {
-
-		std::string cursor = "CrosshairDot";
-
-		// Interactable?
-		if (Scene::_hoveredGameObject) {
-			if (Scene::_hoveredGameObject->IsInteractable() || Scene::_hoveredGameObject->_interactAffectsThisObjectInstead != "") {
-				cursor = "CrosshairSquare";
-			}
-		}
-		// Draw it
-		RasterRenderer::DrawQuad(cursor, 512 / 2, 288 / 2, RasterRenderer::Destination::MAIN_UI, true);
-	}
-
-	// Laptop UI
-	Laptop::PrepareUIForRaster();
+	
 
 
-	// 2D instance data
-	get_current_frame()._meshInstances2DBuffer.MapRange(_allocator, RasterRenderer::_instanceData2D, sizeof(GPUObjectData2D) * RasterRenderer::instanceCount);
 
 	// 3D instance data
 	std::vector<MeshInstance> meshInstances = Scene::GetSceneMeshInstances(_debugScene);
@@ -2812,7 +2237,6 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 			bg_texture->insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 			_renderTargets.laptopDisplay.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-
 			// Render LAPTOP UI
 			std::vector<VkRenderingAttachmentInfoKHR> colorAttachments;
 			VkRenderingAttachmentInfoKHR colorAttachment = {};
@@ -2847,10 +2271,10 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 			vkCmdEndRendering(commandBuffer);
 		}
 	}
-
+	/*
 	////////////////////
 	// Render GBuffer //
-	{
+	if (false) {
 		std::vector<VkRenderingAttachmentInfoKHR> colorAttachments;
 		VkRenderingAttachmentInfoKHR colorAttachment = {};
 		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
@@ -2890,10 +2314,6 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 		cmd_BindDescriptorSet(commandBuffer, _rasterPipeline, 0, _dynamicDescriptorSet);
 		cmd_BindDescriptorSet(commandBuffer, _rasterPipeline, 1, _staticDescriptorSet);
 
-
-
-
-
 		if (_renderGBuffer) {
 			auto meshes = Scene::GetSceneMeshes(_debugScene);
 			for (int i = 0; i < meshes.size(); i++) {
@@ -2902,11 +2322,11 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 		}
 
 		vkCmdEndRendering(commandBuffer);
-	}
+	}*/
 
 	//////////////////////
 	// Denoise Pass(es) //
-	//if (false)
+	/*if (false)
 	{
 		
 		// begin by blitting the noisy image into denoiseB texture
@@ -3015,7 +2435,7 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 3, _denoiseATextureDescriptorSet);
 		mesh->draw(commandBuffer, 0);
 		vkCmdEndRendering(commandBuffer);
-	}
+	}*/
 
 
 	////////////////////
@@ -3059,7 +2479,8 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 
 
 	// Blit the gbuffer normal texture back into present
-	if (_renderGBuffer) {
+	//if (_renderGBuffer) 
+	{
 		_renderTargets.composite.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 		_renderTargets.present.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 		blit_render_target(commandBuffer, _renderTargets.composite, _renderTargets.present, VkFilter::VK_FILTER_LINEAR);
@@ -3101,23 +2522,20 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 		}
 		RasterRenderer::ClearQueue();
 
-		// Draw lines
+		// Draw debug lines
 		if (_lineListMesh._vertexCount > 0 && _debugMode != DebugMode::NONE) {
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _linelistPipeline);
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _linesPipeline._handle);
 			glm::mat4 projection = glm::perspective(GameData::_cameraZoom, 1700.f / 900.f, 0.01f, 100.0f);
 			glm::mat4 view = GameData::GetPlayer().m_camera.GetViewMatrix();
 			projection[1][1] *= -1;
 			LineShaderPushConstants constants;
 			constants.transformation = projection * view;;
-			vkCmdPushConstants(commandBuffer, _linelistPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(LineShaderPushConstants), &constants);
+			vkCmdPushConstants(commandBuffer, _linesPipeline._layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(LineShaderPushConstants), &constants);
 			_lineListMesh.draw(commandBuffer, 0);
 		}
 
 		vkCmdEndRendering(commandBuffer);
 	}
-
-
-
 
 	///////////////////////////////////////////
 	// Blit present image into the swapchain //
@@ -3179,89 +2597,8 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &swapChainBarrier);
 	}
 
-
-
-
-
-
-
-
-
-
-
-
-
-	
-	static size_t rtBufferSize = _renderTargets.rt_scene._extent.width * _renderTargets.rt_scene._extent.height * sizeof(uint8_t) * 4;
-	static VmaAllocationInfo allocInfo;
-	static AllocatedBuffer imageDataDestBuffer;
-	static AllocatedBuffer imageDataCPUBuffer;
-	static AllocatedBuffer stagingBuffer;
-
-	static bool runOnce = true;
-	if (Input::KeyPressed(HELL_KEY_SPACE) && runOnce) {
-
-		VkBufferCreateInfo stagingBufferInfo = {};
-		stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-		stagingBufferInfo.size = rtBufferSize;
-		stagingBufferInfo.pNext = nullptr;
-
-		VmaAllocationCreateInfo allocCreateInfo = {};
-		allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
-		allocCreateInfo.preferredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-		//allocCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-
-		VK_CHECK(vmaCreateBuffer(_allocator, &stagingBufferInfo, &allocCreateInfo, &stagingBuffer._buffer, &stagingBuffer._allocation, &allocInfo));
-		vmaMapMemory(_allocator, stagingBuffer._allocation, &stagingBuffer._mapped);
-		add_debug_name(stagingBuffer._buffer, "stagingBufferDENOISE");
-		
-		runOnce = false;
-/*
-		VkBufferCreateInfo bufferInfo = {};
-		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferInfo.pNext = nullptr;
-		bufferInfo.size = rtBufferSize;
-		bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		VmaAllocationCreateInfo vmaallocInfo = {};
-		vmaallocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-		vmaallocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-		VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo, &imageDataDestBuffer._buffer, &imageDataDestBuffer._allocation, nullptr));
-		add_debug_name(imageDataDestBuffer._buffer, "imageDataDestBuffer");
-
-		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferInfo.pNext = nullptr;
-		bufferInfo.size = rtBufferSize;
-		bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-		vmaallocInfo = {};
-		vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-		vmaallocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-		VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo, &imageDataCPUBuffer._buffer, &imageDataCPUBuffer._allocation, nullptr));
-		add_debug_name(imageDataCPUBuffer._buffer, "imageDataCPUBuffer");
-		vmaMapMemory(_allocator, imageDataCPUBuffer._allocation, &imageDataCPUBuffer._mapped);*/
-	}
-
-	if (Input::KeyPressed(HELL_KEY_SPACE)) {
-
-		std::cout << "Saving...\n";
-
-		VkBufferImageCopy copyRegion = {};
-		copyRegion.bufferOffset = 0;
-		copyRegion.bufferRowLength = _renderTargets.rt_scene._extent.width;
-		copyRegion.bufferImageHeight = _renderTargets.rt_scene._extent.height;
-		copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		copyRegion.imageSubresource.mipLevel = 0;
-		copyRegion.imageSubresource.baseArrayLayer = 0;
-		copyRegion.imageSubresource.layerCount = 1;
-		copyRegion.imageExtent = _renderTargets.rt_scene._extent;
-
-		_renderTargets.rt_scene.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_MEMORY_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-		vkCmdCopyImageToBuffer(commandBuffer, _renderTargets.rt_scene._image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, stagingBuffer._buffer, 1, &copyRegion);
-
-	//	VkBufferCopy bufCopy = { 0, 0,rtBufferSize };
-	//	vkCmdCopyBuffer(commandBuffer, imageDataDestBuffer._buffer, imageDataCPUBuffer._buffer, 1, &bufCopy);
-	}
-
+	// Get the mesh index of whatever triangle the cursor is aiming at
+	// I mean, you already have it by this point, the code below is retrieving it from the GPU buffer that contains it
 	if (!GameData::inventoryOpen) {
 		uint32_t bufferSize = sizeof(uint32_t) * 2;
 		VkBufferCopy bufCopy = {
@@ -3279,145 +2616,19 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 		VK_CHECK(vkEndCommandBuffer(commandBuffer));
 		Scene::StoreMousePickResult(-1, -1);
 	}
-
-
-
-	vkDeviceWaitIdle(_device);
-
-	if (Input::KeyPressed(HELL_KEY_SPACE)) {
-
-		/*
-		uint8_t data;
-		memcpy(&data, stagingBuffer._mapped, sizeof(uint8_t));
-		std::cout << (float)data / 255.0f  << "\n";
-		*/
-
-		int width = _renderTargets.rt_scene._extent.width;
-		int height = _renderTargets.rt_scene._extent.height;
-		int size = width * height * 3;
-		std::cout << "rtBufferSize: " << rtBufferSize << "\n";
-		std::cout << "size: " << size << "\n";
-
-		uint8_t* data = (uint8_t*)stagingBuffer._mapped;
-		std::cout << (float)data[0] / 255.0f << "\n\n";
-
-		for (int i = 0; i < 12; i++) {
-		//	std::cout << i << ": " << (float)data[i] / 255.0f << "\n";
-		}
-
-		std::vector<float> floatArray(size);
-
-		int index = 0;
-		for (int i = 0; i < rtBufferSize; i+=4) {
-			//std::cout << i << ": " << (float)data[i] / 255.0f << "\n";
-			floatArray[index++] = (float)data[i] / 255.0f;
-			floatArray[index++] = (float)data[i+1] / 255.0f;
-			floatArray[index++] = (float)data[i+2] / 255.0f;
-		}
-
-		//AssetManager::SaveImageDataF("bitch.png", width, height, 3, floatArray.data());
-		AssetManager::SaveImageDataF("bitch.png", width, height, 3, floatArray.data());
-
-		//uint8_t* data;
-		//memcpy(&data, stagingBuffer._mapped, rtBufferSize);
-
-		//uint8_t data[1024 * 576 * 4]; // 2,359,296
-
-	//	uint8_t* data = new uint8_t[1024 * 576 * 4];
-		//uint8_t* data;
-	//	memcpy(&data, stagingBuffer._mapped, sizeof(uint8_t) * 2);
-		//std::cout << (float)data[0] / 255.0f << "\n";
-
-		//delete data;
-
-
-
-
-
-
-		//uint8_t* data;
-		//memcpy(&data, stagingBuffer._mapped, rtBufferSize);
-
-		//uint8_t data[2] = { 2,0 };
-		//uint8_t data[2] = { 2,0 };
-		//memcpy(&data, stagingBuffer._mapped, sizeof(uint8_t) * 2);
-		//std::cout << (float)data[0] / 255.0f << "\n";
-
-//		std::cout << (float)data / 255.0f << "\n";
-
-		
-	//	std::vector<float> floatData(size);
-		/*
-		for (int i = 0; i < 5; i++) {
-			//std::cout <<  << "\n";
-			floatData[i] = (float)data[i] / 255.0f;
-		}*/
-	//	AssetManager::SaveImageDataF("bitch.png", width, height, 3, data);
-	
-
-		/*
-		vmaMapMemory(_allocator, stagingBuffer._allocation, &stagingBuffer._mapped);
-
-		float data[50] = { 6, 6, 6 };
-
-		memcpy(data, stagingBuffer._mapped, sizeof(float) * 50);
-
-		float* floatArray = (float*)data;
-
-		for (int i = 0; i < 50; i++) {
-			std::cout << i << ": " << (float)(floatArray[i]) << "\n";
-		}*/
-
-
-
-
-
-		/*
-		// Source for the copy is the last rendered swapchain image
-		VkImage srcImage = _swapchainImages[_frameNumber % FRAME_OVERLAP];
-
-		// Create the linear tiled destination image to copy to and to read the memory from
-		VkImageCreateInfo imageCreateInfo{};
-		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		// Note that vkCmdBlitImage (if supported) will also do format conversions if the swapchain color format would differ
-		imageCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
-		imageCreateInfo.extent.width = width;
-		imageCreateInfo.extent.height = height;
-		imageCreateInfo.extent.depth = 1;
-		imageCreateInfo.arrayLayers = 1;
-		imageCreateInfo.mipLevels = 1;
-		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		imageCreateInfo.tiling = VK_IMAGE_TILING_LINEAR;
-		imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-
-		// Create the image
-		VkImage dstImage;
-		VK_CHECK(vkCreateImage(_device, &imageCreateInfo, nullptr, &dstImage));
-
-		// Create memory to back up the image
-		VkMemoryRequirements memRequirements;
-		VkMemoryAllocateInfo memAllocInfo{};
-		memAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		
-		VkDeviceMemory dstImageMemory;
-		vkGetImageMemoryRequirements(_device, dstImage, &memRequirements);
-		memAllocInfo.allocationSize = memRequirements.size;
-
-		// Memory must be host visible to copy from
-		uint32_t type;
-
-
-
-		memAllocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-		VK_CHECK_RESULT(vkAllocateMemory(device, &memAllocInfo, nullptr, &dstImageMemory));
-		VK_CHECK_RESULT(vkBindImageMemory(device, dstImage, dstImageMemory, 0));*/
-	}
 }
 
 void Vulkan::AddDebugText() {
+
+
 	TextBlitter::ResetDebugText();
+
+	if (!_loaded) {
+		int begin = std::max(0, (int)_loadingText.size() - 36);
+		for (int i = begin; i < _loadingText.size(); i++) {
+			TextBlitter::AddDebugText(_loadingText[i]);
+		}
+	}
 
 	if (_debugMode == DebugMode::RAY) {
 		TextBlitter::AddDebugText("Cam pos: " + Util::Vec3ToString(GameData::GetPlayer().m_camera.m_viewPos));
@@ -3444,7 +2655,7 @@ void Vulkan::get_required_lines() {
 		VkBufferCreateInfo vertexBufferInfo = {};
 		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		vertexBufferInfo.pNext = nullptr;
-		vertexBufferInfo.size = sizeof(Vertex) * 512; // number of max lines possible
+		vertexBufferInfo.size = sizeof(Vertex) * 4096; // number of max lines possible
 		vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 		VmaAllocationCreateInfo vmaallocInfo = {};
 		vmaallocInfo.usage = VMA_MEMORY_USAGE_AUTO;;
@@ -3480,27 +2691,22 @@ void Vulkan::get_required_lines() {
 
 	_lineListMesh._vertexCount = vertices.size();
 
-	if (vertices.size())
-	{
+	if (vertices.size()){
 		const size_t bufferSize = vertices.size() * sizeof(Vertex);
 		VkBufferCreateInfo stagingBufferInfo = {};
 		stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		stagingBufferInfo.pNext = nullptr;
 		stagingBufferInfo.size = bufferSize;
 		stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
 		VmaAllocationCreateInfo vmaallocInfo = {};
 		vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
 		AllocatedBuffer stagingBuffer;
 		VK_CHECK(vmaCreateBuffer(_allocator, &stagingBufferInfo, &vmaallocInfo, &stagingBuffer._buffer, &stagingBuffer._allocation, nullptr));
 		add_debug_name(stagingBuffer._buffer, "stagingBuffer");
-
 		void* data;
 		vmaMapMemory(_allocator, stagingBuffer._allocation, &data);
 		memcpy(data, vertices.data(), vertices.size() * sizeof(Vertex));
 		vmaUnmapMemory(_allocator, stagingBuffer._allocation);
-
 		immediate_submit([=](VkCommandBuffer cmd) {
 			VkBufferCopy copy;
 			copy.dstOffset = 0;
@@ -3508,7 +2714,6 @@ void Vulkan::get_required_lines() {
 			copy.size = bufferSize;
 			vkCmdCopyBuffer(cmd, stagingBuffer._buffer, _lineListMesh._vertexBuffer._buffer, 1, &copy);
 			});
-
 		vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
 	}
 }
@@ -3534,12 +2739,12 @@ void Vulkan::cmd_SetViewportSize(VkCommandBuffer commandBuffer, RenderTarget ren
 	cmd_SetViewportSize(commandBuffer, renderTarget._extent.width, renderTarget._extent.height);
 }
 
-void Vulkan::cmd_BindPipeline(VkCommandBuffer commandBuffer, HellPipeline& pipeline) {
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.handle);
+void Vulkan::cmd_BindPipeline(VkCommandBuffer commandBuffer, Pipeline& pipeline) {
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline._handle);
 }
 
-void Vulkan::cmd_BindDescriptorSet(VkCommandBuffer commandBuffer, HellPipeline& pipeline, uint32_t setIndex, HellDescriptorSet& descriptorSet) {
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, setIndex, 1, &descriptorSet.handle, 0, nullptr);
+void Vulkan::cmd_BindDescriptorSet(VkCommandBuffer commandBuffer, Pipeline& pipeline, uint32_t setIndex, HellDescriptorSet& descriptorSet) {
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline._layout, setIndex, 1, &descriptorSet.handle, 0, nullptr);
 }
 
 void Vulkan::cmd_BindRayTracingPipeline(VkCommandBuffer commandBuffer, VkPipeline pipeline) {
@@ -3548,4 +2753,8 @@ void Vulkan::cmd_BindRayTracingPipeline(VkCommandBuffer commandBuffer, VkPipelin
 
 void Vulkan::cmd_BindRayTracingDescriptorSet(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, uint32_t setIndex, HellDescriptorSet& descriptorSet) {
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, setIndex, 1, &descriptorSet.handle, 0, nullptr);
+}
+
+GLFWwindow* Vulkan::GetWindow() {
+	return _window;
 }

@@ -96,8 +96,8 @@ namespace AssetManager
 	void Init();
 	void LoadFont();
 	void LoadHardcodedMesh();
-	void LoadModels();
-	void LoadTextures();
+	bool LoadNextModel();
+	bool LoadNextTexture();
 	void BuildMaterials();
 
 	//int CreateMesh(); 

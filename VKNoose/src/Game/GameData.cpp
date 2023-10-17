@@ -1,11 +1,154 @@
 #include "GameData.h"
 #include "../Util.h"
 #include "AssetManager.h"
+#include "Scene.h"
+#include "Laptop.h"
 
 namespace GameData {
 	std::vector<std::string> _inventory;
 	Player _player; 
 	float _cameraZoom = 1.0f;
+	float _deltaTime = 0;
+}
+
+float GameData::GetDeltaTime() {
+	return _deltaTime;
+}
+
+void GameData::Init() {
+	//GameData::GetPlayer().m_position = glm::vec3(-2.7f, 0, 0);
+	//GameData::GetPlayer().m_camera.m_transform.rotation = glm::vec3(-0.25f, -NOOSE_HALF_PI, 0);
+	//GameData::GetPlayer().m_position = glm::vec3(-1.82f, 0, -1.05f);
+	//GameData::GetPlayer().m_camera.m_transform.rotation = glm::vec3(-1.12f, -0.66f, 0.0f);
+	GameData::GetPlayer().m_position = glm::vec3(-1.87f, 0, 1.11f);
+	GameData::GetPlayer().m_camera.m_transform.rotation = glm::vec3(-1.00f, 1.69f, 0.0f);
+}
+
+void GameData::Update() {
+
+	auto currentTime = std::chrono::high_resolution_clock::now();
+	float accumulator = 0;
+	const float DESIRED_FRAMETIME = 1.0f / 60.0f;
+	const float maxDeltaTime = DESIRED_FRAMETIME * 4;
+
+	static float lastTime = (float)glfwGetTime();
+	float currenttime = glfwGetTime();
+	_deltaTime = currenttime - lastTime;
+	Scene::Update(_deltaTime);
+	lastTime = currenttime;
+	if (_deltaTime > 0.25)
+		_deltaTime = 0.25;
+	float dt = 0.01;
+	accumulator += _deltaTime;
+
+	while (accumulator >= dt) {
+		accumulator -= dt;
+	}
+	accumulator += _deltaTime;
+	float DESIRED_UPDATE_TIME = 1.0f / 60.0f;
+
+	GameData::GetPlayer().m_interactDisabled = false;
+	GameData::GetPlayer().m_movementDisabled = false;
+	GameData::GetPlayer().m_mouselookDisabled = false;
+
+	if (GameData::GetPlayer().m_camera._state == Camera::State::USING_LAPTOP) {
+		GameData::GetPlayer().m_interactDisabled = true;
+		GameData::GetPlayer().m_movementDisabled = true;
+		GameData::GetPlayer().m_mouselookDisabled = true;
+	}
+
+	if (TextBlitter::QuestionIsOpen()) {
+		GameData::GetPlayer().m_interactDisabled = true;
+		GameData::GetPlayer().m_movementDisabled = true;
+		GameData::GetPlayer().m_mouselookDisabled = true;
+	}
+
+	if (!GameData::inventoryOpen) {
+		GameData::GetPlayer().UpdateMovement(_deltaTime);
+
+		std::vector collisionLines = Scene::GetCollisionLineVertices();
+
+		if (Vulkan::_collisionEnabled) {
+			GameData::GetPlayer().EvaluateCollsions(collisionLines);
+		}
+		GameData::GetPlayer().UpdateMouselook(_deltaTime);
+	}
+	GameData::GetPlayer().UpdateCamera(_deltaTime, GameData::inventoryOpen);
+
+	// Update laptop if using it
+	if (GameData::GetPlayer().m_camera._state == Camera::State::USING_LAPTOP) {
+		Laptop::Update(_deltaTime);
+	}
+
+
+	static float noise = 0;
+	noise += _deltaTime;
+
+	if (noise > 0.05f) {
+		//_frameIndex++;
+		noise = 0;
+	}
+
+	//camera projection
+	if (!GameData::inventoryOpen) {
+
+		// uaing laptop
+		if (GameData::GetPlayer().m_camera._state == Camera::State::USING_LAPTOP) {
+			static float targetZoom = 0.475f;
+			GameData::_cameraZoom = Util::FInterpTo(GameData::_cameraZoom, targetZoom, _deltaTime, 40);
+		}
+		// not using laptop
+		else {
+
+			if (Input::RightMouseDown()) {
+				GameData::_cameraZoom -= (5.3f * _deltaTime);
+			}
+			else {
+				GameData::_cameraZoom += (5.3f * _deltaTime);
+			}
+			// max and min zoom limit
+			GameData::_cameraZoom = std::min(1.0f, GameData::_cameraZoom);
+			GameData::_cameraZoom = std::max(0.7f, GameData::_cameraZoom);
+		}
+
+
+	}
+
+	for (GameObject& gameObject : Scene::GetGameObjects()) {
+
+		if (gameObject.GetName() == "Cube") {
+			if (!Vulkan::_debugScene) {
+				gameObject.SetScale(0);
+				//gameObject.DisableCollision();
+			}
+			else {
+				gameObject.SetScale(glm::vec3(0.5, 0.95, 0.4));
+				//gameObject.EnableCollision();
+			}
+		}
+		if (gameObject.GetName() == "Cube2") {
+			if (!Vulkan::_debugScene) {
+				gameObject.SetScale(0);
+				//gameObject.DisableCollision();
+			}
+			else {
+				gameObject.SetScale(glm::vec3(0.4, 1.2, 0.4));
+				//gameObject.EnableCollision();
+			}
+		}
+
+		if (gameObject.GetName() == "Bed") {
+			if (Vulkan::_debugScene) {
+				gameObject.DisableCollision();
+				gameObject.SetScale(0);
+			}
+			else {
+				gameObject.SetScale(1);
+				gameObject.EnableCollision();
+			}
+		}
+	}
+
 }
 
 void GameData::AddInventoryItem(std::string itemName) {
@@ -122,7 +265,7 @@ void GameData::InitInventoryItemData()
 	blackSkull.menu.push_back("Examine");
 	blackSkull.transform.scale = glm::vec3(0.25);
 	blackSkull.material = AssetManager::GetMaterial("BlackSkull");
-	blackSkull.model = AssetManager::GetModel("skull2");
+	blackSkull.model = AssetManager::GetModel("BlackSkull2");
 	blackSkull.transform.rotation.x = 0;
 	blackSkull.transform.rotation.y = 0;
 	blackSkull.transform.rotation.x += 0.25f;
@@ -134,7 +277,7 @@ void GameData::InitInventoryItemData()
 	flowers.menu.push_back("Examine");
 	flowers.transform.scale = glm::vec3(1.7);
 	flowers.material = AssetManager::GetMaterial("Flowers");
-	flowers.model = AssetManager::GetModel("flowers");
+	flowers.model = AssetManager::GetModel("Flowers");
 	flowers.transform.rotation.x = 0.40;
 	flowers.transform.rotation.y = 0.45;
 	flowers.transform.rotation.x += 0.15f;
