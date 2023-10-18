@@ -4,21 +4,16 @@
 #include "raycommon.glsl"
 
 layout (location = 0) out vec4 outFragColor;
-
 layout (location = 0) in vec2 texCoords;
 
-
-layout(set = 2, binding = 0) uniform sampler2D first_bounce_texture;
-layout(set = 2, binding = 2) uniform sampler2D normal_texture;
-layout(set = 2, binding = 3) uniform sampler2D second_bounce_texture;/*
-layout(set = 2, binding = 1) uniform sampler2D basecolor_texture;
-layout(set = 2, binding = 2) uniform sampler2D normal_texture; // currently you have the RT generated normal texture here
-layout(set = 2, binding = 3) uniform sampler2D rt_depth_texture;
-layout(set = 2, binding = 4) uniform sampler2D depth_texture;
-layout(set = 2, binding = 5) uniform sampler2D rt_inventory_texture;
-*/
-layout(set = 3, binding = 0) uniform sampler2D denoiseA;
-layout(set = 4, binding = 0) uniform sampler2D denoiseB;
+layout(set = 2, binding = 0) uniform sampler2D firstHitColorTexture;
+layout(set = 2, binding = 1) uniform sampler2D firstHitNormalsTexture;
+layout(set = 2, binding = 2) uniform sampler2D firstHitBaseColorTexture;
+layout(set = 2, binding = 3) uniform sampler2D secondHitColorTexture;
+layout(set = 2, binding = 4) uniform sampler2D denoiseATexture;
+layout(set = 2, binding = 5) uniform sampler2D denoiseBTexture;
+layout(set = 2, binding = 6) uniform sampler2D denoiseCTexture;
+layout(set = 2, binding = 7) uniform sampler2D laptopDisplay;
 
 
 vec3 filmic(vec3 x) {
@@ -33,19 +28,17 @@ float filmic(float x) {
   return pow(result, 2.2);
 }
 
-
 void main() 
 {
-    vec3 firstBounce = texture(first_bounce_texture,vec2(texCoords.x, 1-texCoords.y)).xyz;    
-    vec3 secondBounce = texture(second_bounce_texture,vec2(texCoords.x, 1-texCoords.y)).xyz;
-    vec3 denoised = texture(denoiseA,vec2(texCoords.x, 1-texCoords.y)).xyz;
+    vec3 firstHitColor = texture(firstHitColorTexture,vec2(texCoords.x, 1-texCoords.y)).xyz;    
+    vec3 firstHitNormals = texture(firstHitNormalsTexture,vec2(texCoords.x, 1-texCoords.y)).xyz;
+    vec3 secondHitColorTexture = texture(secondHitColorTexture,vec2(texCoords.x, 1-texCoords.y)).xyz;
+    vec3 firstHitBaseColor = texture(firstHitBaseColorTexture,vec2(texCoords.x, 1-texCoords.y)).xyz;
+    vec3 denoiseA = texture(denoiseATexture,vec2(texCoords.x, 1-texCoords.y)).xyz;
+    vec3 denoiseB = texture(denoiseBTexture,vec2(texCoords.x, 1-texCoords.y)).xyz;
+    vec3 denoiseC = texture(denoiseCTexture,vec2(texCoords.x, 1-texCoords.y)).xyz;
 
-	vec3 finalColor = firstBounce + secondBounce;
-	finalColor = mix(firstBounce, secondBounce, 0.8);
-	
-	//finalColor = secondBounce;
-
-	
+	vec3 finalColor = mix(firstHitColor, secondHitColorTexture * firstHitBaseColor, 0.8);;
 
     // Tonemap
 	finalColor = pow(finalColor, vec3(1.0/2.2)); 
@@ -72,6 +65,5 @@ void main()
     finalColor *= vignette;*/
     
     outFragColor.rgb = finalColor;
- //   outFragColor.rgb = denoised;
     outFragColor.a = 1.0;
 }

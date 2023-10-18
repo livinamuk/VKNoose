@@ -261,17 +261,17 @@ void Vulkan::InitMinimum()
 	create_descriptors();
 	
 	// Create text blitter pipeline and pipeline layout
-	_textBlitterPipeline.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
-	_textBlitterPipeline.PushDescriptorSetLayout(_staticDescriptorSet.layout);
-	_textBlitterPipeline.CreatePipelineLayout(_device);
-	_textBlitterPipeline.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
-	_textBlitterPipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-	_textBlitterPipeline.SetPolygonMode(VK_POLYGON_MODE_FILL);
-	_textBlitterPipeline.SetCullModeFlags(VK_CULL_MODE_NONE);
-	_textBlitterPipeline.SetColorBlending(true);
-	_textBlitterPipeline.SetDepthTest(false);
-	_textBlitterPipeline.SetDepthWrite(false);
-	_textBlitterPipeline.Build(_device, _text_blitter_vertex_shader, _text_blitter_fragment_shader, 1);
+	_pipelines.textBlitter.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
+	_pipelines.textBlitter.PushDescriptorSetLayout(_staticDescriptorSet.layout);
+	_pipelines.textBlitter.CreatePipelineLayout(_device);
+	_pipelines.textBlitter.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
+	_pipelines.textBlitter.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	_pipelines.textBlitter.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	_pipelines.textBlitter.SetCullModeFlags(VK_CULL_MODE_NONE);
+	_pipelines.textBlitter.SetColorBlending(true);
+	_pipelines.textBlitter.SetDepthTest(false);
+	_pipelines.textBlitter.SetDepthWrite(false);
+	_pipelines.textBlitter.Build(_device, _text_blitter_vertex_shader, _text_blitter_fragment_shader, 1);
 	
 	AssetManager::Init();
 	AssetManager::LoadFont();
@@ -399,11 +399,18 @@ void Vulkan::cleanup_shaders()
 	vkDestroyShaderModule(_device, _solid_color_fragment_shader, nullptr);
 	vkDestroyShaderModule(_device, _gbuffer_vertex_shader, nullptr);
 	vkDestroyShaderModule(_device, _gbuffer_fragment_shader, nullptr);
-	vkDestroyShaderModule(_device, _depth_aware_blur_vertex_shader, nullptr);
-	vkDestroyShaderModule(_device, _depth_aware_blur_fragment_shader, nullptr);
-	vkDestroyShaderModule(_device, _denoiser_compute_shader, nullptr);
+	vkDestroyShaderModule(_device, _blur_horizontal_vertex_shader, nullptr);
+	vkDestroyShaderModule(_device, _blur_horizontal_fragment_shader, nullptr);
+	vkDestroyShaderModule(_device, _blur_vertical_vertex_shader, nullptr);
+	vkDestroyShaderModule(_device, _blur_vertical_fragment_shader, nullptr);
 	vkDestroyShaderModule(_device, _composite_vertex_shader, nullptr);
 	vkDestroyShaderModule(_device, _composite_fragment_shader, nullptr);
+	vkDestroyShaderModule(_device, _denoise_pass_A_vertex_shader, nullptr);
+	vkDestroyShaderModule(_device, _denoise_pass_A_fragment_shader, nullptr);
+	vkDestroyShaderModule(_device, _denoise_pass_B_vertex_shader, nullptr);
+	vkDestroyShaderModule(_device, _denoise_pass_B_fragment_shader, nullptr);
+	vkDestroyShaderModule(_device, _denoise_pass_C_vertex_shader, nullptr);
+	vkDestroyShaderModule(_device, _denoise_pass_C_fragment_shader, nullptr);
 }
 
 void Vulkan::Cleanup()
@@ -414,9 +421,14 @@ void Vulkan::Cleanup()
 	cleanup_shaders();
 
 	// Pipelines
-	_textBlitterPipeline.Cleanup(_device);
-	_compositePipeline.Cleanup(_device);
-	_linesPipeline.Cleanup(_device);
+	_pipelines.textBlitter.Cleanup(_device);
+	_pipelines.composite.Cleanup(_device);
+	_pipelines.lines.Cleanup(_device);
+	_pipelines.denoisePassA.Cleanup(_device);
+	_pipelines.denoisePassB.Cleanup(_device);
+	_pipelines.denoisePassC.Cleanup(_device);
+	_pipelines.denoiseBlurHorizontal.Cleanup(_device);
+	_pipelines.denoiseBlurVertical.Cleanup(_device);
 
 	// Command pools
 	vkDestroyCommandPool(_device, _uploadContext._commandPool, nullptr);
@@ -435,10 +447,11 @@ void Vulkan::Cleanup()
 	_renderTargets.gBufferBasecolor.cleanup(_device, _allocator);
 	_renderTargets.gBufferNormal.cleanup(_device, _allocator);
 	_renderTargets.gBufferRMA.cleanup(_device, _allocator);
+	_renderTargets.denoiseTextureA.cleanup(_device, _allocator);
+	_renderTargets.denoiseTextureB.cleanup(_device, _allocator);
+	_renderTargets.denoiseTextureC.cleanup(_device, _allocator);
 	_presentDepthTarget.Cleanup(_device, _allocator);
 	_gbufferDepthTarget.Cleanup(_device, _allocator);
-	_renderTargetDenoiseA.cleanup(_device, _allocator);
-	_renderTargetDenoiseB.cleanup(_device, _allocator);
 	_renderTargets.laptopDisplay.cleanup(_device, _allocator);
 	_renderTargets.composite.cleanup(_device, _allocator);
 	//_renderTargetDenoiseA.cleanup(_device, _allocator);
@@ -477,8 +490,8 @@ void Vulkan::Cleanup()
 	_dynamicDescriptorSetInventory.Destroy(_device);
 	_staticDescriptorSet.Destroy(_device);
 	_samplerDescriptorSet.Destroy(_device);
-	_denoiseATextureDescriptorSet.Destroy(_device);
-	_denoiseBTextureDescriptorSet.Destroy(_device);
+	//_denoiseATextureDescriptorSet.Destroy(_device);
+	//_denoiseBTextureDescriptorSet.Destroy(_device);
 
 	// Textures
 	for (int i = 0; i < AssetManager::GetNumberOfTextures(); i++) {
@@ -540,9 +553,10 @@ void Vulkan::cleanup_raytracing()
 	vkDestroyAccelerationStructureKHR(_device, _frames[0]._inventoryTLAS.handle, nullptr);
 	vkDestroyAccelerationStructureKHR(_device, _frames[1]._inventoryTLAS.handle, nullptr);
 
-	_renderTargets.rt_scene.cleanup(_device, _allocator);
-	_renderTargets.rt_indirect_noise.cleanup(_device, _allocator);
-	_renderTargets.rt_normals.cleanup(_device, _allocator);
+	_renderTargets.rt_first_hit_color.cleanup(_device, _allocator);
+	_renderTargets.rt_first_hit_base_color.cleanup(_device, _allocator);
+	_renderTargets.rt_first_hit_normals.cleanup(_device, _allocator);
+	_renderTargets.rt_second_hit_color.cleanup(_device, _allocator);
 	//_renderTargets.rt_inventory.cleanup(_device, _allocator);
 
 	_raytracer.Cleanup(_device, _allocator);
@@ -596,9 +610,9 @@ void Vulkan::RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuffer) {
 
 	vkCmdBeginRendering(commandBuffer, &renderingInfo);
 	cmd_SetViewportSize(commandBuffer, _loadingScreenRenderTarget);
-	cmd_BindPipeline(commandBuffer, _textBlitterPipeline);
-	cmd_BindDescriptorSet(commandBuffer, _textBlitterPipeline, 0, _dynamicDescriptorSet);
-	cmd_BindDescriptorSet(commandBuffer, _textBlitterPipeline, 1, _staticDescriptorSet);
+	cmd_BindPipeline(commandBuffer, _pipelines.textBlitter);
+	cmd_BindDescriptorSet(commandBuffer, _pipelines.textBlitter, 0, _dynamicDescriptorSet);
+	cmd_BindDescriptorSet(commandBuffer, _pipelines.textBlitter, 1, _staticDescriptorSet);
 
 	// Draw Text plus maybe crosshair
 	for (int i = 0; i < RasterRenderer::instanceCount; i++) {
@@ -900,9 +914,10 @@ void Vulkan::create_render_targets()
 	{
 		VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;// VK_FORMAT_R8G8B8A8_UNORM;
 		VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-		_renderTargets.rt_scene = RenderTarget(_device, _allocator, format, width, height, usage, "rt scene render target");
-		_renderTargets.rt_normals = RenderTarget(_device, _allocator, format, width, height, usage, "rt normals render target");
-		_renderTargets.rt_indirect_noise = RenderTarget(_device, _allocator, format, width, height, usage, "rt indirect noise render target");
+		_renderTargets.rt_first_hit_color = RenderTarget(_device, _allocator, format, width, height, usage, "rt first hit color render target");
+		_renderTargets.rt_first_hit_normals = RenderTarget(_device, _allocator, format, width, height, usage, "rt first hit normals render target");
+		_renderTargets.rt_first_hit_base_color = RenderTarget(_device, _allocator, format, width, height, usage, "rt first hit base color render target");
+		_renderTargets.rt_second_hit_color = RenderTarget(_device, _allocator, format, width, height, usage, "rt second hit color render target"); 
 	}
 
 	// GBuffer
@@ -938,12 +953,13 @@ void Vulkan::create_render_targets()
 	
 	// Blur target
 	VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-	//width = 522 * 2;
-	//height = 288 * 2;
-	_renderTargetDenoiseA = RenderTarget(_device, _allocator, format, width, height, usage, "denoise A render target");
-	_renderTargetDenoiseB = RenderTarget(_device, _allocator, format, width, height, usage, "denoise B render target");
-
 	_renderTargets.composite = RenderTarget(_device, _allocator, format, width, height, usage, "composite render targe");
+
+	float denoiseWidth = _renderTargets.rt_first_hit_color._extent.width;
+	float denoiseHeight = _renderTargets.rt_first_hit_color._extent.height;
+	_renderTargets.denoiseTextureA = RenderTarget(_device, _allocator, format, denoiseWidth, denoiseHeight, usage, "denoise A render target");
+	_renderTargets.denoiseTextureB = RenderTarget(_device, _allocator, format, denoiseWidth, denoiseHeight, usage, "denoise B render target");
+	_renderTargets.denoiseTextureC = RenderTarget(_device, _allocator, format, denoiseWidth, denoiseHeight, usage, "denoise C render target");
 }
 
 void Vulkan::recreate_dynamic_swapchain()
@@ -1042,10 +1058,20 @@ void Vulkan::LoadShaders()
 	load_shader(_device, "gbuffer.vert", VK_SHADER_STAGE_VERTEX_BIT, &_gbuffer_vertex_shader);
 	load_shader(_device, "gbuffer.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_gbuffer_fragment_shader);
 
-	load_shader(_device, "depthAwareBlur.vert", VK_SHADER_STAGE_VERTEX_BIT, &_depth_aware_blur_vertex_shader);
-	load_shader(_device, "depthAwareBlur.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_depth_aware_blur_fragment_shader);
+	load_shader(_device, "denoise_pass_A.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_A_vertex_shader);
+	load_shader(_device, "denoise_pass_A.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_A_fragment_shader);
 
-	load_shader(_device, "denoise.comp", VK_SHADER_STAGE_COMPUTE_BIT, &_denoiser_compute_shader);
+	load_shader(_device, "denoise_pass_B.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_B_vertex_shader);
+	load_shader(_device, "denoise_pass_B.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_B_fragment_shader);
+
+	load_shader(_device, "denoise_pass_C.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_C_vertex_shader);
+	load_shader(_device, "denoise_pass_C.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_C_fragment_shader);
+
+	load_shader(_device, "blur_horizontal.vert", VK_SHADER_STAGE_VERTEX_BIT, &_blur_horizontal_vertex_shader);
+	load_shader(_device, "blur_horizontal.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_blur_horizontal_fragment_shader);
+
+	load_shader(_device, "blur_vertical.vert", VK_SHADER_STAGE_VERTEX_BIT, &_blur_vertical_vertex_shader);
+	load_shader(_device, "blur_vertical.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_blur_vertical_fragment_shader);
 
 	load_shader(_device, "composite.vert", VK_SHADER_STAGE_VERTEX_BIT, &_composite_vertex_shader);
 	load_shader(_device, "composite.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_composite_fragment_shader);
@@ -1058,63 +1084,95 @@ void Vulkan::LoadShaders()
 
 void Vulkan::create_pipelines()
 {
-	// Denoise pipeline
-	/* {
-		_denoisePipeline.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
-		_denoisePipeline.PushDescriptorSetLayout(_staticDescriptorSet.layout);
-		_denoisePipeline.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
-		_denoisePipeline.PushDescriptorSetLayout(_denoiseATextureDescriptorSet.layout);
-		_denoisePipeline.CreatePipelineLayout(_device);
-		VertexInputDescription vertexDescription = Util::get_vertex_description_position_and_texcoords_only();
-		PipelineBuilder pipelineBuilder;
-		pipelineBuilder._pipelineLayout = _denoisePipeline.layout;
-		pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
-		pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-		pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE); 
-		pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
-		pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state(false);
-		pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(false, false, VK_COMPARE_OP_LESS_OR_EQUAL);
-		pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
-		pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = vertexDescription.attributes.size();
-		pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
-		pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
-		pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, _depth_aware_blur_vertex_shader));
-		pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, _depth_aware_blur_fragment_shader));
-		_denoisePipeline.handle = pipelineBuilder.build_dynamic_rendering_pipeline(_device, _depthFormat, 1);
-	}*/
-
 	// Commposite pipeline
-	_compositePipeline.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
-	_compositePipeline.PushDescriptorSetLayout(_staticDescriptorSet.layout);
-	_compositePipeline.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
-	_compositePipeline.PushDescriptorSetLayout(_denoiseATextureDescriptorSet.layout);
-	_compositePipeline.PushDescriptorSetLayout(_denoiseBTextureDescriptorSet.layout);
-	_compositePipeline.CreatePipelineLayout(_device);
-	_compositePipeline.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
-	_compositePipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-	_compositePipeline.SetPolygonMode(VK_POLYGON_MODE_FILL);
-	_compositePipeline.SetCullModeFlags(VK_CULL_MODE_NONE);
-	_compositePipeline.SetColorBlending(false);
-	_compositePipeline.SetDepthTest(false);
-	_compositePipeline.SetDepthWrite(false);
-	_compositePipeline.Build(_device, _composite_vertex_shader, _composite_fragment_shader, 1);
+	_pipelines.composite.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
+	_pipelines.composite.PushDescriptorSetLayout(_staticDescriptorSet.layout);
+	_pipelines.composite.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
+	_pipelines.composite.CreatePipelineLayout(_device);
+	_pipelines.composite.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
+	_pipelines.composite.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	_pipelines.composite.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	_pipelines.composite.SetCullModeFlags(VK_CULL_MODE_NONE);
+	_pipelines.composite.SetColorBlending(false);
+	_pipelines.composite.SetDepthTest(false);
+	_pipelines.composite.SetDepthWrite(false);
+	_pipelines.composite.Build(_device, _composite_vertex_shader, _composite_fragment_shader, 1);
 	
 	// Lines pipeline
-	_linesPipeline.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
-	_linesPipeline.PushDescriptorSetLayout(_staticDescriptorSet.layout);
-	_linesPipeline.SetPushConstantSize(sizeof(LineShaderPushConstants));
-	_linesPipeline.SetPushConstantCount(1);
-	_linesPipeline.CreatePipelineLayout(_device);
-	_linesPipeline.SetVertexDescription(VertexDescriptionType::POSITION);
-	_linesPipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
-	_linesPipeline.SetPolygonMode(VK_POLYGON_MODE_FILL);
-	_linesPipeline.SetCullModeFlags(VK_CULL_MODE_NONE);
-	_linesPipeline.SetColorBlending(false);
-	_linesPipeline.SetDepthTest(false);
-	_linesPipeline.SetDepthWrite(false);
-	_linesPipeline.Build(_device, _solid_color_vertex_shader, _solid_color_fragment_shader, 1);
+	_pipelines.lines.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
+	_pipelines.lines.PushDescriptorSetLayout(_staticDescriptorSet.layout);
+	_pipelines.lines.SetPushConstantSize(sizeof(LineShaderPushConstants));
+	_pipelines.lines.SetPushConstantCount(1);
+	_pipelines.lines.CreatePipelineLayout(_device);
+	_pipelines.lines.SetVertexDescription(VertexDescriptionType::POSITION);
+	_pipelines.lines.SetTopology(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
+	_pipelines.lines.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	_pipelines.lines.SetCullModeFlags(VK_CULL_MODE_NONE);
+	_pipelines.lines.SetColorBlending(false);
+	_pipelines.lines.SetDepthTest(false);
+	_pipelines.lines.SetDepthWrite(false);
+	_pipelines.lines.Build(_device, _solid_color_vertex_shader, _solid_color_fragment_shader, 1);
 
+	// Denoise A pipeline
+	_pipelines.denoisePassA.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
+	_pipelines.denoisePassA.CreatePipelineLayout(_device);
+	_pipelines.denoisePassA.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
+	_pipelines.denoisePassA.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	_pipelines.denoisePassA.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	_pipelines.denoisePassA.SetCullModeFlags(VK_CULL_MODE_NONE);
+	_pipelines.denoisePassA.SetColorBlending(false);
+	_pipelines.denoisePassA.SetDepthTest(false);
+	_pipelines.denoisePassA.SetDepthWrite(false);
+	_pipelines.denoisePassA.Build(_device, _denoise_pass_A_vertex_shader, _denoise_pass_A_fragment_shader, 1);
+	
+	// Denoise B pipeline
+	_pipelines.denoisePassB.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
+	_pipelines.denoisePassB.CreatePipelineLayout(_device);
+	_pipelines.denoisePassB.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
+	_pipelines.denoisePassB.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	_pipelines.denoisePassB.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	_pipelines.denoisePassB.SetCullModeFlags(VK_CULL_MODE_NONE);
+	_pipelines.denoisePassB.SetColorBlending(false);
+	_pipelines.denoisePassB.SetDepthTest(false);
+	_pipelines.denoisePassB.SetDepthWrite(false);
+	_pipelines.denoisePassB.Build(_device, _denoise_pass_B_vertex_shader, _denoise_pass_B_fragment_shader, 1);
 
+	// Denoise C pipeline
+	_pipelines.denoisePassC.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
+	_pipelines.denoisePassC.CreatePipelineLayout(_device);
+	_pipelines.denoisePassC.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
+	_pipelines.denoisePassC.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	_pipelines.denoisePassC.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	_pipelines.denoisePassC.SetCullModeFlags(VK_CULL_MODE_NONE);
+	_pipelines.denoisePassC.SetColorBlending(false);
+	_pipelines.denoisePassC.SetDepthTest(false);
+	_pipelines.denoisePassC.SetDepthWrite(false);
+	_pipelines.denoisePassC.Build(_device, _denoise_pass_C_vertex_shader, _denoise_pass_C_fragment_shader, 1);
+	
+	// Blur horizontal
+	_pipelines.denoiseBlurHorizontal.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
+	_pipelines.denoiseBlurHorizontal.CreatePipelineLayout(_device);
+	_pipelines.denoiseBlurHorizontal.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
+	_pipelines.denoiseBlurHorizontal.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	_pipelines.denoiseBlurHorizontal.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	_pipelines.denoiseBlurHorizontal.SetCullModeFlags(VK_CULL_MODE_NONE);
+	_pipelines.denoiseBlurHorizontal.SetColorBlending(false);
+	_pipelines.denoiseBlurHorizontal.SetDepthTest(false);
+	_pipelines.denoiseBlurHorizontal.SetDepthWrite(false);
+	_pipelines.denoiseBlurHorizontal.Build(_device, _blur_horizontal_vertex_shader, _blur_horizontal_fragment_shader, 1);
+
+	// Blur vertical
+	_pipelines.denoiseBlurVertical.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
+	_pipelines.denoiseBlurVertical.CreatePipelineLayout(_device);
+	_pipelines.denoiseBlurVertical.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
+	_pipelines.denoiseBlurVertical.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	_pipelines.denoiseBlurVertical.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	_pipelines.denoiseBlurVertical.SetCullModeFlags(VK_CULL_MODE_NONE);
+	_pipelines.denoiseBlurVertical.SetColorBlending(false);
+	_pipelines.denoiseBlurVertical.SetDepthTest(false);
+	_pipelines.denoiseBlurVertical.SetDepthWrite(false);
+	_pipelines.denoiseBlurVertical.Build(_device, _blur_vertical_vertex_shader, _blur_vertical_fragment_shader, 1);
+	
 	// Raster pipeline
 	/* {
 		// Text blitter pipeline layout
@@ -1428,25 +1486,30 @@ void Vulkan::create_descriptors()
 	_staticDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, TEXTURE_ARRAY_SIZE, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_FRAGMENT_BIT);	// all textures
 	_staticDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// all vertices
 	_staticDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// all indices
-	_staticDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 4, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// rt output image
-	_staticDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);				// all indices
-	_staticDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 6, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// all indices
-	_staticDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 7, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);						// mouse pick 1x1 buffer
+	_staticDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 4, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// rt output image: first hit color
+	_staticDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// all indices
+	_staticDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 6, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// rt output image: first hit normals
+	_staticDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 7, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// rt output image: first hit base color
+	_staticDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 8, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// rt output image: second hit color
 	_staticDescriptorSet.BuildSetLayout(_device);
 	_staticDescriptorSet.AllocateSet(_device, _descriptorPool);
 	add_debug_name(_staticDescriptorSet.layout, "StaticDescriptorSetLayout");
 
 	// Samplers
-	_samplerDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, 1, VK_SHADER_STAGE_FRAGMENT_BIT); // RT image
-	_samplerDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 1, VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR); // basecolor
-	_samplerDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, 1, VK_SHADER_STAGE_FRAGMENT_BIT); // normals
-	_samplerDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3, 1, VK_SHADER_STAGE_FRAGMENT_BIT); // rma
-	_samplerDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4, 1, VK_SHADER_STAGE_FRAGMENT_BIT); // depth
+	_samplerDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, 1, VK_SHADER_STAGE_FRAGMENT_BIT); // first hit color
+	_samplerDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, 1, VK_SHADER_STAGE_FRAGMENT_BIT); // first hit normals
+	_samplerDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, 1, VK_SHADER_STAGE_FRAGMENT_BIT); // first hit base color
+	_samplerDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3, 1, VK_SHADER_STAGE_FRAGMENT_BIT); // second hit color
+	_samplerDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4, 1, VK_SHADER_STAGE_FRAGMENT_BIT); // denoise texture A
+	_samplerDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 5, 1, VK_SHADER_STAGE_FRAGMENT_BIT); // denoise texture B
+	_samplerDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 6, 1, VK_SHADER_STAGE_FRAGMENT_BIT); // denoise texture C
+	_samplerDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 7, 1, VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR); // laptop
 	_samplerDescriptorSet.BuildSetLayout(_device);
 	_samplerDescriptorSet.AllocateSet(_device, _descriptorPool);
 	add_debug_name(_samplerDescriptorSet.layout, "_samplerDescriptorSet");												// depth aware blur texture
 
 	// Denoiser sampler A
+	/*_denoiseATextureDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
 	_denoiseATextureDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
 	_denoiseATextureDescriptorSet.BuildSetLayout(_device);
 	_denoiseATextureDescriptorSet.AllocateSet(_device, _descriptorPool);
@@ -1455,7 +1518,7 @@ void Vulkan::create_descriptors()
 	_denoiseBTextureDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
 	_denoiseBTextureDescriptorSet.BuildSetLayout(_device);
 	_denoiseBTextureDescriptorSet.AllocateSet(_device, _descriptorPool);
-	add_debug_name(_denoiseBTextureDescriptorSet.layout, "_denoiseBTextureDescriptorSet");												// depth aware blur texture
+	add_debug_name(_denoiseBTextureDescriptorSet.layout, "_denoiseBTextureDescriptorSet");												// depth aware blur texture*/
 }
 
 void Vulkan::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
@@ -1967,10 +2030,6 @@ void Vulkan::UpdateBuffers() {
 	inventoryCamData.wallPaperALBIndex = AssetManager::GetTextureIndex("WallPaper_ALB");
 	get_current_frame()._inventoryCamDataBuffer.Map(_allocator, &inventoryCamData);
 
-	
-
-
-
 	// 3D instance data
 	std::vector<MeshInstance> meshInstances = Scene::GetSceneMeshInstances(_debugScene);
 	get_current_frame()._meshInstancesSceneBuffer.MapRange(_allocator, meshInstances.data(), sizeof(MeshInstance) * meshInstances.size());
@@ -2008,7 +2067,7 @@ void Vulkan::update_static_descriptor_set() {
 
 	// Raytracing storage image and all vertex/index data
 	VkDescriptorImageInfo storageImageDescriptor{};
-	storageImageDescriptor.imageView = _renderTargets.rt_scene._view;
+	storageImageDescriptor.imageView = _renderTargets.rt_first_hit_color._view;
 	storageImageDescriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 	_staticDescriptorSet.Update(_device, 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &storageImageDescriptor);
 
@@ -2016,10 +2075,12 @@ void Vulkan::update_static_descriptor_set() {
 	_staticDescriptorSet.Update(_device, 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, _mousePickResultBuffer._buffer);
 
 	// RT normals and depth
-	storageImageDescriptor.imageView = _renderTargets.rt_normals._view;
+	storageImageDescriptor.imageView = _renderTargets.rt_first_hit_normals._view;
 	_staticDescriptorSet.Update(_device, 6, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &storageImageDescriptor);
-	storageImageDescriptor.imageView = _renderTargets.rt_indirect_noise._view;
+	storageImageDescriptor.imageView = _renderTargets.rt_first_hit_base_color._view;
 	_staticDescriptorSet.Update(_device, 7, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &storageImageDescriptor);
+	storageImageDescriptor.imageView = _renderTargets.rt_second_hit_color._view;
+	_staticDescriptorSet.Update(_device, 8, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &storageImageDescriptor);
 
 	// This below is just so you can bind THE GBUFFER DEPTH TARGET in shaders. Needs layout general
 	immediate_submit([=](VkCommandBuffer cmd) {
@@ -2036,28 +2097,35 @@ void Vulkan::update_static_descriptor_set() {
 	storageImageDescriptor2.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 	storageImageDescriptor2.sampler = _sampler;
 
-	storageImageDescriptor2.imageView = _renderTargets.rt_scene._view;
+	storageImageDescriptor2.imageView = _renderTargets.rt_first_hit_color._view;
 	_samplerDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
-	storageImageDescriptor2.imageView = _renderTargets.laptopDisplay._view;
+	storageImageDescriptor2.imageView = _renderTargets.rt_first_hit_normals._view;
 	_samplerDescriptorSet.Update(_device, 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
-	storageImageDescriptor2.imageView = _renderTargets.gBufferNormal._view;
-	storageImageDescriptor2.imageView = _renderTargets.rt_normals._view;
+	storageImageDescriptor2.imageView = _renderTargets.rt_first_hit_base_color._view;
 	_samplerDescriptorSet.Update(_device, 2, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
-	storageImageDescriptor2.imageView = _renderTargets.gBufferRMA._view;
-	storageImageDescriptor2.imageView = _renderTargets.rt_indirect_noise._view;
+	storageImageDescriptor2.imageView = _renderTargets.rt_second_hit_color._view;
 	_samplerDescriptorSet.Update(_device, 3, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
-	storageImageDescriptor2.imageView = _gbufferDepthTarget._view;
+	storageImageDescriptor2.imageView = _renderTargets.denoiseTextureA._view;
 	_samplerDescriptorSet.Update(_device, 4, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
-	storageImageDescriptor2.imageView = _renderTargetDenoiseA._view;
+	storageImageDescriptor2.imageView = _renderTargets.denoiseTextureB._view;
+	_samplerDescriptorSet.Update(_device, 5, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
+
+	storageImageDescriptor2.imageView = _renderTargets.denoiseTextureC._view;
+	_samplerDescriptorSet.Update(_device, 6, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
+
+	storageImageDescriptor2.imageView = _renderTargets.laptopDisplay._view;
+	_samplerDescriptorSet.Update(_device, 7, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
+
+	/*storageImageDescriptor2.imageView = _renderTargets.denoiseA._view;
 	_denoiseATextureDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
-	storageImageDescriptor2.imageView = _renderTargetDenoiseB._view;
-	_denoiseBTextureDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);	
+	storageImageDescriptor2.imageView = _renderTargets.denoiseB._view;
+	_denoiseBTextureDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);	*/
 }
 
 void Vulkan::UpdateDynamicDescriptorSet() {
@@ -2074,7 +2142,6 @@ void Vulkan::UpdateDynamicDescriptorSet() {
 	_dynamicDescriptorSet.Update(_device, 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstances2DBuffer.buffer);
 	_dynamicDescriptorSet.Update(_device, 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._lightRenderInfoBuffer.buffer);
 }
-
 
 
 void Vulkan::blit_render_target(VkCommandBuffer commandBuffer, RenderTarget& source, RenderTarget& destination, VkFilter filter) {
@@ -2122,23 +2189,24 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 		cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerPath.pipelineLayout, 2, _samplerDescriptorSet);
 
 		// Ray trace main image
-		_renderTargets.rt_indirect_noise.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-		_renderTargets.rt_normals.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-		_renderTargets.rt_scene.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-		vkCmdTraceRaysKHR(commandBuffer, &_raytracerPath.raygenShaderSbtEntry, &_raytracerPath.missShaderSbtEntry, &_raytracerPath.hitShaderSbtEntry, &_raytracerPath.callableShaderSbtEntry, _renderTargets.rt_scene._extent.width, _renderTargets.rt_scene._extent.height, 1);
+		_renderTargets.rt_first_hit_color.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+		_renderTargets.rt_first_hit_normals.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+		_renderTargets.rt_second_hit_color.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+		_renderTargets.rt_first_hit_base_color.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+		vkCmdTraceRaysKHR(commandBuffer, &_raytracerPath.raygenShaderSbtEntry, &_raytracerPath.missShaderSbtEntry, &_raytracerPath.hitShaderSbtEntry, &_raytracerPath.callableShaderSbtEntry, _renderTargets.rt_first_hit_color._extent.width, _renderTargets.rt_first_hit_color._extent.height, 1);
 
 		// Inventory?
 		if (GameData::inventoryOpen) {
-			_renderTargets.rt_scene.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+			_renderTargets.rt_first_hit_color.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 			cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerPath.pipelineLayout, 0, _dynamicDescriptorSetInventory);	
-			vkCmdTraceRaysKHR(commandBuffer, &_raytracerPath.raygenShaderSbtEntry, &_raytracerPath.missShaderSbtEntry, &_raytracerPath.hitShaderSbtEntry, &_raytracerPath.callableShaderSbtEntry, _renderTargets.rt_scene._extent.width, _renderTargets.rt_scene._extent.height, 1);
+			vkCmdTraceRaysKHR(commandBuffer, &_raytracerPath.raygenShaderSbtEntry, &_raytracerPath.missShaderSbtEntry, &_raytracerPath.hitShaderSbtEntry, &_raytracerPath.callableShaderSbtEntry, _renderTargets.rt_first_hit_color._extent.width, _renderTargets.rt_first_hit_color._extent.height, 1);
 		}
 
 
 		// Now blit that image into the presentTarget
-		_renderTargets.rt_scene.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-		_renderTargets.present.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-		blit_render_target(commandBuffer, _renderTargets.rt_scene, _renderTargets.present, VkFilter::VK_FILTER_LINEAR);
+		//_renderTargets.rt_first_hit_color.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+		//_renderTargets.present.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+		//blit_render_target(commandBuffer, _renderTargets.rt_first_hit_color, _renderTargets.present, VkFilter::VK_FILTER_LINEAR);
 
 		// Do camera ray
 		//_renderTargets.rt.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
@@ -2146,7 +2214,7 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 	} 
 	else
 	{
-		cmd_BindRayTracingPipeline(commandBuffer, _raytracer.pipeline);
+		/*cmd_BindRayTracingPipeline(commandBuffer, _raytracer.pipeline);
 		cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracer.pipelineLayout, 0, _dynamicDescriptorSet);
 		cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracer.pipelineLayout, 1, _staticDescriptorSet);
 
@@ -2157,29 +2225,19 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 		// Now blit that image into the presentTarget
 		_renderTargets.rt_scene.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 		_renderTargets.present.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-		blit_render_target(commandBuffer, _renderTargets.rt_scene, _renderTargets.present, VkFilter::VK_FILTER_LINEAR);
+		blit_render_target(commandBuffer, _renderTargets.rt_scene, _renderTargets.present, VkFilter::VK_FILTER_LINEAR);*/
 
-		// Do camera ray
-		//_renderTargets.rt.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-		//vkCmdTraceRaysKHR(commandBuffer, &_raytracer.raygenShaderSbtEntry, &_raytracer.missShaderSbtEntry, &_raytracer.hitShaderSbtEntry, &_raytracer.callableShaderSbtEntry, 1, 1, 1);
 	}
 
 
 
 	// Mouse pick
-	_renderTargets.rt_scene.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+	_renderTargets.rt_first_hit_color.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 	cmd_BindRayTracingPipeline(commandBuffer, _raytracerMousePick.pipeline);
 	cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerMousePick.pipelineLayout, 0, _dynamicDescriptorSet);
 	cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerMousePick.pipelineLayout, 1, _staticDescriptorSet);
 	vkCmdTraceRaysKHR(commandBuffer, &_raytracerMousePick.raygenShaderSbtEntry, &_raytracerMousePick.missShaderSbtEntry, &_raytracerMousePick.hitShaderSbtEntry, &_raytracerMousePick.callableShaderSbtEntry, 1, 1, 1);
-
-	
-
-
-
-
-
-
+		
 
 	// UI //
 	_renderTargets.present.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
@@ -2259,9 +2317,9 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 
 			vkCmdBeginRendering(commandBuffer, &renderingInfo);
 			cmd_SetViewportSize(commandBuffer, _renderTargets.laptopDisplay);
-			cmd_BindPipeline(commandBuffer, _textBlitterPipeline);
-			cmd_BindDescriptorSet(commandBuffer, _textBlitterPipeline, 0, _dynamicDescriptorSet);
-			cmd_BindDescriptorSet(commandBuffer, _textBlitterPipeline, 1, _staticDescriptorSet);
+			cmd_BindPipeline(commandBuffer, _pipelines.textBlitter);
+			cmd_BindDescriptorSet(commandBuffer, _pipelines.textBlitter, 0, _dynamicDescriptorSet);
+			cmd_BindDescriptorSet(commandBuffer, _pipelines.textBlitter, 1, _staticDescriptorSet);
 
 			// Draw Text plus maybe crosshair
 			for (int i = 0; i < RasterRenderer::instanceCount; i++) {
@@ -2271,6 +2329,184 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 			vkCmdEndRendering(commandBuffer);
 		}
 	}
+
+	/////////////
+	// DENOISE //
+
+	{
+		// denoise pass A:  read secound hit texture, write to texture A
+		VkRenderingAttachmentInfoKHR colorAttachment{};
+		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+		colorAttachment.imageView = _renderTargets.denoiseTextureA._view;
+		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		VkRenderingInfoKHR renderingInfo{};
+		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+		renderingInfo.renderArea = { 0, 0, _renderTargets.denoiseTextureA._extent.width, _renderTargets.denoiseTextureA._extent.height };
+		renderingInfo.layerCount = 1;
+		renderingInfo.colorAttachmentCount = 1;
+		renderingInfo.pColorAttachments = &colorAttachment;
+		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
+		renderingInfo.pStencilAttachment = nullptr;
+		_renderTargets.rt_second_hit_color.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+		_renderTargets.denoiseTextureA.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+		vkCmdBeginRendering(commandBuffer, &renderingInfo);
+		cmd_SetViewportSize(commandBuffer, _renderTargets.denoiseTextureA);
+		cmd_BindPipeline(commandBuffer, _pipelines.denoisePassA);
+		cmd_BindDescriptorSet(commandBuffer, _pipelines.denoisePassA, 0, _samplerDescriptorSet);
+		int quadMeshIndex = AssetManager::GetModel("fullscreen_quad")->_meshIndices[0];
+		Mesh* mesh = AssetManager::GetMesh(quadMeshIndex);
+		mesh->draw(commandBuffer, 0);
+		vkCmdEndRendering(commandBuffer);
+	
+		// now horizontal blur that:  read texture A, write to texture B
+		colorAttachment = {};
+		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+		colorAttachment.imageView = _renderTargets.denoiseTextureB._view;
+		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		renderingInfo = {};
+		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+		renderingInfo.renderArea = { 0, 0, _renderTargets.denoiseTextureB._extent.width, _renderTargets.denoiseTextureB._extent.height };
+		renderingInfo.layerCount = 1;
+		renderingInfo.colorAttachmentCount = 1;
+		renderingInfo.pColorAttachments = &colorAttachment;
+		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
+		renderingInfo.pStencilAttachment = nullptr;
+		_renderTargets.denoiseTextureA.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+		_renderTargets.denoiseTextureB.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+		vkCmdBeginRendering(commandBuffer, &renderingInfo);
+		cmd_SetViewportSize(commandBuffer, _renderTargets.denoiseTextureB);
+		cmd_BindPipeline(commandBuffer, _pipelines.denoiseBlurHorizontal);
+		cmd_BindDescriptorSet(commandBuffer, _pipelines.denoiseBlurHorizontal, 0, _samplerDescriptorSet);
+		mesh->draw(commandBuffer, 0);
+		vkCmdEndRendering(commandBuffer);
+
+		// now vertical blur that: 	read texture B, write to texture C
+		colorAttachment = {};
+		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+		colorAttachment.imageView = _renderTargets.denoiseTextureC._view;
+		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		renderingInfo = {};
+		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+		renderingInfo.renderArea = { 0, 0, _renderTargets.denoiseTextureC._extent.width, _renderTargets.denoiseTextureC._extent.height };
+		renderingInfo.layerCount = 1;
+		renderingInfo.colorAttachmentCount = 1;
+		renderingInfo.pColorAttachments = &colorAttachment;
+		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
+		renderingInfo.pStencilAttachment = nullptr;
+		_renderTargets.denoiseTextureB.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+		_renderTargets.denoiseTextureC.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+		vkCmdBeginRendering(commandBuffer, &renderingInfo);
+		cmd_SetViewportSize(commandBuffer, _renderTargets.denoiseTextureC);
+		cmd_BindPipeline(commandBuffer, _pipelines.denoiseBlurVertical);
+		cmd_BindDescriptorSet(commandBuffer, _pipelines.denoiseBlurVertical, 0, _samplerDescriptorSet);
+		mesh->draw(commandBuffer, 0);
+		vkCmdEndRendering(commandBuffer);
+		
+		// denoise pass B:  read texture C, write to texture A
+		colorAttachment = {};
+		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+		colorAttachment.imageView = _renderTargets.denoiseTextureA._view;
+		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		renderingInfo = {};
+		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+		renderingInfo.renderArea = { 0, 0, _renderTargets.denoiseTextureA._extent.width, _renderTargets.denoiseTextureA._extent.height };
+		renderingInfo.layerCount = 1;
+		renderingInfo.colorAttachmentCount = 1;
+		renderingInfo.pColorAttachments = &colorAttachment;
+		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
+		renderingInfo.pStencilAttachment = nullptr;
+		_renderTargets.denoiseTextureC.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+		_renderTargets.denoiseTextureA.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+		vkCmdBeginRendering(commandBuffer, &renderingInfo);
+		cmd_SetViewportSize(commandBuffer, _renderTargets.denoiseTextureA);
+		cmd_BindPipeline(commandBuffer, _pipelines.denoisePassB);
+		cmd_BindDescriptorSet(commandBuffer, _pipelines.denoisePassB, 0, _samplerDescriptorSet);
+		mesh->draw(commandBuffer, 0);
+		vkCmdEndRendering(commandBuffer);
+		
+		
+		// now horizontal blur that:  read texture A, write to texture B
+		colorAttachment = {};
+		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+		colorAttachment.imageView = _renderTargets.denoiseTextureB._view;
+		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		renderingInfo = {};
+		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+		renderingInfo.renderArea = { 0, 0, _renderTargets.denoiseTextureB._extent.width, _renderTargets.denoiseTextureB._extent.height };
+		renderingInfo.layerCount = 1;
+		renderingInfo.colorAttachmentCount = 1;
+		renderingInfo.pColorAttachments = &colorAttachment;
+		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
+		renderingInfo.pStencilAttachment = nullptr;
+		_renderTargets.denoiseTextureA.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+		_renderTargets.denoiseTextureB.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+		vkCmdBeginRendering(commandBuffer, &renderingInfo);
+		cmd_SetViewportSize(commandBuffer, _renderTargets.denoiseTextureB);
+		cmd_BindPipeline(commandBuffer, _pipelines.denoiseBlurHorizontal);
+		cmd_BindDescriptorSet(commandBuffer, _pipelines.denoiseBlurHorizontal, 0, _samplerDescriptorSet);
+		mesh->draw(commandBuffer, 0);
+		vkCmdEndRendering(commandBuffer);
+
+		// now vertical blur that: 	read texture B, write to texture C
+		colorAttachment = {};
+		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+		colorAttachment.imageView = _renderTargets.denoiseTextureC._view;
+		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		renderingInfo = {};
+		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+		renderingInfo.renderArea = { 0, 0, _renderTargets.denoiseTextureC._extent.width, _renderTargets.denoiseTextureC._extent.height };
+		renderingInfo.layerCount = 1;
+		renderingInfo.colorAttachmentCount = 1;
+		renderingInfo.pColorAttachments = &colorAttachment;
+		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
+		renderingInfo.pStencilAttachment = nullptr;
+		_renderTargets.denoiseTextureB.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+		_renderTargets.denoiseTextureC.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+		vkCmdBeginRendering(commandBuffer, &renderingInfo);
+		cmd_SetViewportSize(commandBuffer, _renderTargets.denoiseTextureC);
+		cmd_BindPipeline(commandBuffer, _pipelines.denoiseBlurVertical);
+		cmd_BindDescriptorSet(commandBuffer, _pipelines.denoiseBlurVertical, 0, _samplerDescriptorSet);
+		mesh->draw(commandBuffer, 0);
+		vkCmdEndRendering(commandBuffer);
+		
+		// denoise pass C: read texture C, write to texture B
+		colorAttachment = {};
+		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+		colorAttachment.imageView = _renderTargets.denoiseTextureB._view;
+		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		renderingInfo = {};
+		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+		renderingInfo.renderArea = { 0, 0, _renderTargets.denoiseTextureB._extent.width, _renderTargets.denoiseTextureB._extent.height };
+		renderingInfo.layerCount = 1;
+		renderingInfo.colorAttachmentCount = 1;
+		renderingInfo.pColorAttachments = &colorAttachment;
+		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
+		renderingInfo.pStencilAttachment = nullptr;
+		_renderTargets.denoiseTextureC.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+		_renderTargets.denoiseTextureB.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+		vkCmdBeginRendering(commandBuffer, &renderingInfo);
+		cmd_SetViewportSize(commandBuffer, _renderTargets.denoiseTextureB);
+		cmd_BindPipeline(commandBuffer, _pipelines.denoisePassC);
+		cmd_BindDescriptorSet(commandBuffer, _pipelines.denoisePassC, 0, _samplerDescriptorSet);
+		mesh->draw(commandBuffer, 0);
+		vkCmdEndRendering(commandBuffer);
+	}
+
+
 	/*
 	////////////////////
 	// Render GBuffer //
@@ -2464,12 +2700,12 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 
 		vkCmdBeginRendering(commandBuffer, &renderingInfo);
 		cmd_SetViewportSize(commandBuffer, _renderTargets.composite);
-		cmd_BindPipeline(commandBuffer, _compositePipeline);
-		cmd_BindDescriptorSet(commandBuffer, _compositePipeline, 0, _dynamicDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _compositePipeline, 1, _staticDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _compositePipeline, 2, _samplerDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _compositePipeline, 3, _denoiseATextureDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _compositePipeline, 4, _denoiseBTextureDescriptorSet);
+		cmd_BindPipeline(commandBuffer, _pipelines.composite);
+		cmd_BindDescriptorSet(commandBuffer, _pipelines.composite, 0, _dynamicDescriptorSet);
+		cmd_BindDescriptorSet(commandBuffer, _pipelines.composite, 1, _staticDescriptorSet);
+		cmd_BindDescriptorSet(commandBuffer, _pipelines.composite, 2, _samplerDescriptorSet);
+		//cmd_BindDescriptorSet(commandBuffer, _pipelines.composite, 3, _denoiseATextureDescriptorSet);
+		//cmd_BindDescriptorSet(commandBuffer, _pipelines.composite, 4, _denoiseBTextureDescriptorSet);
 
 		int quadMeshIndex = AssetManager::GetModel("fullscreen_quad")->_meshIndices[0];
 		Mesh* mesh = AssetManager::GetMesh(quadMeshIndex);
@@ -2511,9 +2747,9 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 
 		vkCmdBeginRendering(commandBuffer, &renderingInfo);
 		cmd_SetViewportSize(commandBuffer, _renderTargets.present);
-		cmd_BindPipeline(commandBuffer, _textBlitterPipeline);
-		cmd_BindDescriptorSet(commandBuffer, _textBlitterPipeline, 0, _dynamicDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _textBlitterPipeline, 1, _staticDescriptorSet);
+		cmd_BindPipeline(commandBuffer, _pipelines.textBlitter);
+		cmd_BindDescriptorSet(commandBuffer, _pipelines.textBlitter, 0, _dynamicDescriptorSet);
+		cmd_BindDescriptorSet(commandBuffer, _pipelines.textBlitter, 1, _staticDescriptorSet);
 
 		// Draw Text plus maybe crosshair
 		for (int i = 0; i < RasterRenderer::instanceCount; i++) {
@@ -2524,13 +2760,13 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 
 		// Draw debug lines
 		if (_lineListMesh._vertexCount > 0 && _debugMode != DebugMode::NONE) {
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _linesPipeline._handle);
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelines.lines._handle);
 			glm::mat4 projection = glm::perspective(GameData::_cameraZoom, 1700.f / 900.f, 0.01f, 100.0f);
 			glm::mat4 view = GameData::GetPlayer().m_camera.GetViewMatrix();
 			projection[1][1] *= -1;
 			LineShaderPushConstants constants;
 			constants.transformation = projection * view;;
-			vkCmdPushConstants(commandBuffer, _linesPipeline._layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(LineShaderPushConstants), &constants);
+			vkCmdPushConstants(commandBuffer, _pipelines.lines._layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(LineShaderPushConstants), &constants);
 			_lineListMesh.draw(commandBuffer, 0);
 		}
 

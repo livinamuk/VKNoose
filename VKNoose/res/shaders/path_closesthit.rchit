@@ -52,7 +52,7 @@ layout(set = 1, binding = 2) readonly buffer Vertices { Vertex v[]; } vertices;
 layout(set = 1, binding = 3) readonly buffer Indices { uint i[]; } indices;
 //layout(set = 1, binding = 4, rgba8) uniform image2D laptopImage; // rt output image
 
-layout(set = 2, binding = 1) uniform sampler2D laptop_render_texture;
+layout(set = 2, binding = 7) uniform sampler2D laptop_render_texture;
 
 hitAttributeEXT vec2 attribs;
 

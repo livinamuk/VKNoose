@@ -9,10 +9,11 @@ layout(location = 2) rayPayloadEXT Payload payload;
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
 layout(set = 0, binding = 1) uniform CameraData_ { CameraData data; } cam;
 
-layout(set = 1, binding = 4, rgba8) uniform image2D image_firstBounce;
+layout(set = 1, binding = 4, rgba8) uniform image2D image_first_hit_color;
 //layout(set = 1, binding = 5) writeonly buffer MousepickData { uint i[]; } mousepickData;
-layout(set = 1, binding = 6, rgba8) uniform image2D image_normals;
-layout(set = 1, binding = 7, rgba8) uniform image2D image_secondBounce;
+layout(set = 1, binding = 6, rgba8) uniform image2D image_first_hit_normals;
+layout(set = 1, binding = 7, rgba8) uniform image2D image_first_hit_base_color;
+layout(set = 1, binding = 8, rgba8) uniform image2D image_second_hit_color;
 
 // Random number generation using pcg32i_random_t, using inc = 1. Our random state is a uint.
 uint stepRNG(uint rngState) {
@@ -93,6 +94,7 @@ void main()
 	vec3 totalColor = vec3(0);
 
 	vec3 finalNormal = vec3(0);
+	vec3 baseColor = vec3(0);
 
 	for (int i = 0; i < sampleCount; i++) 
 	{
@@ -165,6 +167,7 @@ void main()
 		}		
 
 		firstBounce += transparentAccumulation.xyz;
+		baseColor = contribution;
 
 		vec3 indirectRayOrigin = rayPayload.nextRayOrigin;
 		vec3 indirectRayDIrection =  rayPayload.nextRayDirection;
@@ -192,13 +195,10 @@ void main()
 			vec3 col = indirectContribution;// + firstBounce;
 			newFinal = col;
 
-			//secondBounce += col;
-			secondBounce += mix(firstBounce, newFinal, 0.8);
+			//secondBounce += mix(firstBounce, newFinal, 0.8);
+			//secondBounce = indirectContribution;
 
-			secondBounce = indirectContribution;
-		//	secondBounce = rayPayload.nextFactor;
-
-			//newFinal = vec3(dotTest);
+			secondBounce = rayPayload.color;
 		}	
 		
 		
@@ -253,17 +253,22 @@ void main()
 	if (rayPayload.writeToImageStore == 1) 
 	{
 
+		imageStore(image_first_hit_color, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(firstBounce, 0));
+		imageStore(image_first_hit_normals, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(finalNormal, 0));
+		imageStore(image_first_hit_base_color, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(baseColor, 0));
+		imageStore(image_second_hit_color, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(secondBounce, 0));
+
 		// Is this inventory screen?
 		if (cam.data.inventoryOpen == 2) {
-			imageStore(image_firstBounce, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(firstBounce, 0));
-			imageStore(image_secondBounce, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(secondBounce, 0));
-			imageStore(image_normals, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(finalNormal, 0));
+		//	imageStore(image_first_hit_color, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(firstBounce, 0));
+		//	imageStore(image_first_hit_normals, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(finalNormal, 0));
+		//	imageStore(image_normals, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(finalNormal, 0));
 		} 
 		// Otherwise draw at actual x/y
 		else {
-			imageStore(image_firstBounce, ivec2(gl_LaunchIDEXT.xy), vec4(firstBounce, 0));
-			imageStore(image_secondBounce, ivec2(gl_LaunchIDEXT.xy), vec4(secondBounce, 0));
-			imageStore(image_normals, ivec2(gl_LaunchIDEXT.xy), vec4(finalNormal, 0));
+		//	imageStore(image_firstBounce, ivec2(gl_LaunchIDEXT.xy), vec4(firstBounce, 0));
+		//	imageStore(image_secondBounce, ivec2(gl_LaunchIDEXT.xy), vec4(secondBounce, 0));
+		//	imageStore(image_normals, ivec2(gl_LaunchIDEXT.xy), vec4(finalNormal, 0));
 			//imageStore(image_normals, ivec2(gl_LaunchIDEXT.xy), vec4(color, 0));
 		}
 	}

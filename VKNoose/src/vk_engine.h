@@ -124,9 +124,53 @@ namespace Vulkan {
 
 	inline bool _forceCloseWindow { false };
 
-	inline Pipeline _compositePipeline;
-	inline Pipeline _textBlitterPipeline;
-	inline Pipeline _linesPipeline;
+	inline struct RenderTargets {
+		RenderTarget present;
+		RenderTarget rt_first_hit_color;
+		RenderTarget rt_first_hit_normals;
+		RenderTarget rt_first_hit_base_color;
+		RenderTarget rt_second_hit_color;
+		RenderTarget gBufferBasecolor;
+		RenderTarget gBufferNormal;
+		RenderTarget gBufferRMA;
+		RenderTarget laptopDisplay;
+		RenderTarget composite;
+		RenderTarget denoiseTextureA;
+		RenderTarget denoiseTextureB;
+		RenderTarget denoiseTextureC;
+	} _renderTargets;
+
+	inline struct Pipelines {
+		Pipeline composite;
+		Pipeline textBlitter;
+		Pipeline lines;
+		Pipeline denoisePassA;
+		Pipeline denoisePassB;
+		Pipeline denoisePassC;
+		Pipeline denoiseBlurHorizontal;
+		Pipeline denoiseBlurVertical;
+	} _pipelines;
+
+	// Shaders
+	inline VkShaderModule _gbuffer_vertex_shader = nullptr;
+	inline VkShaderModule _gbuffer_fragment_shader = nullptr;
+	inline VkShaderModule _solid_color_vertex_shader = nullptr;
+	inline VkShaderModule _solid_color_fragment_shader = nullptr;
+	inline VkShaderModule _text_blitter_vertex_shader = nullptr;
+	inline VkShaderModule _text_blitter_fragment_shader = nullptr;
+	inline VkShaderModule _denoise_pass_A_vertex_shader = nullptr;
+	inline VkShaderModule _denoise_pass_A_fragment_shader = nullptr;
+	inline VkShaderModule _denoise_pass_B_vertex_shader = nullptr;
+	inline VkShaderModule _denoise_pass_B_fragment_shader = nullptr;
+	inline VkShaderModule _denoise_pass_C_vertex_shader = nullptr;
+	inline VkShaderModule _denoise_pass_C_fragment_shader = nullptr;
+	inline VkShaderModule _blur_vertical_vertex_shader = nullptr;
+	inline VkShaderModule _blur_vertical_fragment_shader = nullptr;
+	inline VkShaderModule _blur_horizontal_vertex_shader = nullptr;
+	inline VkShaderModule _blur_horizontal_fragment_shader = nullptr;
+	inline VkShaderModule _composite_vertex_shader = nullptr;
+	inline VkShaderModule _composite_fragment_shader = nullptr;
+
 
 	VmaAllocator GetAllocator();
 	VkDevice GetDevice();
@@ -151,14 +195,8 @@ namespace Vulkan {
 	inline HellDescriptorSet _dynamicDescriptorSet;
 	inline HellDescriptorSet _dynamicDescriptorSetInventory;
 	inline HellDescriptorSet _samplerDescriptorSet;
-	inline HellDescriptorSet _denoiseATextureDescriptorSet;
-	inline HellDescriptorSet _denoiseBTextureDescriptorSet;
-
-	//inline HellPipeline _rasterPipeline;
-	//inline HellPipeline _denoisePipeline;
-
-	inline RenderTarget _renderTargetDenoiseA;
-	inline RenderTarget _renderTargetDenoiseB;
+	//inline HellDescriptorSet _denoiseATextureDescriptorSet;
+	//inline HellDescriptorSet _denoiseBTextureDescriptorSet;
 	
 	inline VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeaturesKHR{};
 
@@ -170,18 +208,7 @@ namespace Vulkan {
 	inline const VkExtent2D _windowedModeExtent{ 512 * 4, 288 * 4 };
 	inline const VkExtent3D _renderTargetPresentExtent = { 512 , 288  , 1 };
 	
-	inline struct RenderTargets {
-		RenderTarget present;
-		RenderTarget rt_scene;
-		RenderTarget rt_normals;
-		RenderTarget rt_indirect_noise;
-		//RenderTarget rt_inventory;
-		RenderTarget gBufferBasecolor;
-		RenderTarget gBufferNormal;
-		RenderTarget gBufferRMA;
-		RenderTarget laptopDisplay;
-		RenderTarget composite;
-	} _renderTargets;
+
 
 
 	inline int _frameNumber{ 0 };
@@ -215,18 +242,7 @@ namespace Vulkan {
 
 	inline UploadContext _uploadContext;
 
-	// Shaders
-	inline VkShaderModule _gbuffer_vertex_shader = nullptr;
-	inline VkShaderModule _gbuffer_fragment_shader = nullptr;
-	inline VkShaderModule _solid_color_vertex_shader = nullptr;
-	inline VkShaderModule _solid_color_fragment_shader = nullptr;
-	inline VkShaderModule _text_blitter_vertex_shader = nullptr;
-	inline VkShaderModule _text_blitter_fragment_shader = nullptr;
-	inline VkShaderModule _depth_aware_blur_vertex_shader = nullptr;
-	inline VkShaderModule _depth_aware_blur_fragment_shader = nullptr;
-	inline VkShaderModule _denoiser_compute_shader = nullptr;
-	inline VkShaderModule _composite_vertex_shader = nullptr;
-	inline VkShaderModule _composite_fragment_shader = nullptr;
+
 
 	//initializes everything in the engine
 	

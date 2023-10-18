@@ -88,6 +88,9 @@
       <AdditionalLibraryDirectories>vendor\OpenImageIO\lib;vendor\Vulkan;vendor\GLFW\lib\release;vendor\lz4\lib;vendor\OpenImageDenoiser\lib;vendor\fmod\lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>glfw3.lib;vulkan-1.lib;fmod_vc.lib;shaderc_combined.lib;liblz4_static.lib;OpenImageDenoise.lib;OpenImageIO.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>copy /Y "$(ProjectDir)vendor\dll\fmod.dll" "$(TargetDir)fmod.dll"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\Audio\Audio.cpp" />
