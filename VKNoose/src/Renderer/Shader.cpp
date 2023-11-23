@@ -86,6 +86,9 @@ bool load_shader(VkDevice device, std::string filePath, VkShaderStageFlagBits fl
 	if (flag == VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR) {
 		kind = shaderc_closesthit_shader;
 	}
+	if (flag == VK_SHADER_STAGE_ANY_HIT_BIT_KHR) {
+		kind = shaderc_anyhit_shader;
+	}
 	if (flag == VK_SHADER_STAGE_COMPUTE_BIT) {
 		kind = shaderc_compute_shader;
 	}

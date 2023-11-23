@@ -1,0 +1,187 @@
+#version 460
+#extension GL_EXT_ray_tracing : enable
+
+struct RayPayload {
+	bool hit;
+};
+
+struct Light {
+	vec4 position;
+	vec4 color;
+};
+
+layout(location = 0) rayPayloadEXT RayPayload rayPayload;
+
+layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
+layout(set = 0, binding = 4) buffer Lights_ { Light i[]; } lights;
+layout(set = 3, binding = 0) readonly buffer PointCloudPositions { vec4 i[]; } pointCloudPositions;
+layout(set = 3, binding = 1) writeonly buffer PointCloudDirectLighting { vec4 i[]; } pointCloudDirectLighting;
+layout(set = 3, binding = 2) readonly buffer PointCloudNormals { vec4 i[]; } pointCloudNormals;
+layout(set = 3, binding = 3) buffer PointCloudDirtyFlags { float i[]; } pointCloudDirtyFlags;
+layout(set = 3, binding = 4) buffer ProbeGrid { vec4 i[]; } probeGrid;
+
+vec3 GetLightContribution(Light light) {
+
+	vec4 origin = pointCloudPositions.i[gl_LaunchIDEXT.x];
+	vec3 worldPos = origin.xyz;
+
+	float fresnelReflect = 0.8;											// this is what they used for box, 1.0 for demon
+	float lightRadiance = 20;
+    vec3 lightDir = normalize(light.position.xyz - worldPos);
+	float dist = max(length(light.position.xyz - worldPos), 0.1);
+	float lightAttenuation = 1.0 / (dist * dist);
+	lightAttenuation = clamp(lightAttenuation, 0, 1);
+	//float irradiance = max(dot(lightDir, normal), 0.0) ;
+	//irradiance *= lightAttenuation * lightRadiance ;
+	
+	//uint rayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsCullFrontFacingTrianglesEXT;
+	uint rayFlags = gl_RayFlagsOpaqueEXT;
+	uint cullMask = 0xff;
+	float tmin = 0.001;
+	float tmax = dist;	
+	traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, origin.xyz, tmin, lightDir, tmax, 0);
+
+	if (rayPayload.hit) {
+		return vec3(0);
+	}
+	else {	
+		return lightAttenuation * light.color.xyz;
+	}
+}
+
+#define PROBEGRID_WIDTH 50
+#define PROBEGRID_HEIGHT 25
+#define PROBEGRID_DEPTH 60
+
+int index1D2(int x, int y, int z) {
+    return x + PROBEGRID_WIDTH * (y + PROBEGRID_HEIGHT * z);    
+}
+
+int index1D( int x, int y, int z ) {
+	int xMax = PROBEGRID_WIDTH;
+	int yMax = PROBEGRID_HEIGHT;
+	int zMax = PROBEGRID_DEPTH;
+    //return (z * xMax * yMax) + (y * xMax) + x;
+    return (x * zMax * yMax) + (y * zMax) + z;
+}
+
+void main() 
+{	
+
+	// Is point dirty? Then recalculate everything
+	if (pointCloudDirtyFlags.i[gl_LaunchIDEXT.x] != 0) 
+	{
+
+		rayPayload.hit = false;
+
+		// Bedroom light
+		Light light0 =  lights.i[0];
+		light0.color *= vec4(1,0.95,0.95,1);
+		light0.color *= 0.75;
+	
+		// Bathroom light
+		Light light1 =  lights.i[1];
+		light1.color *= vec4(1,0.8,0.8,1);
+		light1.color *= vec4(1,0.0,0.0,1);
+		light1.color *= 0.75;
+
+		// Color the cloud point
+		vec3 color = vec3(0);
+		color += GetLightContribution(light0);
+		color += GetLightContribution(light1);
+		//pointCloudDirectLighting.i[gl_LaunchIDEXT.x] = vec4(color, 1);
+
+		// Color any visible probes
+		vec3 pointCloudPos = pointCloudPositions.i[gl_LaunchIDEXT.x].xyz;
+		vec3 pointCloudNormal = pointCloudNormals.i[gl_LaunchIDEXT.x].rgb;
+		//pointCloudPos += pointCloudNormal * 0.05;
+				
+
+		ivec3 cloudPointPositionInProbeSpace = ivec3(pointCloudPos * 10);
+		
+		int size = 20;
+		int minX = max(0, cloudPointPositionInProbeSpace.x - size);
+		int minY = max(0, cloudPointPositionInProbeSpace.y - size);
+		int minZ = max(0, cloudPointPositionInProbeSpace.z - size);
+		int maxX = min(PROBEGRID_WIDTH, cloudPointPositionInProbeSpace.x + size);
+		int maxY = min(PROBEGRID_HEIGHT, cloudPointPositionInProbeSpace.y + size);
+		int maxZ = min(PROBEGRID_DEPTH, cloudPointPositionInProbeSpace.z + size);
+
+		for (int x = minX; x < maxX; x++) {
+			for (int y = minY; y < maxY; y++) {
+				for (int z = -minZ; z < maxZ; z++) {
+										
+					int index = z + (PROBEGRID_DEPTH * y) + (PROBEGRID_HEIGHT * PROBEGRID_DEPTH * x);
+					
+					int max_x = PROBEGRID_WIDTH;
+					int max_y = PROBEGRID_HEIGHT;
+					int max_z = PROBEGRID_DEPTH;
+					index = x + y * max_x + z * max_x * max_y;
+
+					//probeGrid.i[index] = vec4(0, 0, 1, 1);				
+					vec3 probePos = vec3(x, y, z) * vec3(0.1);
+				
+					//vec3 offset = vec3(-3, 0, -2);
+					//probePos += offset;
+
+					vec3 dir = normalize(probePos - pointCloudPos);
+					float dist = length(probePos - pointCloudPos);
+
+					float maxDist = 3.7;
+
+					vec3 delta = abs(probePos - pointCloudPos);
+					float a = 0.05;
+
+					if (dist < maxDist && color != vec3(0) && delta.x > a && delta.y > a && delta.z > a) {
+
+						float maxRayDist = min(dist, maxDist);
+						uint rayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT ;
+						uint cullMask = 0xff;
+						float tmin = 0.001;
+						rayPayload.hit = false;
+							
+						// If a point is not facing away from the probe
+						float vdotn = dot(dir, pointCloudNormal);
+						//vdotn = 1;
+						if (vdotn > 0) {		
+							// and if the probe is visible to the cloud point
+							traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, pointCloudPos, tmin, dir, maxRayDist, 0);	
+							if (!rayPayload.hit) {
+								// then set the color							
+								float sampleCount = probeGrid.i[index].a + 1;
+								probeGrid.i[index] += vec4(color, sampleCount);
+								//probeGrid.i[index] = vec4(probePos, 1);
+							}
+						}
+					}
+					
+				//	probeGrid.i[index] = vec4(probePos, 1);
+				}
+				
+				//probeGrid.i[index] = vec4(probePos, 1);
+			}	
+		}
+			
+		pointCloudDirtyFlags.i[gl_LaunchIDEXT.x] = 0;
+
+	
+		/*
+		for (int x = 0; x < PROBEGRID_WIDTH; x++) {
+			for (int y = 0; y < PROBEGRID_HEIGHT; y++) {
+				for (int z = 0; z < PROBEGRID_DEPTH; z++) {
+					
+						 		
+					vec3 probePos = vec3(x, y, z) * vec3(0.1);
+					//probeGrid.i[index] = vec4(1,0,0, 1);
+					//probeGrid.i[index] = vec4(probePos, 1);
+				}
+			}				
+		}*/
+	}
+}
+
+
+
+
+ //   return x + PROBEGRID_WIDTH * (y + PROBEGRID_HEIGHT * z);  
+

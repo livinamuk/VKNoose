@@ -49,8 +49,9 @@ struct MeshPushConstants {
 	glm::mat4 render_matrix;
 };
 
-struct LineShaderPushConstants {
+struct SolidColorPushConstant {
 	glm::mat4 transformation;
+	bool useNormalAsColor = false;
 };
 
 struct RenderObject {
@@ -95,8 +96,14 @@ struct RayTracingScratchBuffer
 namespace Vulkan {
 
 	inline bool _loaded = false;
+	inline bool _pointCloudIsAllDirty = true;
+	inline bool _probeGridIsAllDirty = true;
 
 	void InitMinimum();
+	void InitDescriptorSets();
+	void InitRayTracing();
+
+
 	void CreateWindow();
 	void CreateInstance();
 	void SelectPhysicalDevice(); 
@@ -110,6 +117,13 @@ namespace Vulkan {
 	void BlitRenderTargetIntoSwapChain(VkCommandBuffer commandBuffer, RenderTarget& renderTarget, uint32_t swapchainImageIndex);
 	void PrepareSwapchainForPresent(VkCommandBuffer commandBuffer, uint32_t swapchainImageIndex);
 
+	void CopyCPUToGPUBuffer(void* sourceBuffer, AllocatedBuffer destinationBuffer, size_t bufferSize);
+
+	void Cleanup();
+	void RenderGameFrame();
+	void RenderLoadingFrame();
+
+
 	void ToggleFullscreen();
 	bool ProgramShouldClose();
 	bool ProgramIsMinimized();
@@ -120,36 +134,30 @@ namespace Vulkan {
 
 	void AddLoadingText(std::string text);
 
+	void create_buffers();
+	void UpdateBuffers();
+	void update_static_descriptor_set();
+	void UpdateDynamicDescriptorSet();
+	void create_sync_structures();
+	
+	void create_sampler();
+	void upload_meshes();
+	void upload_mesh(Mesh& mesh);
+
+	void recreate_dynamic_swapchain();
+
+	void create_command_buffers();
+	void create_pipelines();
+	void create_render_targets();
+	void draw_quad(Transform transform, Texture* texture);
+
+	void cleanup_raytracing();
+
 	GLFWwindow* GetWindow();
 
 	inline bool _forceCloseWindow { false };
 
-	inline struct RenderTargets {
-		RenderTarget present;
-		RenderTarget rt_first_hit_color;
-		RenderTarget rt_first_hit_normals;
-		RenderTarget rt_first_hit_base_color;
-		RenderTarget rt_second_hit_color;
-		RenderTarget gBufferBasecolor;
-		RenderTarget gBufferNormal;
-		RenderTarget gBufferRMA;
-		RenderTarget laptopDisplay;
-		RenderTarget composite;
-		RenderTarget denoiseTextureA;
-		RenderTarget denoiseTextureB;
-		RenderTarget denoiseTextureC;
-	} _renderTargets;
 
-	inline struct Pipelines {
-		Pipeline composite;
-		Pipeline textBlitter;
-		Pipeline lines;
-		Pipeline denoisePassA;
-		Pipeline denoisePassB;
-		Pipeline denoisePassC;
-		Pipeline denoiseBlurHorizontal;
-		Pipeline denoiseBlurVertical;
-	} _pipelines;
 
 	// Shaders
 	inline VkShaderModule _gbuffer_vertex_shader = nullptr;
@@ -176,11 +184,7 @@ namespace Vulkan {
 	VkDevice GetDevice();
 
 
-	void create_buffers();
-	void UpdateBuffers();
-	void update_static_descriptor_set();
-	void UpdateDynamicDescriptorSet();
-	
+
 	// Commands
 	void cmd_SetViewportSize(VkCommandBuffer commandBuffer, int width, int height);
 	void cmd_SetViewportSize(VkCommandBuffer commandBuffer, RenderTarget renderTarget);
@@ -195,6 +199,7 @@ namespace Vulkan {
 	inline HellDescriptorSet _dynamicDescriptorSet;
 	inline HellDescriptorSet _dynamicDescriptorSetInventory;
 	inline HellDescriptorSet _samplerDescriptorSet;
+	inline HellDescriptorSet _bufferDescriptorSet;
 	//inline HellDescriptorSet _denoiseATextureDescriptorSet;
 	//inline HellDescriptorSet _denoiseBTextureDescriptorSet;
 	
@@ -203,10 +208,10 @@ namespace Vulkan {
 	inline VkSampler _sampler;
 		 
 	// Render target shit
-	inline VkExtent2D _currentWindowExtent{ 512 , 288  };
+	inline VkExtent2D _currentWindowExtent{ 512 * 2 , 288 * 2 };
 	//VkExtent2D _fullscreenModeExtent{ 512 , 288  };
 	inline const VkExtent2D _windowedModeExtent{ 512 * 4, 288 * 4 };
-	inline const VkExtent3D _renderTargetPresentExtent = { 512 , 288  , 1 };
+	inline const VkExtent3D _renderTargetPresentExtent = { 512 * 1 , 288  * 1, 1 };
 	
 
 
@@ -246,10 +251,6 @@ namespace Vulkan {
 
 	//initializes everything in the engine
 	
-	void init_raytracing();
-	void Cleanup();
-	void RenderGameFrame();
-	void RenderLoadingFrame();
 
 	// Pipelines
 
@@ -260,12 +261,10 @@ namespace Vulkan {
 	inline FrameData& get_current_frame();
 	inline FrameData& get_last_frame();
 
-	inline Mesh _lineListMesh;
 
 
-	inline HellRaytracer _raytracer;
-	inline HellRaytracer _raytracerPath;
-	inline HellRaytracer _raytracerMousePick;
+
+
 
 	inline bool _collisionEnabled = true;
 	inline bool _debugScene = false;
@@ -305,8 +304,7 @@ namespace Vulkan {
 			void build_rt_command_buffers(int swapchainIndex);
 			inline AllocatedBuffer _rtVertexBuffer;
 			inline AllocatedBuffer _rtIndexBuffer;
-			inline AllocatedBuffer _mousePickResultBuffer;
-			inline AllocatedBuffer _mousePickResultCPUBuffer; // for mouse picking
+
 			inline uint32_t _rtIndexCount;
 
 			inline VkDeviceOrHostAddressConstKHR _vertexBufferDeviceAddress{};
@@ -338,21 +336,7 @@ namespace Vulkan {
 	//void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 
 	//void init_commands();
-	void create_sync_structures();
-	void create_descriptors();
-	void create_sampler();
-	void upload_meshes();
-	void upload_mesh(Mesh& mesh);
 
-	void recreate_dynamic_swapchain();
-
-
-	void create_command_buffers();
-	void create_pipelines();
-	void create_render_targets();
-	void draw_quad(Transform transform, Texture* texture);
-
-	void cleanup_raytracing();
 	uint64_t get_buffer_device_address(VkBuffer buffer);
 	void createAccelerationStructureBuffer(AccelerationStructure& accelerationStructure, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo);
 	void AddDebugText();

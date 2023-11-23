@@ -345,4 +345,6 @@ void main()
 	if (rayPayload.bounce == 0 && meshInstance.basecolorIndex == cam.data.wallpaperALBIndex) {
 		rayPayload.writeToImageStore = 0;
 	}
+
+	//rayPayload.nextFactor = baseColor.rgb;
 }

@@ -1,7 +1,7 @@
 #include "../vk_types.h"
 #include <string>
 
-enum VertexDescriptionType { POSITION_NORMAL_TEXCOORD, POSITION_TEXCOORD, POSITION };
+enum VertexDescriptionType { POSITION_NORMAL_TEXCOORD, POSITION_TEXCOORD, POSITION, POSITION_NORMAL};
 
 struct Pipeline {
 
@@ -15,7 +15,6 @@ struct Pipeline {
 	VkCompareOp _compareOp;
 	VkFormat _depthFormat = VK_FORMAT_D32_SFLOAT;
 	VkFormat _stencilFormat = VK_FORMAT_UNDEFINED;
-	std::string _debugName = "NO_NAME";
 	uint32_t _pushConstantCount = 0;
 	uint32_t _pushConstantSize = 0;
 
@@ -76,7 +75,7 @@ struct Pipeline {
 		// UVs
 		VkVertexInputAttributeDescription uvAttribute = {};
 		uvAttribute.binding = 0;
-		uvAttribute.location = 1;
+		uvAttribute.location = 2;
 		uvAttribute.format = VK_FORMAT_R32G32_SFLOAT;
 		uvAttribute.offset = offsetof(Vertex, uv);
 		if (type == POSITION_NORMAL_TEXCOORD) {
@@ -90,6 +89,10 @@ struct Pipeline {
 		}
 		else if (type == POSITION) {
 			_vertexDescription.attributes.push_back(positionAttribute);
+		}
+		else if (type == POSITION_NORMAL) {
+			_vertexDescription.attributes.push_back(positionAttribute);
+			_vertexDescription.attributes.push_back(normalAttribute);
 		}
 	}
 
@@ -129,7 +132,7 @@ struct Pipeline {
 		_pushConstantSize = size;
 	}
 
-	void Build(VkDevice device, VkShaderModule vertexShader, VkShaderModule fragmentShader, int colorAttachmentCount) {
+	void Build(VkDevice device, VkShaderModule vertexShader, VkShaderModule fragmentShader, int colorAttachmentCount, std::string debugName) {
 
 		VkPipelineVertexInputStateCreateInfo vertexInputCreateInfo = {};
 		vertexInputCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -280,7 +283,7 @@ struct Pipeline {
 		nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
 		nameInfo.objectType = VK_OBJECT_TYPE_PIPELINE;
 		nameInfo.objectHandle = (uint64_t)_handle;
-		nameInfo.pObjectName = _debugName.c_str();
+		nameInfo.pObjectName = debugName.c_str();
 		PFN_vkSetDebugUtilsObjectNameEXT vkSetDebugUtilsObjectNameEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(vkGetDeviceProcAddr(device, "vkSetDebugUtilsObjectNameEXT"));
 		vkSetDebugUtilsObjectNameEXT(device, &nameInfo);
 	}

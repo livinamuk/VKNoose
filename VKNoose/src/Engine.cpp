@@ -1,6 +1,7 @@
 #include "Engine.h"
 #include "vk_engine.h"
 #include "Game/GameData.h"
+#include "Core/Lighting.h"
 
 #include "Game/Scene.h"
 #include "Game/Laptop.h"
@@ -91,4 +92,18 @@ void LazyKeyPresses() {
 	if (Input::KeyPressed(HELL_KEY_F)) {
 		Vulkan::ToggleFullscreen();
 	}
+	if (Input::KeyPressed(HELL_KEY_Q)) {
+		Lighting::_showProbesInstead = !Lighting::_showProbesInstead;
+		Audio::PlayAudio("RE_bleep.wav", 0.9f);
+	}
+	if (Input::KeyPressed(HELL_KEY_SPACE)) {
+		Vulkan::_pointCloudIsAllDirty = true;
+		Audio::PlayAudio("RE_bleep.wav", 0.9f);
+	}
+	if (Input::KeyPressed(HELL_KEY_P)) {
+		Vulkan::_probeGridIsAllDirty = true;
+		Audio::PlayAudio("RE_bleep.wav", 0.9f);
+	}
+
+	
 }

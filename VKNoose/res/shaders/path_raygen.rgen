@@ -70,6 +70,12 @@ void main()
 	vec4 origin = cam.data.viewInverse * vec4(0,0,0,1);
 	vec4 target = cam.data.projInverse * vec4(d.x, d.y, 1, 1) ;		
 
+	
+	vec3 originalDirection;
+	vec3 originalOrigin = origin.xyz;
+	vec3 originalTarget = target.xyz;
+
+
 	uint rayFlags = gl_RayFlagsOpaqueEXT;// | gl_RayFlagsCullFrontFacingTrianglesEXT;
 	uint cullMask = 0xff;
 	float tmin = 0.001;
@@ -95,6 +101,7 @@ void main()
 
 	vec3 finalNormal = vec3(0);
 	vec3 baseColor = vec3(0);
+
 
 	for (int i = 0; i < sampleCount; i++) 
 	{
@@ -126,6 +133,8 @@ void main()
 		const vec2 screenUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
 		vec2 d2 = screenUV * 2.0 - 1.0;	
 		vec4 direction = cam.data.viewInverse*vec4(normalize(target.xyz / target.w), 0);
+
+		originalDirection = direction.xyz; // debug only, can delete.
 				
 		origin = cam.data.viewInverse * vec4(0,0,0,1);
 		target = cam.data.projInverse * vec4(d2.x, d2.y, 1, 1);			
@@ -173,7 +182,7 @@ void main()
 		vec3 indirectRayDIrection =  rayPayload.nextRayDirection;
 		vec3 indirectContribution = vec3(0);
 
-		
+		/*
 		// Second bounce
 		{
 			// importance sampling (sampled indirect diffuse direction in normal space)
@@ -198,9 +207,9 @@ void main()
 			//secondBounce += mix(firstBounce, newFinal, 0.8);
 			//secondBounce = indirectContribution;
 
-			secondBounce = rayPayload.color;
+			secondBounce += rayPayload.color;
 		}	
-		
+		*/
 		
 			color = newFinal.xyz;
 			color.xyz = mix(firstBounce, newFinal, 0.8);
@@ -274,6 +283,10 @@ void main()
 	}
 //	if (rayPayload.writeToImageStore == 1)
 	//	imageStore(image, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(vec3(rayPayload.writeToImageStore), 0));
+	
+	//vec3 result = mix(originalTarget, firstBounce, 0.5);
+	vec3 result = mix(vec3(d, 0), firstBounce, 0.5);
+	imageStore(image_first_hit_color, ivec2(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y), vec4(result, 0));
 
 }
 

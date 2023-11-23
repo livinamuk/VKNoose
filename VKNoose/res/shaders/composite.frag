@@ -37,12 +37,18 @@ void main()
     vec3 denoiseA = texture(denoiseATexture,vec2(texCoords.x, 1-texCoords.y)).xyz;
     vec3 denoiseB = texture(denoiseBTexture,vec2(texCoords.x, 1-texCoords.y)).xyz;
     vec3 denoiseC = texture(denoiseCTexture,vec2(texCoords.x, 1-texCoords.y)).xyz;
-
+	
 	vec3 finalColor = mix(firstHitColor, secondHitColorTexture * firstHitBaseColor, 0.8);;
+	
+	finalColor *= 0.4;
+	// finalColor = firstHitColor;
+	
+	//finalColor = secondHitColorTexture;
 
     // Tonemap
 	finalColor = pow(finalColor, vec3(1.0/2.2)); 
 	finalColor = Tonemap_ACES(finalColor);
+
 		
 	// Brightness and contrast
 	float contrast = 1.25;
@@ -57,6 +63,7 @@ void main()
 	
 	// Filmic tonemapping
 	finalColor = mix(finalColor, filmic(finalColor), 0.75);
+
 		
 	// Vignette
 	/*float uvMagSqrd = dot(d,d);
@@ -64,6 +71,8 @@ void main()
     float vignette = 1.0 - uvMagSqrd * amount;
     finalColor *= vignette;*/
     
+	//finalColor = secondHitColorTexture;
+
     outFragColor.rgb = finalColor;
     outFragColor.a = 1.0;
 }

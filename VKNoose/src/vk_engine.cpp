@@ -12,9 +12,57 @@
  
 #include "Game/AssetManager.h"
 #include "Game/Scene.h"
-#include "Game/Laptop.h"
+#include "Game/Laptop.h"v
+#include "Core/Lighting.h"
 #include "Renderer/RasterRenderer.h"
 #include "Profiler.h"
+
+#define MAX_DEBUG_LINES 5000
+#define MAX_DEBUG_POINTS 300000
+#define MAX_POINT_CLOUD_SIZE 10000
+
+struct RenderTargets {
+	RenderTarget present;
+	RenderTarget rt_first_hit_color;
+	RenderTarget rt_first_hit_normals;
+	RenderTarget rt_first_hit_base_color;
+	RenderTarget rt_second_hit_color;
+	RenderTarget gBufferBasecolor;
+	RenderTarget gBufferNormal;
+	RenderTarget gBufferRMA;
+	RenderTarget laptopDisplay;
+	RenderTarget composite;
+	RenderTarget denoiseTextureA;
+	RenderTarget denoiseTextureB;
+	RenderTarget denoiseTextureC;
+} _renderTargets;
+
+struct Pipelines {
+	Pipeline composite;
+	Pipeline textBlitter;
+	Pipeline lines;
+	Pipeline points;
+	Pipeline denoisePassA;
+	Pipeline denoisePassB;
+	Pipeline denoisePassC;
+	Pipeline denoiseBlurHorizontal;
+	Pipeline denoiseBlurVertical;
+} _pipelines;
+
+struct Buffers {
+	AllocatedBuffer mousePickResultBuffer;
+	AllocatedBuffer mousePickResultCPUBuffer;
+	AllocatedBuffer pointCloudPositions;
+	AllocatedBuffer pointCloudNormals;
+	AllocatedBuffer pointCloudColors;
+	AllocatedBuffer probeGrid;
+	AllocatedBuffer pointCloudDirtyFlags;
+} _buffers;
+
+HellRaytracer _raytracer;
+HellRaytracer _raytracerPath;
+HellRaytracer _raytracerMousePick;
+HellRaytracer _raytracerPointCloudDirectLight;
 
 #define NOOSE_PI 3.14159265359f
 const bool _printAvaliableExtensions = false;
@@ -29,6 +77,9 @@ float _deltaTime;
 std::vector<std::string> _loadingText;
 
 RenderTarget _loadingScreenRenderTarget;
+
+Mesh _linesMesh;
+Mesh _pointsMesh;
 
 void Vulkan::CreateWindow() {
 	glfwInit();
@@ -79,6 +130,7 @@ void Vulkan::SelectPhysicalDevice() {
 	VkPhysicalDeviceFeatures features = {};
 	features.samplerAnisotropy = true;
 	features.shaderInt64 = true;
+	features.shaderTessellationAndGeometryPointSize = true;
 	selector.set_required_features(features);
 
 	VkPhysicalDeviceVulkan12Features features12 = {};
@@ -258,7 +310,7 @@ void Vulkan::InitMinimum()
 	create_command_buffers();	
 	create_sync_structures();
 	create_sampler();	
-	create_descriptors();
+	InitDescriptorSets();
 	
 	// Create text blitter pipeline and pipeline layout
 	_pipelines.textBlitter.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
@@ -271,7 +323,7 @@ void Vulkan::InitMinimum()
 	_pipelines.textBlitter.SetColorBlending(true);
 	_pipelines.textBlitter.SetDepthTest(false);
 	_pipelines.textBlitter.SetDepthWrite(false);
-	_pipelines.textBlitter.Build(_device, _text_blitter_vertex_shader, _text_blitter_fragment_shader, 1);
+	_pipelines.textBlitter.Build(_device, _text_blitter_vertex_shader, _text_blitter_fragment_shader, 1, "TextBlitter");
 	
 	AssetManager::Init();
 	AssetManager::LoadFont();
@@ -366,10 +418,11 @@ void Vulkan::LoadNextItem() {
 		Laptop::Init();
 		Audio::Init();
 		Scene::Init();						// Scene::Init creates wall geometry, and thus must run before upload_meshes
+		Lighting::InitPointCloud();
 		create_rt_buffers();
 		create_top_level_acceleration_structure(Scene::GetMeshInstancesForSceneAccelerationStructure(), _frames[0]._sceneTLAS);
 		create_top_level_acceleration_structure(Scene::GetMeshInstancesForInventoryAccelerationStructure(), _frames[0]._inventoryTLAS);
-		init_raytracing();
+		InitRayTracing();
 		update_static_descriptor_set();
 		Input::SetMousePos(_windowedModeExtent.width / 2, _windowedModeExtent.height / 2);
 	}
@@ -424,6 +477,7 @@ void Vulkan::Cleanup()
 	_pipelines.textBlitter.Cleanup(_device);
 	_pipelines.composite.Cleanup(_device);
 	_pipelines.lines.Cleanup(_device);
+	_pipelines.points.Cleanup(_device);
 	_pipelines.denoisePassA.Cleanup(_device);
 	_pipelines.denoisePassB.Cleanup(_device);
 	_pipelines.denoisePassC.Cleanup(_device);
@@ -473,7 +527,9 @@ void Vulkan::Cleanup()
 		vmaDestroyBuffer(_allocator, mesh._accelerationStructure.buffer._buffer, mesh._accelerationStructure.buffer._allocation);
 		vkDestroyAccelerationStructureKHR(_device, mesh._accelerationStructure.handle, nullptr);
 	}
-	vmaDestroyBuffer(_allocator, _lineListMesh._vertexBuffer._buffer, _lineListMesh._vertexBuffer._allocation);
+
+	vmaDestroyBuffer(_allocator, _linesMesh._vertexBuffer._buffer, _linesMesh._vertexBuffer._allocation);
+	vmaDestroyBuffer(_allocator, _pointsMesh._vertexBuffer._buffer, _pointsMesh._vertexBuffer._allocation);
 
 	// Buffers
 	for (int i = 0; i < FRAME_OVERLAP; i++) {
@@ -490,6 +546,7 @@ void Vulkan::Cleanup()
 	_dynamicDescriptorSetInventory.Destroy(_device);
 	_staticDescriptorSet.Destroy(_device);
 	_samplerDescriptorSet.Destroy(_device);
+	_bufferDescriptorSet.Destroy(_device);
 	//_denoiseATextureDescriptorSet.Destroy(_device);
 	//_denoiseBTextureDescriptorSet.Destroy(_device);
 
@@ -519,9 +576,9 @@ uint32_t alignedSize(uint32_t value, uint32_t alignment) {
 	return (value + alignment - 1) & ~(alignment - 1);
 }
 
-void Vulkan::init_raytracing()
+void Vulkan::InitRayTracing()
 {
-	std::vector<VkDescriptorSetLayout> rtDescriptorSetLayouts = { _dynamicDescriptorSet.layout, _staticDescriptorSet.layout, _samplerDescriptorSet.layout };
+	std::vector<VkDescriptorSetLayout> rtDescriptorSetLayouts = { _dynamicDescriptorSet.layout, _staticDescriptorSet.layout, _samplerDescriptorSet.layout, _bufferDescriptorSet.layout };
 
 	_raytracer.CreatePipeline(_device, rtDescriptorSetLayouts, 2);
 	_raytracer.CreateShaderBindingTable(_device, _allocator, _rayTracingPipelineProperties);
@@ -530,7 +587,10 @@ void Vulkan::init_raytracing()
 	_raytracerPath.CreateShaderBindingTable(_device, _allocator, _rayTracingPipelineProperties);
 
 	_raytracerMousePick.CreatePipeline(_device, rtDescriptorSetLayouts, 2);
-	_raytracerMousePick.CreateShaderBindingTable(_device, _allocator, _rayTracingPipelineProperties);	
+	_raytracerMousePick.CreateShaderBindingTable(_device, _allocator, _rayTracingPipelineProperties);
+
+	_raytracerPointCloudDirectLight.CreatePipeline(_device, rtDescriptorSetLayouts, 2);
+	_raytracerPointCloudDirectLight.CreateShaderBindingTable(_device, _allocator, _rayTracingPipelineProperties);	
 }
 
 
@@ -539,9 +599,15 @@ void Vulkan::cleanup_raytracing()
 	// RT cleanup
 	vmaDestroyBuffer(_allocator, _rtVertexBuffer._buffer, _rtVertexBuffer._allocation);
 	vmaDestroyBuffer(_allocator, _rtIndexBuffer._buffer, _rtIndexBuffer._allocation);
-	vmaDestroyBuffer(_allocator, _mousePickResultBuffer._buffer, _mousePickResultBuffer._allocation);
 
-	vmaDestroyBuffer(_allocator, _mousePickResultCPUBuffer._buffer, _mousePickResultCPUBuffer._allocation);
+	vmaDestroyBuffer(_allocator, _buffers.mousePickResultBuffer._buffer, _buffers.mousePickResultBuffer._allocation);
+	vmaDestroyBuffer(_allocator, _buffers.mousePickResultCPUBuffer._buffer, _buffers.mousePickResultCPUBuffer._allocation);
+
+	_buffers.pointCloudColors.Cleanup(_allocator);
+	_buffers.pointCloudNormals.Cleanup(_allocator);
+	_buffers.pointCloudPositions.Cleanup(_allocator);
+	_buffers.pointCloudDirtyFlags.Cleanup(_allocator);
+	_buffers.probeGrid.Cleanup(_allocator);
 
 	vmaDestroyBuffer(_allocator, _frames[0]._sceneTLAS.buffer._buffer, _frames[0]._sceneTLAS.buffer._allocation);
 	vmaDestroyBuffer(_allocator, _frames[1]._sceneTLAS.buffer._buffer, _frames[1]._sceneTLAS.buffer._allocation);
@@ -562,6 +628,7 @@ void Vulkan::cleanup_raytracing()
 	_raytracer.Cleanup(_device, _allocator);
 	_raytracerPath.Cleanup(_device, _allocator);
 	_raytracerMousePick.Cleanup(_device, _allocator);
+	_raytracerPointCloudDirectLight.Cleanup(_device, _allocator);
 }
 
 void Vulkan::create_command_buffers()
@@ -758,6 +825,7 @@ void Vulkan::RenderGameFrame()
 	if (ProgramIsMinimized())
 		return;
 
+	AddDebugText();
 	TextBlitter::Update(GameData::GetDeltaTime(), _renderTargets.present._extent.width, _renderTargets.present._extent.height);
 
 	int32_t frameIndex = _frameNumber % FRAME_OVERLAP;
@@ -1009,6 +1077,7 @@ void Vulkan::hotload_shaders()
 	_raytracer.Cleanup(_device, _allocator);
 	_raytracerPath.Cleanup(_device, _allocator);
 	_raytracerMousePick.Cleanup(_device, _allocator);
+	_raytracerPointCloudDirectLight.Cleanup(_device, _allocator);
 
 	//load_shader(_device, "composite.vert", VK_SHADER_STAGE_VERTEX_BIT, &_composite_vertex_shader);
 	//load_shader(_device, "composite.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_composite_fragment_shader);
@@ -1021,33 +1090,9 @@ void Vulkan::hotload_shaders()
 
 	create_pipelines();
 
-	init_raytracing();
+	InitRayTracing();
 }
-/*
-void Vulkan::hotload_shaders()
-{
-	std::cout << "Hotloading shaders...\n";
 
-	vkDeviceWaitIdle(_device);
-
-	_compositePipeline.Cleanup(_device);
-	_denoisePipeline.Cleanup(_device);
-	_rasterPipeline.Cleanup(_device);
-	_textBlitterPipeline.Cleanup(_device);
-	_computePipeline.Cleanup(_device);
-
-	vkDestroyPipeline(_device, _linelistPipeline, nullptr);
-	vkDestroyPipelineLayout(_device, _linelistPipelineLayout, nullptr);
-
-	_raytracer.Cleanup(_device, _allocator);
-	_raytracerPath.Cleanup(_device, _allocator);
-	_raytracerMousePick.Cleanup(_device, _allocator);
-
-	LoadShaders();
-	create_pipelines();
-
-	init_raytracing();
-}*/
 
 
 void Vulkan::LoadShaders()
@@ -1079,6 +1124,7 @@ void Vulkan::LoadShaders()
 	_raytracer.LoadShaders(_device, "raygen.rgen", "miss.rmiss", "shadow.rmiss", "closesthit.rchit");
 	_raytracerPath.LoadShaders(_device, "path_raygen.rgen", "path_miss.rmiss", "path_shadow.rmiss", "path_closesthit.rchit");
 	_raytracerMousePick.LoadShaders(_device, "mousepick_raygen.rgen", "mousepick_miss.rmiss", "path_shadow.rmiss", "mousepick_closesthit.rchit");
+	_raytracerPointCloudDirectLight.LoadShaders(_device, "pointcloud.rgen", "pointcloud.rmiss", "pointcloud.rmiss", "pointcloud.rchit");
 }
 
 
@@ -1096,22 +1142,40 @@ void Vulkan::create_pipelines()
 	_pipelines.composite.SetColorBlending(false);
 	_pipelines.composite.SetDepthTest(false);
 	_pipelines.composite.SetDepthWrite(false);
-	_pipelines.composite.Build(_device, _composite_vertex_shader, _composite_fragment_shader, 1);
+	_pipelines.composite.Build(_device, _composite_vertex_shader, _composite_fragment_shader, 1, "Composite");
 	
 	// Lines pipeline
 	_pipelines.lines.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
 	_pipelines.lines.PushDescriptorSetLayout(_staticDescriptorSet.layout);
-	_pipelines.lines.SetPushConstantSize(sizeof(LineShaderPushConstants));
+	_pipelines.lines.PushDescriptorSetLayout(_bufferDescriptorSet.layout);
+	_pipelines.lines.SetPushConstantSize(sizeof(SolidColorPushConstant));
 	_pipelines.lines.SetPushConstantCount(1);
 	_pipelines.lines.CreatePipelineLayout(_device);
-	_pipelines.lines.SetVertexDescription(VertexDescriptionType::POSITION);
+	_pipelines.lines.SetVertexDescription(VertexDescriptionType::POSITION_NORMAL);
 	_pipelines.lines.SetTopology(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
 	_pipelines.lines.SetPolygonMode(VK_POLYGON_MODE_FILL);
 	_pipelines.lines.SetCullModeFlags(VK_CULL_MODE_NONE);
 	_pipelines.lines.SetColorBlending(false);
 	_pipelines.lines.SetDepthTest(false);
 	_pipelines.lines.SetDepthWrite(false);
-	_pipelines.lines.Build(_device, _solid_color_vertex_shader, _solid_color_fragment_shader, 1);
+	_pipelines.lines.Build(_device, _solid_color_vertex_shader, _solid_color_fragment_shader, 1, "Lines");
+
+
+	// Points pipeline
+	_pipelines.points.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
+	_pipelines.points.PushDescriptorSetLayout(_staticDescriptorSet.layout);
+	_pipelines.points.PushDescriptorSetLayout(_bufferDescriptorSet.layout);
+	_pipelines.points.SetPushConstantSize(sizeof(SolidColorPushConstant));
+	_pipelines.points.SetPushConstantCount(1);
+	_pipelines.points.CreatePipelineLayout(_device);
+	_pipelines.points.SetVertexDescription(VertexDescriptionType::POSITION_NORMAL);
+	_pipelines.points.SetTopology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST);
+	_pipelines.points.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	_pipelines.points.SetCullModeFlags(VK_CULL_MODE_NONE);
+	_pipelines.points.SetColorBlending(false);
+	_pipelines.points.SetDepthTest(false);
+	_pipelines.points.SetDepthWrite(false);
+	_pipelines.points.Build(_device, _solid_color_vertex_shader, _solid_color_fragment_shader, 1, "Points");
 
 	// Denoise A pipeline
 	_pipelines.denoisePassA.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
@@ -1123,7 +1187,7 @@ void Vulkan::create_pipelines()
 	_pipelines.denoisePassA.SetColorBlending(false);
 	_pipelines.denoisePassA.SetDepthTest(false);
 	_pipelines.denoisePassA.SetDepthWrite(false);
-	_pipelines.denoisePassA.Build(_device, _denoise_pass_A_vertex_shader, _denoise_pass_A_fragment_shader, 1);
+	_pipelines.denoisePassA.Build(_device, _denoise_pass_A_vertex_shader, _denoise_pass_A_fragment_shader, 1, "DenoiseA");
 	
 	// Denoise B pipeline
 	_pipelines.denoisePassB.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
@@ -1135,7 +1199,7 @@ void Vulkan::create_pipelines()
 	_pipelines.denoisePassB.SetColorBlending(false);
 	_pipelines.denoisePassB.SetDepthTest(false);
 	_pipelines.denoisePassB.SetDepthWrite(false);
-	_pipelines.denoisePassB.Build(_device, _denoise_pass_B_vertex_shader, _denoise_pass_B_fragment_shader, 1);
+	_pipelines.denoisePassB.Build(_device, _denoise_pass_B_vertex_shader, _denoise_pass_B_fragment_shader, 1, "DenoiseB");
 
 	// Denoise C pipeline
 	_pipelines.denoisePassC.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
@@ -1147,7 +1211,7 @@ void Vulkan::create_pipelines()
 	_pipelines.denoisePassC.SetColorBlending(false);
 	_pipelines.denoisePassC.SetDepthTest(false);
 	_pipelines.denoisePassC.SetDepthWrite(false);
-	_pipelines.denoisePassC.Build(_device, _denoise_pass_C_vertex_shader, _denoise_pass_C_fragment_shader, 1);
+	_pipelines.denoisePassC.Build(_device, _denoise_pass_C_vertex_shader, _denoise_pass_C_fragment_shader, 1, "DenoiseC");
 	
 	// Blur horizontal
 	_pipelines.denoiseBlurHorizontal.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
@@ -1159,7 +1223,7 @@ void Vulkan::create_pipelines()
 	_pipelines.denoiseBlurHorizontal.SetColorBlending(false);
 	_pipelines.denoiseBlurHorizontal.SetDepthTest(false);
 	_pipelines.denoiseBlurHorizontal.SetDepthWrite(false);
-	_pipelines.denoiseBlurHorizontal.Build(_device, _blur_horizontal_vertex_shader, _blur_horizontal_fragment_shader, 1);
+	_pipelines.denoiseBlurHorizontal.Build(_device, _blur_horizontal_vertex_shader, _blur_horizontal_fragment_shader, 1, "BlurH");
 
 	// Blur vertical
 	_pipelines.denoiseBlurVertical.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
@@ -1171,7 +1235,7 @@ void Vulkan::create_pipelines()
 	_pipelines.denoiseBlurVertical.SetColorBlending(false);
 	_pipelines.denoiseBlurVertical.SetDepthTest(false);
 	_pipelines.denoiseBlurVertical.SetDepthWrite(false);
-	_pipelines.denoiseBlurVertical.Build(_device, _blur_vertical_vertex_shader, _blur_vertical_fragment_shader, 1);
+	_pipelines.denoiseBlurVertical.Build(_device, _blur_vertical_vertex_shader, _blur_vertical_fragment_shader, 1, "BlurV");
 	
 	// Raster pipeline
 	/* {
@@ -1443,7 +1507,7 @@ void Vulkan::create_sampler() {
 
 
 
-void Vulkan::create_descriptors()
+void Vulkan::InitDescriptorSets()
 {
 	// Create a descriptor pool that will hold 10 uniform buffers
 	std::vector<VkDescriptorPoolSize> sizes = {
@@ -1467,7 +1531,7 @@ void Vulkan::create_descriptors()
 	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// camera data
 	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// all 3D mesh instances
 	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, 1, VK_SHADER_STAGE_VERTEX_BIT);																			// all 2d mesh instances
-	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);																	// light positions and colors
+	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);																	// light positions and colors
 	_dynamicDescriptorSet.BuildSetLayout(_device);
 	_dynamicDescriptorSet.AllocateSet(_device, _descriptorPool);
 	add_debug_name(_dynamicDescriptorSet.layout, "DynamicDescriptorSetLayout");
@@ -1476,7 +1540,7 @@ void Vulkan::create_descriptors()
 	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// camera data
 	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// all 3D mesh instances
 	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, 1, VK_SHADER_STAGE_VERTEX_BIT);																			// all 2d mesh instances
-	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);																	// light positions and colors
+	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);							    // light positions and colors
 	_dynamicDescriptorSetInventory.BuildSetLayout(_device);
 	_dynamicDescriptorSetInventory.AllocateSet(_device, _descriptorPool);
 	add_debug_name(_dynamicDescriptorSetInventory.layout, "_dynamicDescriptorSetInventory");
@@ -1508,17 +1572,15 @@ void Vulkan::create_descriptors()
 	_samplerDescriptorSet.AllocateSet(_device, _descriptorPool);
 	add_debug_name(_samplerDescriptorSet.layout, "_samplerDescriptorSet");												// depth aware blur texture
 
-	// Denoiser sampler A
-	/*_denoiseATextureDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
-	_denoiseATextureDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
-	_denoiseATextureDescriptorSet.BuildSetLayout(_device);
-	_denoiseATextureDescriptorSet.AllocateSet(_device, _descriptorPool);
-	add_debug_name(_denoiseATextureDescriptorSet.layout, "_denoiseATextureDescriptorSet");
-	// Denoiser sampler B
-	_denoiseBTextureDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, 1, VK_SHADER_STAGE_FRAGMENT_BIT);
-	_denoiseBTextureDescriptorSet.BuildSetLayout(_device);
-	_denoiseBTextureDescriptorSet.AllocateSet(_device, _descriptorPool);
-	add_debug_name(_denoiseBTextureDescriptorSet.layout, "_denoiseBTextureDescriptorSet");												// depth aware blur texture*/
+	// Buffers
+	_bufferDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 0, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_VERTEX_BIT);	// point cloud positions
+	_bufferDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_VERTEX_BIT);	// point cloud direct light values
+	_bufferDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_VERTEX_BIT);	// point cloud normals
+	_bufferDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_VERTEX_BIT);	// point cloud dirty flags (float not bool)
+	_bufferDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_VERTEX_BIT);	// probe grid
+	_bufferDescriptorSet.BuildSetLayout(_device);
+	_bufferDescriptorSet.AllocateSet(_device, _descriptorPool);
+	add_debug_name(_bufferDescriptorSet.layout, "BufferDescriptorSetLayout"); 
 }
 
 void Vulkan::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
@@ -1607,7 +1669,7 @@ void Vulkan::create_rt_buffers()
 	std::vector<uint32_t>& indices = AssetManager::GetIndices_TEMPORARY();
 
 	{
-		// RT Mesh Instance Index Buffer
+		// Mouse pick buffer
 		VkBufferCreateInfo bufferInfo = {};
 		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		bufferInfo.pNext = nullptr;
@@ -1616,12 +1678,11 @@ void Vulkan::create_rt_buffers()
 		VmaAllocationCreateInfo vmaallocInfo = {};
 		vmaallocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 		vmaallocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-		VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo, &_mousePickResultBuffer._buffer, &_mousePickResultBuffer._allocation, nullptr));
-		add_debug_name(_mousePickResultBuffer._buffer, "_mousePickResultBuffer");
-		//vmaMapMemory(_allocator, _mousePickResultBuffer._allocation, &_mousePickResultBuffer._mapped);
+		VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo, &_buffers.mousePickResultBuffer._buffer, &_buffers.mousePickResultBuffer._allocation, nullptr));
+		add_debug_name(_buffers.mousePickResultBuffer._buffer, "_mousePickResultBuffer");
 
-		// Copy in inital values of 0
-		uint32_t mousePickResult[2] = { 0, 0 };
+		// Mouse pick buffer CPU
+		//uint32_t mousePickResult[2] = { 0, 0 };
 
 		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		bufferInfo.pNext = nullptr;
@@ -1630,9 +1691,34 @@ void Vulkan::create_rt_buffers()
 		vmaallocInfo = {};
 		vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
 		vmaallocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-		VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo, &_mousePickResultCPUBuffer._buffer, &_mousePickResultCPUBuffer._allocation, nullptr));
-		add_debug_name(_mousePickResultCPUBuffer._buffer, "_mousePickResultCPUBuffer");
-		vmaMapMemory(_allocator, _mousePickResultCPUBuffer._allocation, &_mousePickResultCPUBuffer._mapped);
+		VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo, &_buffers.mousePickResultCPUBuffer._buffer, &_buffers.mousePickResultCPUBuffer._allocation, nullptr));
+		add_debug_name(_buffers.mousePickResultCPUBuffer._buffer, "_mousePickResultCPUBuffer");
+		vmaMapMemory(_allocator, _buffers.mousePickResultCPUBuffer._allocation, &_buffers.mousePickResultCPUBuffer._mapped);
+
+		// Point cloud Buffers
+		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferInfo.pNext = nullptr;
+		bufferInfo.size = sizeof(glm::vec4) * MAX_POINT_CLOUD_SIZE;
+		bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		vmaallocInfo = {};
+		vmaallocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+		// Point cloud position buffer
+		VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo, &_buffers.pointCloudPositions._buffer, &_buffers.pointCloudPositions._allocation, nullptr));
+		add_debug_name(_buffers.pointCloudPositions._buffer, "pointCloudColors");
+		// Point cloud color buffer
+		VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo, &_buffers.pointCloudColors._buffer, &_buffers.pointCloudColors._allocation, nullptr));
+		add_debug_name(_buffers.pointCloudColors._buffer, "pointCloudColors");
+		// Point cloud normal buffer
+		VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo, &_buffers.pointCloudNormals._buffer, &_buffers.pointCloudNormals._allocation, nullptr));
+		add_debug_name(_buffers.pointCloudNormals._buffer, "pointCloudNormal");
+		// Point cloud dirty flags
+		bufferInfo.size = sizeof(float) * MAX_POINT_CLOUD_SIZE;
+		VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo, &_buffers.pointCloudDirtyFlags._buffer, &_buffers.pointCloudDirtyFlags._allocation, nullptr));
+		add_debug_name(_buffers.pointCloudDirtyFlags._buffer, "pointCloudDirtyFlags");
+		// Probe grid buffer
+		bufferInfo.size = sizeof(glm::vec4) * PROPOGATION_WIDTH * PROPOGATION_HEIGHT * PROPOGATION_DEPTH;
+		VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo, &_buffers.probeGrid._buffer, &_buffers.probeGrid._allocation, nullptr));
+		add_debug_name(_buffers.probeGrid._buffer, "probeGrid");
 	}
 
 	// Vertices
@@ -2043,6 +2129,97 @@ void Vulkan::UpdateBuffers() {
 	get_current_frame()._lightRenderInfoBuffer.MapRange(_allocator, lightRenderInfo.data(), sizeof(LightRenderInfo) * lightRenderInfo.size());
 	std::vector<LightRenderInfo> lightRenderInfoInventory = Scene::GetLightRenderInfoInventory();
 	get_current_frame()._lightRenderInfoBufferInventory.MapRange(_allocator, lightRenderInfoInventory.data(), sizeof(LightRenderInfo) * lightRenderInfoInventory.size());
+
+
+
+	// Point cloud positions
+	if (Lighting::GetPointCloud().size()) {
+		std::vector<glm::vec4> pointCloudPositons;
+		std::vector<glm::vec4> pointCloudNormals;
+
+		for (auto& cloudPoint : Lighting::GetPointCloud()) {
+			pointCloudPositons.push_back(glm::vec4(cloudPoint.position, 1));
+			pointCloudNormals.push_back(glm::vec4(cloudPoint.normal, 1));
+		}
+
+		const size_t bufferSize = Lighting::GetPointCloud().size() * sizeof(glm::vec4);
+		CopyCPUToGPUBuffer(pointCloudPositons.data(), _buffers.pointCloudPositions, bufferSize);
+		CopyCPUToGPUBuffer(pointCloudNormals.data(), _buffers.pointCloudNormals, bufferSize);
+	}
+
+	// Set default dirty flags to true
+	static bool runOnce = true;
+	if (runOnce) {
+		std::vector<float> pointCloudDirtyFlags;
+		for (auto& cloudPoint : Lighting::GetPointCloud()) {
+			pointCloudDirtyFlags.push_back(1.0f);
+		}
+		const size_t bufferSize = Lighting::GetPointCloud().size() * sizeof(float);
+		CopyCPUToGPUBuffer(pointCloudDirtyFlags.data(), _buffers.pointCloudDirtyFlags, bufferSize);
+		runOnce = false;
+		_pointCloudIsAllDirty = false;
+
+	}
+	if (_pointCloudIsAllDirty) {
+		std::vector<float> pointCloudDirtyFlags;
+		for (auto& cloudPoint : Lighting::GetPointCloud()) {
+			pointCloudDirtyFlags.push_back(1.0f);
+		}
+		const size_t bufferSize = Lighting::GetPointCloud().size() * sizeof(float);
+		CopyCPUToGPUBuffer(pointCloudDirtyFlags.data(), _buffers.pointCloudDirtyFlags, bufferSize);
+		_pointCloudIsAllDirty = false;
+	}
+
+	// Reset probe grid
+	if (_probeGridIsAllDirty) {
+		if (Lighting::GetProbeGridSize()) {
+			std::vector<glm::vec4> probeValues;
+			for (int i = 0; i < Lighting::GetProbeGridSize(); i++) {
+				probeValues.push_back(glm::vec4(0, 0, 0, 0));
+			}
+			const size_t bufferSize = Lighting::GetProbeGridSize() * sizeof(glm::vec4);
+			CopyCPUToGPUBuffer(probeValues.data(), _buffers.probeGrid, bufferSize);
+		}
+		_probeGridIsAllDirty = false;
+	}
+	
+}
+
+void Vulkan::CopyCPUToGPUBuffer(void* sourceBuffer, AllocatedBuffer destinationBuffer, size_t bufferSize) {
+
+	VkBufferCreateInfo stagingBufferInfo = {};
+	stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	stagingBufferInfo.pNext = nullptr;
+	stagingBufferInfo.size = bufferSize;
+	stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	VmaAllocationCreateInfo vmaallocInfo = {};
+	vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+	AllocatedBuffer stagingBuffer;
+	VK_CHECK(vmaCreateBuffer(_allocator, &stagingBufferInfo, &vmaallocInfo, &stagingBuffer._buffer, &stagingBuffer._allocation, nullptr));
+	add_debug_name(stagingBuffer._buffer, "cpu to gpu staging buffer");
+	void* data;
+	vmaMapMemory(_allocator, stagingBuffer._allocation, &data);
+	memcpy(data, sourceBuffer, bufferSize);
+	vmaUnmapMemory(_allocator, stagingBuffer._allocation);
+	VkBufferCreateInfo vertexBufferInfo = {};
+	vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	vertexBufferInfo.pNext = nullptr;
+	vertexBufferInfo.size = bufferSize;
+	vertexBufferInfo.usage =
+		VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+		VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+		VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+
+	vmaallocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	immediate_submit([=](VkCommandBuffer cmd) {
+		VkBufferCopy copy;
+		copy.dstOffset = 0;
+		copy.srcOffset = 0;
+		copy.size = bufferSize;
+		vkCmdCopyBuffer(cmd, stagingBuffer._buffer, destinationBuffer._buffer, 1, &copy);
+	});
+	vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
 }
 
 void Vulkan::update_static_descriptor_set() {
@@ -2072,7 +2249,7 @@ void Vulkan::update_static_descriptor_set() {
 	_staticDescriptorSet.Update(_device, 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &storageImageDescriptor);
 
 	// 1x1 mouse picking buffer
-	_staticDescriptorSet.Update(_device, 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, _mousePickResultBuffer._buffer);
+	_staticDescriptorSet.Update(_device, 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, _buffers.mousePickResultBuffer._buffer);
 
 	// RT normals and depth
 	storageImageDescriptor.imageView = _renderTargets.rt_first_hit_normals._view;
@@ -2121,11 +2298,14 @@ void Vulkan::update_static_descriptor_set() {
 	storageImageDescriptor2.imageView = _renderTargets.laptopDisplay._view;
 	_samplerDescriptorSet.Update(_device, 7, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
-	/*storageImageDescriptor2.imageView = _renderTargets.denoiseA._view;
-	_denoiseATextureDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
-	storageImageDescriptor2.imageView = _renderTargets.denoiseB._view;
-	_denoiseBTextureDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);	*/
+
+	// Buffers
+	_bufferDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, _buffers.pointCloudPositions._buffer);
+	_bufferDescriptorSet.Update(_device, 1, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, _buffers.pointCloudColors._buffer);
+	_bufferDescriptorSet.Update(_device, 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, _buffers.pointCloudNormals._buffer);
+	_bufferDescriptorSet.Update(_device, 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, _buffers.pointCloudDirtyFlags._buffer);
+	_bufferDescriptorSet.Update(_device, 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, _buffers.probeGrid._buffer);
 }
 
 void Vulkan::UpdateDynamicDescriptorSet() {
@@ -2232,12 +2412,21 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 
 
 	// Mouse pick
-	_renderTargets.rt_first_hit_color.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+	//_renderTargets.rt_first_hit_color.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 	cmd_BindRayTracingPipeline(commandBuffer, _raytracerMousePick.pipeline);
 	cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerMousePick.pipelineLayout, 0, _dynamicDescriptorSet);
 	cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerMousePick.pipelineLayout, 1, _staticDescriptorSet);
 	vkCmdTraceRaysKHR(commandBuffer, &_raytracerMousePick.raygenShaderSbtEntry, &_raytracerMousePick.missShaderSbtEntry, &_raytracerMousePick.hitShaderSbtEntry, &_raytracerMousePick.callableShaderSbtEntry, 1, 1, 1);
 		
+	// Point cloud direct lighting
+	_renderTargets.rt_first_hit_color.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+	cmd_BindRayTracingPipeline(commandBuffer, _raytracerPointCloudDirectLight.pipeline);
+	cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerPointCloudDirectLight.pipelineLayout, 0, _dynamicDescriptorSet);
+	cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerPointCloudDirectLight.pipelineLayout, 1, _staticDescriptorSet);
+	cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerPointCloudDirectLight.pipelineLayout, 3, _bufferDescriptorSet);
+	int pointCloudSize = Lighting::GetPointCloud().size();
+	vkCmdTraceRaysKHR(commandBuffer, &_raytracerPointCloudDirectLight.raygenShaderSbtEntry, &_raytracerPointCloudDirectLight.missShaderSbtEntry, &_raytracerPointCloudDirectLight.hitShaderSbtEntry, &_raytracerPointCloudDirectLight.callableShaderSbtEntry, pointCloudSize, 1, 1);
+	//std::cout << "point cloud size: " << pointCloudSize << "\n";
 
 	// UI //
 	_renderTargets.present.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
@@ -2758,16 +2947,39 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 		}
 		RasterRenderer::ClearQueue();
 
-		// Draw debug lines
-		if (_lineListMesh._vertexCount > 0 && _debugMode != DebugMode::NONE) {
+		// Draw lines
+		if (_linesMesh._vertexCount > 0 && _debugMode != DebugMode::NONE) {
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelines.lines._handle);
 			glm::mat4 projection = glm::perspective(GameData::_cameraZoom, 1700.f / 900.f, 0.01f, 100.0f);
 			glm::mat4 view = GameData::GetPlayer().m_camera.GetViewMatrix();
 			projection[1][1] *= -1;
-			LineShaderPushConstants constants;
-			constants.transformation = projection * view;;
-			vkCmdPushConstants(commandBuffer, _pipelines.lines._layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(LineShaderPushConstants), &constants);
-			_lineListMesh.draw(commandBuffer, 0);
+			SolidColorPushConstant pushConstant;
+			pushConstant.transformation = projection * view;
+			pushConstant.useNormalAsColor = false;
+			vkCmdPushConstants(commandBuffer, _pipelines.lines._layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(SolidColorPushConstant), &pushConstant);
+			cmd_BindDescriptorSet(commandBuffer, _pipelines.lines, 2, _bufferDescriptorSet);
+			_linesMesh.draw(commandBuffer, 0);
+		}
+
+		// Draw points
+		if (_pointsMesh._vertexCount > 0) {
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelines.points._handle);
+			glm::mat4 projection = glm::perspective(GameData::_cameraZoom, 1700.f / 900.f, 0.01f, 100.0f);
+			glm::mat4 view = GameData::GetPlayer().m_camera.GetViewMatrix();
+			projection[1][1] *= -1;
+			SolidColorPushConstant pushConstant;
+			pushConstant.transformation = projection * view;
+
+			if (Lighting::_showProbesInstead) {
+				pushConstant.useNormalAsColor = false;
+			}
+			else {
+				pushConstant.useNormalAsColor = true;
+			}
+			
+			vkCmdPushConstants(commandBuffer, _pipelines.points._layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(SolidColorPushConstant), &pushConstant);
+			cmd_BindDescriptorSet(commandBuffer, _pipelines.points, 2, _bufferDescriptorSet);
+			_pointsMesh.draw(commandBuffer, 0);
 		}
 
 		vkCmdEndRendering(commandBuffer);
@@ -2841,12 +3053,15 @@ void Vulkan::build_rt_command_buffers(int swapchainIndex)
 		0, // srcOffset
 		0, // dstOffset,
 		bufferSize };
-		vkCmdCopyBuffer(commandBuffer, _mousePickResultBuffer._buffer, _mousePickResultCPUBuffer._buffer, 1, &bufCopy);
+		vkCmdCopyBuffer(commandBuffer, _buffers.mousePickResultBuffer._buffer, _buffers.mousePickResultCPUBuffer._buffer, 1, &bufCopy);
 		VK_CHECK(vkEndCommandBuffer(commandBuffer));
 		uint32_t mousePickResult[2] = { 2,0 };
 		void* data;
-		memcpy(mousePickResult, _mousePickResultCPUBuffer._mapped, sizeof(uint32_t) * 2);
+		memcpy(mousePickResult, _buffers.mousePickResultCPUBuffer._mapped, sizeof(uint32_t) * 2);
 		Scene::StoreMousePickResult(mousePickResult[0], mousePickResult[1]);
+
+		//std::cout << mousePickResult[0] << "\n";
+		//std::cout << mousePickResult[1] << "\n";
 	}
 	else {
 		VK_CHECK(vkEndCommandBuffer(commandBuffer));
@@ -2888,22 +3103,41 @@ void Vulkan::get_required_lines() {
 	// Generate buffer shit
 	static bool runOnce = true;
 	if (runOnce) {
+
+		// Lines
 		VkBufferCreateInfo vertexBufferInfo = {};
 		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		vertexBufferInfo.pNext = nullptr;
-		vertexBufferInfo.size = sizeof(Vertex) * 4096; // number of max lines possible
+		vertexBufferInfo.size = sizeof(Vertex) * MAX_DEBUG_LINES * 2;
 		vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 		VmaAllocationCreateInfo vmaallocInfo = {};
 		vmaallocInfo.usage = VMA_MEMORY_USAGE_AUTO;;
-		VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo, &vmaallocInfo, &_lineListMesh._vertexBuffer._buffer, &_lineListMesh._vertexBuffer._allocation, nullptr));
-		add_debug_name(_lineListMesh._vertexBuffer._buffer, "_lineListMesh._vertexBuffer");
-		// Name the mesh
+		VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo, &vmaallocInfo, &_linesMesh._vertexBuffer._buffer, &_linesMesh._vertexBuffer._allocation, nullptr));
+		add_debug_name(_linesMesh._vertexBuffer._buffer, "_linesMesh._vertexBuffer");
 		VkDebugUtilsObjectNameInfoEXT nameInfo = {};
 		nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
 		nameInfo.objectType = VK_OBJECT_TYPE_BUFFER;
-		nameInfo.objectHandle = (uint64_t)_lineListMesh._vertexBuffer._buffer;
-		nameInfo.pObjectName = "Line list mesh";
+		nameInfo.objectHandle = (uint64_t)_linesMesh._vertexBuffer._buffer;
+		nameInfo.pObjectName = "Lines mesh";
 		vkSetDebugUtilsObjectNameEXT(_device, &nameInfo); 
+
+		// Points
+		vertexBufferInfo = {};
+		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		vertexBufferInfo.pNext = nullptr;
+		vertexBufferInfo.size = sizeof(Vertex) * MAX_DEBUG_POINTS;
+		vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		vmaallocInfo = {};
+		vmaallocInfo.usage = VMA_MEMORY_USAGE_AUTO;;
+		VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo, &vmaallocInfo, &_pointsMesh._vertexBuffer._buffer, &_pointsMesh._vertexBuffer._allocation, nullptr));
+		add_debug_name(_pointsMesh._vertexBuffer._buffer, "_pointsMesh._vertexBuffer");
+		nameInfo = {};
+		nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+		nameInfo.objectType = VK_OBJECT_TYPE_BUFFER;
+		nameInfo.objectHandle = (uint64_t)_pointsMesh._vertexBuffer._buffer;
+		nameInfo.pObjectName = "Points mesh";
+		vkSetDebugUtilsObjectNameEXT(_device, &nameInfo);
+
 		runOnce = false;
 	}
 
@@ -2925,7 +3159,7 @@ void Vulkan::get_required_lines() {
 		vertices = Scene::GetCollisionLineVertices();
 	}
 
-	_lineListMesh._vertexCount = vertices.size();
+	_linesMesh._vertexCount = vertices.size();
 
 	if (vertices.size()){
 		const size_t bufferSize = vertices.size() * sizeof(Vertex);
@@ -2948,9 +3182,95 @@ void Vulkan::get_required_lines() {
 			copy.dstOffset = 0;
 			copy.srcOffset = 0;
 			copy.size = bufferSize;
-			vkCmdCopyBuffer(cmd, stagingBuffer._buffer, _lineListMesh._vertexBuffer._buffer, 1, &copy);
+			vkCmdCopyBuffer(cmd, stagingBuffer._buffer, _linesMesh._vertexBuffer._buffer, 1, &copy);
 			});
 		vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
+	}
+
+	// DRAW PROBES
+	if (Lighting::_showProbesInstead) {
+		std::vector<Vertex> vertices2;
+
+		for (int z = 0; z < PROPOGATION_DEPTH; z++) {
+			for (int y = 0; y < PROPOGATION_HEIGHT; y++) {
+				for (int x = 0; x < PROPOGATION_WIDTH; x++) {
+
+					//glm::vec3 offset = glm::vec3(-3, 0, -2);
+
+					Vertex vert;
+					vert.position = glm::vec3(x,y,z) * PROPOGATION_GRID_SPACING;
+					//vert.position += offset;
+					vertices2.push_back(vert);
+
+				}
+			}
+		}
+
+		_pointsMesh._vertexCount = vertices2.size();
+
+		if (vertices2.size()) {
+			const size_t bufferSize = vertices2.size() * sizeof(Vertex);
+			VkBufferCreateInfo stagingBufferInfo = {};
+			stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			stagingBufferInfo.pNext = nullptr;
+			stagingBufferInfo.size = bufferSize;
+			stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+			VmaAllocationCreateInfo vmaallocInfo = {};
+			vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+			AllocatedBuffer stagingBuffer;
+			VK_CHECK(vmaCreateBuffer(_allocator, &stagingBufferInfo, &vmaallocInfo, &stagingBuffer._buffer, &stagingBuffer._allocation, nullptr));
+			add_debug_name(stagingBuffer._buffer, "stagingBuffer");
+			void* data;
+			vmaMapMemory(_allocator, stagingBuffer._allocation, &data);
+			memcpy(data, vertices2.data(), vertices2.size() * sizeof(Vertex));
+			vmaUnmapMemory(_allocator, stagingBuffer._allocation);
+			immediate_submit([=](VkCommandBuffer cmd) {
+				VkBufferCopy copy;
+				copy.dstOffset = 0;
+				copy.srcOffset = 0;
+				copy.size = bufferSize;
+				vkCmdCopyBuffer(cmd, stagingBuffer._buffer, _pointsMesh._vertexBuffer._buffer, 1, &copy);
+			});
+			vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
+		}
+	}
+	// DRAW POINT CLOUD
+	else
+	{
+		std::vector<Vertex> vertices2;
+		for (auto& cloudPoint : Lighting::GetPointCloud()) {
+			Vertex vert;
+			vert.position = cloudPoint.position;
+			vert.normal = cloudPoint.directLighting;
+			vertices2.push_back(vert);
+		}
+		_pointsMesh._vertexCount = vertices2.size();
+
+		if (vertices2.size()) {
+			const size_t bufferSize = vertices2.size() * sizeof(Vertex);
+			VkBufferCreateInfo stagingBufferInfo = {};
+			stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			stagingBufferInfo.pNext = nullptr;
+			stagingBufferInfo.size = bufferSize;
+			stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+			VmaAllocationCreateInfo vmaallocInfo = {};
+			vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+			AllocatedBuffer stagingBuffer;
+			VK_CHECK(vmaCreateBuffer(_allocator, &stagingBufferInfo, &vmaallocInfo, &stagingBuffer._buffer, &stagingBuffer._allocation, nullptr));
+			add_debug_name(stagingBuffer._buffer, "stagingBuffer");
+			void* data;
+			vmaMapMemory(_allocator, stagingBuffer._allocation, &data);
+			memcpy(data, vertices2.data(), vertices2.size() * sizeof(Vertex));
+			vmaUnmapMemory(_allocator, stagingBuffer._allocation);
+			immediate_submit([=](VkCommandBuffer cmd) {
+				VkBufferCopy copy;
+				copy.dstOffset = 0;
+				copy.srcOffset = 0;
+				copy.size = bufferSize;
+				vkCmdCopyBuffer(cmd, stagingBuffer._buffer, _pointsMesh._vertexBuffer._buffer, 1, &copy);
+			});
+			vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
+		}
 	}
 }
 

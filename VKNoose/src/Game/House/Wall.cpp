@@ -1,12 +1,12 @@
 #include "Wall.h"
 #include "../AssetManager.h"
 
-Wall::Wall(glm::vec3 begin, glm::vec3 end, std::string materialName) {
+Wall::Wall(glm::vec3 begin, glm::vec3 end, float height, std::string materialName) {
 
 	_material = AssetManager::GetMaterial(materialName);
-
 	_begin = begin;
 	_end = end;
+	_height = height;
 
 	std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
 
@@ -15,10 +15,10 @@ Wall::Wall(glm::vec3 begin, glm::vec3 end, std::string materialName) {
 	Vertex vert2;
 	Vertex vert3;
 
-	vert0.position = begin + glm::vec3(0, CEILING_HEIGHT - begin.y, 0);
+	vert0.position = begin + glm::vec3(0, height, 0);
 	vert1.position = begin;
 	vert2.position = end;
-	vert3.position = end + glm::vec3(0, CEILING_HEIGHT - begin.y, 0);
+	vert3.position = end + glm::vec3(0, height, 0);
 
 	glm::vec3 normal = Util::NormalFromTriangle(vert0.position, vert1.position, vert3.position);
 	vert0.normal = normal;

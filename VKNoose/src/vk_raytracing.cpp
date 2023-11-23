@@ -43,7 +43,7 @@ void HellRaytracer::LoadShaders(VkDevice device, std::string rayGenPath, std::st
 
 	shaderGroups.clear();
 	shaderStages.clear();
-	
+
 	// Ray generation group
 	{
 		load_shader(device, rayGenPath, VK_SHADER_STAGE_RAYGEN_BIT_KHR, &rayGenShader);
@@ -122,11 +122,11 @@ void HellRaytracer::LoadShaders(VkDevice device, std::string rayGenPath, std::st
 	}
 }
 
-void HellRaytracer::CreatePipeline(VkDevice device, std::vector<VkDescriptorSetLayout>& descriptorSetLayouts, uint32_t maxRecursionDepth ) {
+void HellRaytracer::CreatePipeline(VkDevice device, std::vector<VkDescriptorSetLayout>& descriptorSetLayouts, uint32_t maxRecursionDepth) {
 
 	if (pipeline != VK_NULL_HANDLE) {
 		vkDestroyPipeline(device, pipeline, nullptr);
-	}	
+	}
 	if (pipelineLayout != VK_NULL_HANDLE) {
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 	}

@@ -2,6 +2,7 @@
 #include "GameObject.h"
 #include "../Common.h"
 #include "../vk_types.h"
+#include "House/wall.h"
 
 struct RenderItem {
 	uint64_t _deviceAddress;
@@ -35,6 +36,9 @@ struct LightRenderInfo {
 namespace Scene {
 	void Init();
 	void Update(float deltaTime);
+
+	std::vector<Light>& GetLights();
+	std::vector<Wall>& GetWalls();
 	std::vector<GameObject>& GetGameObjects();
 	//std::vector<RenderItem> GetRenderItems(bool debugScene);
 	std::vector<MeshInstance> GetSceneMeshInstances(bool debugScene);
@@ -53,6 +57,7 @@ namespace Scene {
 	int GetGameObjectCount();
 	std::vector<Vertex> GetCollisionLineVertices();
 	void SetLightState(int index, Light::State state);
+
 
 	inline uint32_t _instanceIndex = 0;
 	inline uint32_t _primitiveIndex = 0;

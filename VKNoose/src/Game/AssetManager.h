@@ -133,4 +133,5 @@ namespace AssetManager
 	void SaveImageData(std::string, int width, int height, int channels, void* data);
 	void SaveImageDataF(std::string, int width, int height, int channels, void* data);
 	void SaveImageDataU8(std::string path, int width, int height, int channels, void* data);
+
 }

@@ -1,7 +1,7 @@
 #pragma once
 #include "vk_types.h"
 
-struct HellRaytracer {		
+struct HellRaytracer {
 	VkPipeline pipeline = VK_NULL_HANDLE;
 	VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
 	std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups;

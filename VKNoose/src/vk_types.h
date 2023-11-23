@@ -27,6 +27,10 @@ struct AllocatedBuffer {
 	VkBuffer _buffer = VK_NULL_HANDLE;
 	VmaAllocation _allocation;
 	void* _mapped = nullptr;
+
+	void Cleanup(VmaAllocator allocator) {
+		vmaDestroyBuffer(allocator, _buffer, _allocation);
+	}
 };
 
 struct HellDescriptorSet {

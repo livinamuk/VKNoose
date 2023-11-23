@@ -1,17 +1,14 @@
 #include "Scene.h"
 #include "AssetManager.h"
 #include "../Audio/Audio.h"
-#include "House/wall.h"
 #include "Callbacks.hpp"
 
-namespace Scene {
-	std::vector<GameObject> _gameObjects;
-	std::vector<GameObject> _inventoryGameObjects;
-	std::vector<Wall> _walls;
-	std::vector<Wall> _inventoryWalls;
-	std::vector<Light> _lights;
-	std::vector<Light> _lightsInventory;
-}
+std::vector<GameObject> _gameObjects;
+std::vector<GameObject> _inventoryGameObjects;
+std::vector<Wall> _walls;
+std::vector<Wall> _inventoryWalls;
+std::vector<Light> _lights;
+std::vector<Light> _lightsInventory;
 
 AudioHandle _ropeAudioHandle;
 
@@ -187,71 +184,7 @@ void Scene::Init()
 	wife.SetInteract(InteractType::TEXT, "This can't be fucking happening.", nullptr);
 
 
-	float DOOR_WIDTH = 0.8f;
-
-	float roomZmin = -1.8f;
-	float roomZmax = 1.8f;
-	float roomXmin = -2.75f;
-	float roomXmax = 1.6f;
-
-	float bathroomXmin = -2.715f;
-	float bathroomXmax = -0.76f;
-	float bathroomZmin = 1.9f;
-	float bathroomZmax = 3.8f;
-
-	float bathroomDoorX = -1.6f;
-	float doorWidth = 0.9;
-	float hallDoorX = 0.5f;
-
-	GameObject& door0 = _gameObjects.emplace_back(GameObject());
-	door0.SetModel("Door");
-	door0.SetName("Door");
-	door0.SetMeshMaterial("Door");
-	door0.SetRotationY(NOOSE_HALF_PI);
-	door0.SetPosition(hallDoorX + 0.39550f, 0, -1.85 - 0.058520);
-	door0.SetScriptName("OpenableDoor");
-	//door0.SetOpenState(OpenState::CLOSED, 5.208f, NOOSE_HALF_PI, -NOOSE_HALF_PI - 1.9f);
-	door0.SetOpenState(OpenState::CLOSED, 5.208f, NOOSE_HALF_PI, NOOSE_HALF_PI - 1.9f);
-	door0.SetAudioOnOpen("Door_Open.wav", DOOR_VOLUME);
-	door0.SetAudioOnClose("Door_Open.wav", DOOR_VOLUME);
-	door0.SetOpenAxis(OpenAxis::ROTATION_NEG_Y);
-
-	GameObject& doorFrame0 = _gameObjects.emplace_back(GameObject());
-	doorFrame0.SetModel("DoorFrame"); 
-	doorFrame0.SetName("DoorFrame");
-	doorFrame0.SetMeshMaterial("Door");
-	doorFrame0.SetRotationY(NOOSE_HALF_PI);
-	doorFrame0.SetPosition(hallDoorX, 0, -2.05 + 0.2f);
-
-	GameObject& door1 = _gameObjects.emplace_back(GameObject());
-	door1.SetModel("Door");
-	door1.SetName("Door");
-	door1.SetMeshMaterial("Door");
-	door1.SetRotationY(NOOSE_HALF_PI);
-	door1.SetPosition(bathroomDoorX - 0.39550f, 0, bathroomZmin - 0.05f + 0.058520);
-	door1.SetScriptName("OpenableDoor");
-	door1.SetOpenState(OpenState::CLOSED, 5.208f, -NOOSE_HALF_PI, -1.9f - NOOSE_HALF_PI);
-	door1.SetAudioOnOpen("Door_Open.wav", DOOR_VOLUME);
-	door1.SetAudioOnClose("Door_Open.wav", DOOR_VOLUME);
-	door1.SetOpenAxis(OpenAxis::ROTATION_NEG_Y);
-
-
-	GameObject& doorFrame1 = _gameObjects.emplace_back(GameObject());
-	doorFrame1.SetModel("DoorFrame");
-	doorFrame1.SetName("DoorFrame");
-	doorFrame1.SetMeshMaterial("Door");
-	doorFrame1.SetRotationY(-NOOSE_HALF_PI);
-	doorFrame1.SetPosition(bathroomDoorX, 0, bathroomZmin - 0.05f);
-
-
-	GameObject& lightSwitch = _gameObjects.emplace_back(GameObject());
-	lightSwitch.SetModel("LightSwitchOn");
-	lightSwitch.SetMeshMaterial("LightSwitch");
-	lightSwitch.SetName("LightswitchBedroom");
-	lightSwitch.SetRotationY(-NOOSE_HALF_PI);
-	lightSwitch.SetScale(1.05f);
-	lightSwitch.SetPosition(-0.12f, 1.1f, -1.8f);
-	lightSwitch.SetInteract(InteractType::CALLBACK_ONLY, "", Callbacks::TurnBedroomLightOff);
+	
 
 	GameObject& vase = _gameObjects.emplace_back(GameObject());
 	vase.SetModel("Vase");
@@ -555,6 +488,8 @@ void Scene::Init()
 	wineglass2.SetScale(0.04f);
 	wineglass2.SetMaterialType(MaterialType::GLASS);
 	wineglass2.SetMeshMaterial("White");*/
+	
+
 
 	GameObject& lightSwitch2 = _gameObjects.emplace_back(GameObject());
 	lightSwitch2.SetModel("LightSwitchOn");
@@ -614,6 +549,74 @@ void Scene::Init()
 	lampHis.SetRotationY(NOOSE_HALF_PI);
 	lampHis.SetScale(1.0);
 
+	_gameObjects.clear();
+
+	float DOOR_WIDTH = 0.8f;
+
+	float roomZmin = -1.8f;
+	float roomZmax = 1.8f;
+	float roomXmin = -2.75f;
+	float roomXmax = 1.6f;
+
+	float bathroomXmin = -2.715f;
+	float bathroomXmax = -0.76f;
+	float bathroomZmin = 1.9f;
+	float bathroomZmax = 3.8f;
+
+	float bathroomDoorX = -1.6f;
+	float doorWidth = 0.9;
+	float hallDoorX = 0.5f;
+
+	GameObject& door0 = _gameObjects.emplace_back(GameObject());
+	door0.SetModel("Door");
+	door0.SetName("Door");
+	door0.SetMeshMaterial("Door");
+	door0.SetRotationY(NOOSE_HALF_PI);
+	door0.SetPosition(hallDoorX + 0.39550f, 0, -1.85 - 0.058520);
+	door0.SetScriptName("OpenableDoor");
+	//door0.SetOpenState(OpenState::CLOSED, 5.208f, NOOSE_HALF_PI, -NOOSE_HALF_PI - 1.9f);
+	door0.SetOpenState(OpenState::CLOSED, 5.208f, NOOSE_HALF_PI, NOOSE_HALF_PI - 1.9f);
+	door0.SetAudioOnOpen("Door_Open.wav", DOOR_VOLUME);
+	door0.SetAudioOnClose("Door_Open.wav", DOOR_VOLUME);
+	door0.SetOpenAxis(OpenAxis::ROTATION_NEG_Y);
+
+	GameObject& doorFrame0 = _gameObjects.emplace_back(GameObject());
+	doorFrame0.SetModel("DoorFrame");
+	doorFrame0.SetName("DoorFrame");
+	doorFrame0.SetMeshMaterial("Door");
+	doorFrame0.SetRotationY(NOOSE_HALF_PI);
+	doorFrame0.SetPosition(hallDoorX, 0, -2.05 + 0.2f);
+
+	GameObject& door1 = _gameObjects.emplace_back(GameObject());
+	door1.SetModel("Door");
+	door1.SetName("Door");
+	door1.SetMeshMaterial("Door");
+	door1.SetRotationY(NOOSE_HALF_PI);
+	door1.SetPosition(bathroomDoorX - 0.39550f, 0, bathroomZmin - 0.05f + 0.058520);
+	door1.SetScriptName("OpenableDoor");
+	door1.SetOpenState(OpenState::CLOSED, 5.208f, -NOOSE_HALF_PI, -1.9f - NOOSE_HALF_PI);
+	door1.SetAudioOnOpen("Door_Open.wav", DOOR_VOLUME);
+	door1.SetAudioOnClose("Door_Open.wav", DOOR_VOLUME);
+	door1.SetOpenAxis(OpenAxis::ROTATION_NEG_Y);
+
+
+	GameObject& doorFrame1 = _gameObjects.emplace_back(GameObject());
+	doorFrame1.SetModel("DoorFrame");
+	doorFrame1.SetName("DoorFrame");
+	doorFrame1.SetMeshMaterial("Door");
+	doorFrame1.SetRotationY(-NOOSE_HALF_PI);
+	doorFrame1.SetPosition(bathroomDoorX, 0, bathroomZmin - 0.05f);
+
+
+	GameObject& lightSwitch = _gameObjects.emplace_back(GameObject());
+	lightSwitch.SetModel("LightSwitchOn");
+	lightSwitch.SetMeshMaterial("LightSwitch");
+	lightSwitch.SetName("LightswitchBedroom");
+	lightSwitch.SetRotationY(-NOOSE_HALF_PI);
+	lightSwitch.SetScale(1.05f);
+	lightSwitch.SetPosition(-0.12f, 1.1f, -1.8f);
+	lightSwitch.SetInteract(InteractType::CALLBACK_ONLY, "", Callbacks::TurnBedroomLightOff);
+
 	/*	X		   C  
 	 	|	  ___________
 		|	 |	     Wife|	
@@ -630,42 +633,39 @@ void Scene::Init()
 
 	{
 		float h = -1.2;
-		Wall& wallA = _inventoryWalls.emplace_back(glm::vec3(+1.1, h, +1.1), glm::vec3(-1.1, h, +1.1), "WallPaper");
-		Wall& wallB = _inventoryWalls.emplace_back(glm::vec3(-1.1, h, -1.1), glm::vec3(+1.1, h, -1.1), "WallPaper");
-		Wall& wallC = _inventoryWalls.emplace_back(glm::vec3(+1.1, h, -1.1), glm::vec3(+1.1, h, +1.1), "WallPaper");
-		Wall& wallD = _inventoryWalls.emplace_back(glm::vec3(-1.1, h, +1.1), glm::vec3(-1.1, h, -1.1), "WallPaper");
+		Wall& wallA = _inventoryWalls.emplace_back(glm::vec3(+1.1, h, +1.1), glm::vec3(-1.1, h, +1.1), CEILING_HEIGHT, "WallPaper");
+		Wall& wallB = _inventoryWalls.emplace_back(glm::vec3(-1.1, h, -1.1), glm::vec3(+1.1, h, -1.1), CEILING_HEIGHT, "WallPaper");
+		Wall& wallC = _inventoryWalls.emplace_back(glm::vec3(+1.1, h, -1.1), glm::vec3(+1.1, h, +1.1), CEILING_HEIGHT, "WallPaper");
+		Wall& wallD = _inventoryWalls.emplace_back(glm::vec3(-1.1, h, +1.1), glm::vec3(-1.1, h, -1.1), CEILING_HEIGHT, "WallPaper");
 	}
 
 	static bool runOnce = true;
 	if (runOnce) {
-		Wall& wallA = _walls.emplace_back(glm::vec3(roomXmax, 0, roomZmax), glm::vec3(bathroomDoorX + doorWidth / 2, 0, roomZmax), "WallPaper");
+		Wall& wallA = _walls.emplace_back(glm::vec3(roomXmax, 0, roomZmax), glm::vec3(bathroomDoorX + doorWidth / 2, 0, roomZmax), CEILING_HEIGHT, "WallPaper");
 		wallA._material = AssetManager::GetMaterial("Green");
-		Wall& wallH = _walls.emplace_back(glm::vec3(bathroomDoorX - doorWidth / 2, 0, roomZmax), glm::vec3(roomXmin, 0, roomZmax), "WallPaper");
+		Wall& wallH = _walls.emplace_back(glm::vec3(bathroomDoorX - doorWidth / 2, 0, roomZmax), glm::vec3(roomXmin, 0, roomZmax), CEILING_HEIGHT, "WallPaper");
 		wallH._material = AssetManager::GetMaterial("Green");
-		Wall& wallAboveBathroomDoor = _walls.emplace_back(glm::vec3(bathroomDoorX + doorWidth / 2, 2, roomZmax), glm::vec3(bathroomDoorX - doorWidth / 2, 2, roomZmax), "WallPaper");
+		Wall& wallAboveBathroomDoor = _walls.emplace_back(glm::vec3(bathroomDoorX + doorWidth / 2, 2, roomZmax), glm::vec3(bathroomDoorX - doorWidth / 2, 2, roomZmax), CEILING_HEIGHT - DOOR_HEIGHT, "WallPaper");
 		wallAboveBathroomDoor._material = AssetManager::GetMaterial("Green");
-		Wall& wallB = _walls.emplace_back(glm::vec3(roomXmin, 0, roomZmin), glm::vec3(hallDoorX - doorWidth / 2, 0, -roomZmax), "WallPaper");
+		Wall& wallB = _walls.emplace_back(glm::vec3(roomXmin, 0, roomZmin), glm::vec3(hallDoorX - doorWidth / 2, 0, -roomZmax), CEILING_HEIGHT, "WallPaper");
 		wallB._material = AssetManager::GetMaterial("Red");
-		Wall& wallB2 = _walls.emplace_back(glm::vec3(hallDoorX + doorWidth / 2, 0, roomZmin), glm::vec3(roomXmax, 0, roomZmin), "WallPaper");
+		Wall& wallB2 = _walls.emplace_back(glm::vec3(hallDoorX + doorWidth / 2, 0, roomZmin), glm::vec3(roomXmax, 0, roomZmin), CEILING_HEIGHT, "WallPaper");
 		wallB2._material = AssetManager::GetMaterial("Red");
-		Wall& wallBC = _walls.emplace_back(glm::vec3(hallDoorX - doorWidth / 2, 2, -roomZmax), glm::vec3(hallDoorX + doorWidth / 2, 2, roomZmin), "WallPaper");
+		Wall& wallBC = _walls.emplace_back(glm::vec3(hallDoorX - doorWidth / 2, 2, -roomZmax), glm::vec3(hallDoorX + doorWidth / 2, 2, roomZmin), CEILING_HEIGHT - DOOR_HEIGHT, "WallPaper");
 		wallBC._material = AssetManager::GetMaterial("Red");
-		Wall& wallC = _walls.emplace_back(glm::vec3(roomXmax, 0, roomZmin), glm::vec3(roomXmax, 0, roomZmax), "WallPaper");
+		Wall& wallC = _walls.emplace_back(glm::vec3(roomXmax, 0, roomZmin), glm::vec3(roomXmax, 0, roomZmax), CEILING_HEIGHT, "WallPaper");
 		wallC._material = AssetManager::GetMaterial("White");
-		Wall& wallD = _walls.emplace_back(glm::vec3(roomXmin, 0, roomZmax), glm::vec3(roomXmin, 0, roomZmin), "WallPaper");
+		Wall& wallD = _walls.emplace_back(glm::vec3(roomXmin, 0, roomZmax), glm::vec3(roomXmin, 0, roomZmin), CEILING_HEIGHT, "WallPaper");
 		wallD._material = AssetManager::GetMaterial("White");
-
-
-
 
 		//wallAboveBathroomDoor._material = AssetManager::GetMaterial("Green");
 
-		Wall& wallE = _walls.emplace_back(glm::vec3(bathroomXmax, 0, bathroomZmin), glm::vec3(bathroomXmax, 0, bathroomZmax), "BathroomWall");
-		Wall& wallG = _walls.emplace_back(glm::vec3(bathroomXmax, 0, bathroomZmax), glm::vec3(bathroomXmin, 0, bathroomZmax), "BathroomWall");
-		Wall& wallI = _walls.emplace_back(glm::vec3(bathroomXmin, 0, bathroomZmax), glm::vec3(bathroomXmin, 0, bathroomZmin), "BathroomWall");
-		Wall& wallHI2DOOR = _walls.emplace_back(glm::vec3(bathroomXmin, 0, bathroomZmin), glm::vec3(bathroomDoorX - doorWidth / 2, 0, bathroomZmin), "BathroomWall");
-		Wall& otherGapNextToBathroomDoor = _walls.emplace_back(glm::vec3(bathroomDoorX + doorWidth / 2, 0, bathroomZmin), glm::vec3(bathroomXmax, 0, bathroomZmin), "BathroomWall");
-		Wall& aboveBathroomDoor = _walls.emplace_back(glm::vec3(bathroomDoorX - doorWidth / 2, 2, bathroomZmin), glm::vec3(bathroomDoorX + doorWidth / 2, 2, bathroomZmin), "BathroomWall");
+		Wall& wallE = _walls.emplace_back(glm::vec3(bathroomXmax, 0, bathroomZmin), glm::vec3(bathroomXmax, 0, bathroomZmax), CEILING_HEIGHT, "BathroomWall");
+		Wall& wallG = _walls.emplace_back(glm::vec3(bathroomXmax, 0, bathroomZmax), glm::vec3(bathroomXmin, 0, bathroomZmax), CEILING_HEIGHT, "BathroomWall");
+		Wall& wallI = _walls.emplace_back(glm::vec3(bathroomXmin, 0, bathroomZmax), glm::vec3(bathroomXmin, 0, bathroomZmin), CEILING_HEIGHT, "BathroomWall");
+		Wall& wallHI2DOOR = _walls.emplace_back(glm::vec3(bathroomXmin, 0, bathroomZmin), glm::vec3(bathroomDoorX - doorWidth / 2, 0, bathroomZmin), CEILING_HEIGHT, "BathroomWall");
+		Wall& otherGapNextToBathroomDoor = _walls.emplace_back(glm::vec3(bathroomDoorX + doorWidth / 2, 0, bathroomZmin), glm::vec3(bathroomXmax, 0, bathroomZmin), CEILING_HEIGHT, "BathroomWall");
+		Wall& aboveBathroomDoor = _walls.emplace_back(glm::vec3(bathroomDoorX - doorWidth / 2, 2, bathroomZmin), glm::vec3(bathroomDoorX + doorWidth / 2, 2, bathroomZmin), CEILING_HEIGHT - DOOR_HEIGHT, "BathroomWall");
 		runOnce = false;
 	}
 	for (auto& wall : _walls) {
@@ -1451,4 +1451,12 @@ void Scene::SetLightState(int index, Light::State state)
 	if (index < 0 || index >= _lights.size())
 		return;
 	_lights[index].state = state;
+}
+
+std::vector<Light>& Scene::GetLights() {
+	return _lights;
+}
+
+std::vector<Wall>& Scene::GetWalls() {
+	return _walls;
 }

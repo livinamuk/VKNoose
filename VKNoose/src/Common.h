@@ -16,6 +16,7 @@
 #define NOOSE_HALF_PI 1.57079632679f
 
 #define CEILING_HEIGHT 2.5f
+#define DOOR_HEIGHT 2.0f
 
 #define DRAWER_VOLUME 1.0f
 #define DOOR_VOLUME 1.0f
