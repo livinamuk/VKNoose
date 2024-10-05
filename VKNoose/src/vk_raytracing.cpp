@@ -46,7 +46,7 @@ void HellRaytracer::LoadShaders(VkDevice device, std::string rayGenPath, std::st
 
 	// Ray generation group
 	{
-		load_shader(device, rayGenPath, VK_SHADER_STAGE_RAYGEN_BIT_KHR, &rayGenShader);
+		LoadShader(device, rayGenPath, VK_SHADER_STAGE_RAYGEN_BIT_KHR, &rayGenShader);
 		VkRayTracingShaderGroupCreateInfoKHR shaderGroup{};
 		shaderGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
 		shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
@@ -67,7 +67,7 @@ void HellRaytracer::LoadShaders(VkDevice device, std::string rayGenPath, std::st
 
 	// Miss group
 	{
-		load_shader(device, missPath, VK_SHADER_STAGE_MISS_BIT_KHR, &rayMissShader);
+		LoadShader(device, missPath, VK_SHADER_STAGE_MISS_BIT_KHR, &rayMissShader);
 		VkRayTracingShaderGroupCreateInfoKHR shaderGroup{};
 		shaderGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
 		shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
@@ -86,7 +86,7 @@ void HellRaytracer::LoadShaders(VkDevice device, std::string rayGenPath, std::st
 		shaderStages.emplace_back(pipelineShaderStageCreateInfo);
 
 		// Second shader for shadows
-		load_shader(device, shadowMissPath, VK_SHADER_STAGE_MISS_BIT_KHR, &rayshadowMissShader);
+		LoadShader(device, shadowMissPath, VK_SHADER_STAGE_MISS_BIT_KHR, &rayshadowMissShader);
 		shaderGroup.generalShader = 2;
 		shaderGroups.push_back(shaderGroup);
 
@@ -102,7 +102,7 @@ void HellRaytracer::LoadShaders(VkDevice device, std::string rayGenPath, std::st
 
 	// Closest hit group
 	{
-		load_shader(device, closestHitPath, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, &closestHitShader);
+		LoadShader(device, closestHitPath, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, &closestHitShader);
 		VkRayTracingShaderGroupCreateInfoKHR shaderGroup{};
 		shaderGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
 		shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;

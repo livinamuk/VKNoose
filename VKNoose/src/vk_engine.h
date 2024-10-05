@@ -111,7 +111,7 @@ namespace Vulkan {
 	void CreateSwapchain();
 	
 	void cleanup_shaders();
-	void hotload_shaders();
+	void hotLoadShaders();
 
 	void RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuffer);
 	void BlitRenderTargetIntoSwapChain(VkCommandBuffer commandBuffer, RenderTarget& renderTarget, uint32_t swapchainImageIndex);

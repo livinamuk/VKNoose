@@ -50,7 +50,7 @@ void LazyKeyPresses() {
 		Audio::PlayAudio("RE_bleep.wav", 0.5f);
 	}
 	if (Input::KeyPressed(HELL_KEY_H)) {
-		Vulkan::hotload_shaders();
+		Vulkan::hotLoadShaders();
 	}
 	if (Input::KeyPressed(HELL_KEY_Y)) {
 		Vulkan::_debugScene = !Vulkan::_debugScene;

@@ -66,7 +66,7 @@ std::vector<uint32_t> compile_file(const std::string& source_name, shaderc_shade
 	return { module.cbegin(), module.cend() };
 }
 
-bool load_shader(VkDevice device, std::string filePath, VkShaderStageFlagBits flag, VkShaderModule* outShaderModule)
+bool LoadShader(VkDevice device, std::string filePath, VkShaderStageFlagBits flag, VkShaderModule* outShaderModule)
 {
 	//std::cout << "Loading: " << filePath << "\n";
 

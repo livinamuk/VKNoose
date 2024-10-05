@@ -81,7 +81,7 @@ bool AssetManager::save_binaryfile(const  char* path, const AssetFile& file)
 	//blob data
 	outfile.write(file.binaryBlob.data(), file.binaryBlob.size());
 	outfile.close();
-	return true;
+    return true;
 }
 
 bool AssetManager::load_binaryfile(const char* path, AssetFile& outputFile)
@@ -326,6 +326,8 @@ Mesh* AssetManager::GetMesh(int index) {
 	else
 		return nullptr;
 }
+
+
 
 bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, VkFormat imageFormat, bool generateMips)
 {

@@ -297,11 +297,10 @@ void Vulkan::InitMinimum()
 	CreateWindow();
 	CreateInstance();
 	SelectPhysicalDevice();
-
 	CreateSwapchain();
 
-	load_shader(_device, "text_blitter.vert", VK_SHADER_STAGE_VERTEX_BIT, &_text_blitter_vertex_shader);
-	load_shader(_device, "text_blitter.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_text_blitter_fragment_shader);
+	LoadShader(_device, "text_blitter.vert", VK_SHADER_STAGE_VERTEX_BIT, &_text_blitter_vertex_shader);
+	LoadShader(_device, "text_blitter.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_text_blitter_fragment_shader);
 
 	VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
 	VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
@@ -683,8 +682,9 @@ void Vulkan::RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuffer) {
 
 	// Draw Text plus maybe crosshair
 	for (int i = 0; i < RasterRenderer::instanceCount; i++) {
-		if (RasterRenderer::_UIToRender[i].destination == RasterRenderer::Destination::MAIN_UI)
+		if (RasterRenderer::_UIToRender[i].destination == RasterRenderer::Destination::MAIN_UI) {
 			RasterRenderer::DrawMesh(commandBuffer, i);
+		}
 	}
 	RasterRenderer::ClearQueue();
 
@@ -738,7 +738,6 @@ void Vulkan::BlitRenderTargetIntoSwapChain(VkCommandBuffer commandBuffer, Render
 	region.dstOffsets[1].x = _currentWindowExtent.width;
 	region.dstOffsets[1].y = _currentWindowExtent.height;
 	vkCmdBlitImage(commandBuffer, renderTarget._image, srcLayout, _swapchainImages[swapchainImageIndex], dstLayout, regionCount, &region, VkFilter::VK_FILTER_NEAREST);
-
 }
 
 void Vulkan::PrepareSwapchainForPresent(VkCommandBuffer commandBuffer, uint32_t swapchainImageIndex) {
@@ -1068,7 +1067,7 @@ void Vulkan::create_sync_structures()
 	VK_CHECK(vkCreateFence(_device, &uploadFenceCreateInfo, nullptr, &_uploadContext._uploadFence));
 }
 
-void Vulkan::hotload_shaders()
+void Vulkan::hotLoadShaders()
 {
 	std::cout << "Hotloading shaders...\n";
 
@@ -1079,8 +1078,8 @@ void Vulkan::hotload_shaders()
 	_raytracerMousePick.Cleanup(_device, _allocator);
 	_raytracerPointCloudDirectLight.Cleanup(_device, _allocator);
 
-	//load_shader(_device, "composite.vert", VK_SHADER_STAGE_VERTEX_BIT, &_composite_vertex_shader);
-	//load_shader(_device, "composite.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_composite_fragment_shader);
+	//LoadShader(_device, "composite.vert", VK_SHADER_STAGE_VERTEX_BIT, &_composite_vertex_shader);
+	//LoadShader(_device, "composite.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_composite_fragment_shader);
 
 	//_raytracer.LoadShaders(_device, "raygen.rgen", "miss.rmiss", "shadow.rmiss", "closesthit.rchit");
 	//_raytracerPath.LoadShaders(_device, "path_raygen.rgen", "path_miss.rmiss", "path_shadow.rmiss", "path_closesthit.rchit");
@@ -1092,34 +1091,41 @@ void Vulkan::hotload_shaders()
 
 	InitRayTracing();
 }
+<<<<<<< HEAD
+=======
+/*
+void Vulkan::hotLoadShaders()
+{
+	std::cout << "Hotloading shaders...\n";
+>>>>>>> 34486f8 (misc bug fixes)
 
 
 
 void Vulkan::LoadShaders()
 {
-	load_shader(_device, "solid_color.vert", VK_SHADER_STAGE_VERTEX_BIT, &_solid_color_vertex_shader);
-	load_shader(_device, "solid_color.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_solid_color_fragment_shader);
+	LoadShader(_device, "solid_color.vert", VK_SHADER_STAGE_VERTEX_BIT, &_solid_color_vertex_shader);
+	LoadShader(_device, "solid_color.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_solid_color_fragment_shader);
 
-	load_shader(_device, "gbuffer.vert", VK_SHADER_STAGE_VERTEX_BIT, &_gbuffer_vertex_shader);
-	load_shader(_device, "gbuffer.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_gbuffer_fragment_shader);
+	LoadShader(_device, "gbuffer.vert", VK_SHADER_STAGE_VERTEX_BIT, &_gbuffer_vertex_shader);
+	LoadShader(_device, "gbuffer.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_gbuffer_fragment_shader);
 
-	load_shader(_device, "denoise_pass_A.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_A_vertex_shader);
-	load_shader(_device, "denoise_pass_A.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_A_fragment_shader);
+	LoadShader(_device, "denoise_pass_A.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_A_vertex_shader);
+	LoadShader(_device, "denoise_pass_A.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_A_fragment_shader);
 
-	load_shader(_device, "denoise_pass_B.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_B_vertex_shader);
-	load_shader(_device, "denoise_pass_B.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_B_fragment_shader);
+	LoadShader(_device, "denoise_pass_B.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_B_vertex_shader);
+	LoadShader(_device, "denoise_pass_B.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_B_fragment_shader);
 
-	load_shader(_device, "denoise_pass_C.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_C_vertex_shader);
-	load_shader(_device, "denoise_pass_C.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_C_fragment_shader);
+	LoadShader(_device, "denoise_pass_C.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_C_vertex_shader);
+	LoadShader(_device, "denoise_pass_C.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_C_fragment_shader);
 
-	load_shader(_device, "blur_horizontal.vert", VK_SHADER_STAGE_VERTEX_BIT, &_blur_horizontal_vertex_shader);
-	load_shader(_device, "blur_horizontal.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_blur_horizontal_fragment_shader);
+	LoadShader(_device, "blur_horizontal.vert", VK_SHADER_STAGE_VERTEX_BIT, &_blur_horizontal_vertex_shader);
+	LoadShader(_device, "blur_horizontal.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_blur_horizontal_fragment_shader);
 
-	load_shader(_device, "blur_vertical.vert", VK_SHADER_STAGE_VERTEX_BIT, &_blur_vertical_vertex_shader);
-	load_shader(_device, "blur_vertical.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_blur_vertical_fragment_shader);
+	LoadShader(_device, "blur_vertical.vert", VK_SHADER_STAGE_VERTEX_BIT, &_blur_vertical_vertex_shader);
+	LoadShader(_device, "blur_vertical.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_blur_vertical_fragment_shader);
 
-	load_shader(_device, "composite.vert", VK_SHADER_STAGE_VERTEX_BIT, &_composite_vertex_shader);
-	load_shader(_device, "composite.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_composite_fragment_shader);
+	LoadShader(_device, "composite.vert", VK_SHADER_STAGE_VERTEX_BIT, &_composite_vertex_shader);
+	LoadShader(_device, "composite.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_composite_fragment_shader);
 	
 	_raytracer.LoadShaders(_device, "raygen.rgen", "miss.rmiss", "shadow.rmiss", "closesthit.rchit");
 	_raytracerPath.LoadShaders(_device, "path_raygen.rgen", "path_miss.rmiss", "path_shadow.rmiss", "path_closesthit.rchit");
