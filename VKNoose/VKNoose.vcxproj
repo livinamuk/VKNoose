@@ -60,7 +60,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>vendor\VulkanMemoryAllocator\include;vendor\stb_image;vendor\TinyObjectLoader;vendor\GLFW\include;C:\VulkanSDK\1.3.239.0\Include;vendor\VkBootstrap;vendor\fmod\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>vendor\VulkanMemoryAllocator\include;vendor\stb_image;vendor\TinyObjectLoader;vendor\GLFW\include;vendor\Vulkan\include;vendor\VkBootstrap;vendor\fmod\include;src\common;vendor;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -78,7 +78,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>vendor\glm;vendor\VulkanMemoryAllocator\include;vendor\stb_image;vendor\TinyObjectLoader;vendor\GLFW\include;C:\VulkanSDK\1.3.239.0\Include;C:\VulkanSDK\1.3.250.0\Include;vendor\VkBootstrap;vendor\fmod\include;vendor\nlohmann_json\include;vendor\lz4\include;vendor\OpenImageIO\include;vendor\OpenImageDenoiser\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>vendor\glm;vendor\VulkanMemoryAllocator\include;vendor\stb_image;vendor\TinyObjectLoader;vendor\GLFW\include;vendor\vulkan\include;vendor\VkBootstrap;vendor\fmod\include;vendor\nlohmann_json\include;vendor\lz4\include;vendor\OpenImageIO\include;vendor\OpenImageDenoiser\include;src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -94,7 +94,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\Audio\Audio.cpp" />
-    <ClCompile Include="src\Engine.cpp" />
+    <ClCompile Include="src\BackEnd.cpp" />
     <ClCompile Include="src\Game\AssetManager.cpp" />
     <ClCompile Include="src\Game\Camera.cpp" />
     <ClCompile Include="src\Game\GameData.cpp" />
@@ -104,7 +104,8 @@
     <ClCompile Include="src\Game\Laptop.h" />
     <ClCompile Include="src\Game\Player.cpp" />
     <ClCompile Include="src\Game\Scene.cpp" />
-    <ClCompile Include="src\IO\Input.cpp" />
+    <ClCompile Include="src\GLFWIntegration.cpp" />
+    <ClCompile Include="src\Input\Input.cpp" />
     <ClCompile Include="src\Main.cpp" />
     <ClCompile Include="src\Profiler.cpp" />
     <ClCompile Include="src\Renderer\Shader.cpp" />
@@ -125,8 +126,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Audio\Audio.h" />
+    <ClInclude Include="src\BackEnd.h" />
     <ClInclude Include="src\Common.h" />
-    <ClInclude Include="src\Engine.h" />
+    <ClInclude Include="src\common\NooseEnums.h" />
+    <ClInclude Include="src\common\NooseTypes.h" />
     <ClInclude Include="src\Game\AssetManager.h" />
     <ClInclude Include="src\Game\Callbacks.hpp" />
     <ClInclude Include="src\Game\Camera.h" />
@@ -135,8 +138,9 @@
     <ClInclude Include="src\Game\House\Wall.h" />
     <ClInclude Include="src\Game\Player.h" />
     <ClInclude Include="src\Game\Scene.h" />
-    <ClInclude Include="src\IO\Input.h" />
-    <ClInclude Include="src\IO\keycodes.h" />
+    <ClInclude Include="src\GLFWIntegration.h" />
+    <ClInclude Include="src\Input\Input.h" />
+    <ClInclude Include="src\Input\keycodes.h" />
     <ClInclude Include="src\Profiler.h" />
     <ClInclude Include="src\Renderer\Material.hpp" />
     <ClInclude Include="src\Renderer\Pipeline.hpp" />

@@ -2,7 +2,7 @@
 #include "GameData.h"
 #include "AssetManager.h"
 #include "../Renderer/RasterRenderer.h"
-#include "../IO/Input.h"
+#include "../Input/Input.h"
 #include "../Util.h"
 
 bool sortfileByDragState(File a, File b) {

@@ -17,7 +17,7 @@
 
 #include "Audio/Audio.h"
 #include "Game/GameData.h"
-#include "IO/Input.h"
+#include "Input/Input.h"
 #include "Renderer/Shader.h"
 #include "UI/TextBlitter.h"
 
@@ -111,7 +111,7 @@ namespace Vulkan {
 	void PrepareSwapchainForPresent(VkCommandBuffer commandBuffer, uint32_t swapchainImageIndex);
 
 	void ToggleFullscreen();
-	bool ProgramShouldClose();
+	//bool ProgramShouldClose();
 	bool ProgramIsMinimized();
 
 	void UpdateBuffers2D();

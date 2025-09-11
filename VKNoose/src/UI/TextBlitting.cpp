@@ -1,5 +1,5 @@
 #include "TextBlitter.h"
-#include "../IO/Input.h"
+#include "../Input/Input.h"
 #include "../Audio/Audio.h"
 #include "../Game/Scene.h"
 

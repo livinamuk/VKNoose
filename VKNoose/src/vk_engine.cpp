@@ -16,6 +16,8 @@
 #include "Renderer/RasterRenderer.h"
 #include "Profiler.h"
 
+#include "GLFWIntegration.h"
+
 #define NOOSE_PI 3.14159265359f
 const bool _printAvaliableExtensions = false;
 const bool _enableValidationLayers = true;
@@ -24,22 +26,27 @@ vkb::Instance _bootstrapInstance;
 VkDebugUtilsMessengerEXT _debugMessenger;
 VmaAllocator _allocator;
 VkDevice _device;
-GLFWwindow* _window;
 float _deltaTime;
 std::vector<std::string> _loadingText;
 
 RenderTarget _loadingScreenRenderTarget;
 
 void Vulkan::CreateWindow() {
-	glfwInit();
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-	_window = glfwCreateWindow(_windowedModeExtent.width, _windowedModeExtent.height, "Unloved", nullptr, nullptr);
-	//glfwSetWindowUserPointer(_window, this);
+    GLFWIntegration::Init(WindowedMode::WINDOWED);
+    GLFWwindow* _window = (GLFWwindow*)GLFWIntegration::GetWindowPointer();
+	//glfwInit();
+	//glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+	//glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+	//_window = glfwCreateWindow(_windowedModeExtent.width, _windowedModeExtent.height, "Unloved", nullptr, nullptr);
+	////glfwSetWindowUserPointer(_window, this);
 	glfwSetFramebufferSizeCallback(_window, framebufferResizeCallback);
 }
 
 void Vulkan::CreateInstance() {
+    GLFWwindow* _window = (GLFWwindow*)GLFWIntegration::GetWindowPointer();
+
+
+
 	vkb::InstanceBuilder builder;
 	builder.set_app_name("Unloved");
 	builder.request_validation_layers(_enableValidationLayers);
@@ -206,6 +213,9 @@ void Vulkan::SelectPhysicalDevice() {
 }
 
 void Vulkan::CreateSwapchain() {
+    GLFWwindow* _window = (GLFWwindow*)GLFWIntegration::GetWindowPointer();
+
+
 
 	int width;
 	int height;
@@ -415,6 +425,9 @@ void Vulkan::cleanup_shaders()
 
 void Vulkan::Cleanup()
 {
+    GLFWwindow* _window = (GLFWwindow*)GLFWIntegration::GetWindowPointer();
+
+
 	//make sure the gpu has stopped doing its things
 	vkDeviceWaitIdle(_device);
 
@@ -829,49 +842,22 @@ void Vulkan::RenderGameFrame()
 
 
 void Vulkan::ToggleFullscreen() {
-	static double lastXPositionWhenWindowed = 0;
-	static double lastYPositionWhenWindowed = 0;
-	static bool _windowed = true;
+    GLFWIntegration::ToggleFullscreen();
 
-	_windowed = !_windowed;
-
-	if (!_windowed) {
-		GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-		const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-		_currentWindowExtent = { (unsigned int)mode->width , (unsigned int)mode->height };
-		glfwSetWindowMonitor(_window, monitor, 0, 0, mode->width, mode->width, mode->refreshRate);
-		glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-		recreate_dynamic_swapchain();
-		_frameBufferResized = false;
-
-
-		// Store the old mouse position
-		glfwGetCursorPos(_window, &lastXPositionWhenWindowed, &lastYPositionWhenWindowed);
-		// Prevent the camera jumping position from a large x,y mouse offset]
-		double centerX = mode->width / 2;
-		double centerY = mode->height / 2;
-		Input::ForceSetStoredMousePosition(centerX, centerY);
-		// Move cursor to that same position
-		glfwSetCursorPos(_window, centerX, centerY);
-	}
-	else {
-		glfwSetWindowMonitor(_window, nullptr, 0, 0, _windowedModeExtent.width, _windowedModeExtent.height, 0);
-		glfwSetInputMode(_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-		recreate_dynamic_swapchain();
-		_frameBufferResized = false;
-		// Restore the old mouse position
-		glfwSetCursorPos(_window, lastXPositionWhenWindowed, lastYPositionWhenWindowed);
-		// Prevent the camera jumping position from a large x,y mouse offset]
-		Input::ForceSetStoredMousePosition(lastXPositionWhenWindowed, lastYPositionWhenWindowed);
-	}
+    recreate_dynamic_swapchain();
+    _frameBufferResized = false;
 }
 
 
-bool Vulkan::ProgramShouldClose() {
-	return (glfwWindowShouldClose(_window) || _forceCloseWindow);
-}
+//bool Vulkan::ProgramShouldClose() {
+//    return !GLFWIntegration::WindowHasNotBeenForceClosed();
+//}
 
 bool Vulkan::ProgramIsMinimized() {
+    GLFWwindow* _window = (GLFWwindow*)GLFWIntegration::GetWindowPointer();
+
+
+
 	int width, height;
 	glfwGetFramebufferSize(_window, &width, &height);
 	return (width == 0 || height == 0);
@@ -964,6 +950,10 @@ void Vulkan::create_render_targets()
 
 void Vulkan::recreate_dynamic_swapchain()
 {
+    GLFWwindow* _window = (GLFWwindow*)GLFWIntegration::GetWindowPointer();
+
+
+
 	std::cout << "Recreating swapchain...\n";
 
 	while (_currentWindowExtent.width == 0 || _currentWindowExtent.height == 0) {
@@ -2992,5 +2982,7 @@ void Vulkan::cmd_BindRayTracingDescriptorSet(VkCommandBuffer commandBuffer, VkPi
 }
 
 GLFWwindow* Vulkan::GetWindow() {
+    GLFWwindow* _window = (GLFWwindow*)GLFWIntegration::GetWindowPointer();
+
 	return _window;
 }

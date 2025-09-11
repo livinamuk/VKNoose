@@ -1,7 +1,7 @@
 #include "Player.h"
 
 #include "../Audio/Audio.h"
-#include "../IO/Input.h"
+#include "../Input/Input.h"
 #include "../Util.h"
 
 

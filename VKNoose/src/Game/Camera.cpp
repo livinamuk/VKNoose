@@ -3,7 +3,7 @@
 #include "../Util.h"
 
 #include <float.h>
-#include "../IO/Input.h"
+#include "../Input/Input.h"
 
 static float moveBobTime = 0;
 static float breatheBobTime = 0;

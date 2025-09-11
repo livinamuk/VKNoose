@@ -273,17 +273,15 @@ void main()
 	// Bedroom light
 	Light light0 =  lights.i[0];
 	light0.color *= vec4(1,0.95,0.95,1);
-	light0.color *= 0.75;
+	light0.color *= 0.75 * 0.5;
 	vec3 directLighting = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light0, materialType);
 
 	// Bathroom light
 	Light light1 =  lights.i[1];
 	light1.color *= vec4(1,0.8,0.8,1);
 	light1.color *= vec4(1,0.0,0.0,1);
-	light1.color *= 0.75;
+	light1.color *= 0.5 * 0.5;
 	directLighting += CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light1, materialType);
-
-	directLighting = directLighting / 2;
 
 	///////////////////////////////
 	//						     //
