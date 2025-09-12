@@ -1,6 +1,6 @@
 #include "AssetManager.h"
 #include "../Util.h"
-#include "../vk_initializers.h"
+#include "API/Vulkan/vk_initializers.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -366,12 +366,12 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 			textureInfo.pixelsize[1] = jsonData["height"];
 			textureInfo.originalFile = jsonData["original_file"];
 
-			AllocatedBuffer stagingBuffer = Vulkan::create_buffer(textureInfo.textureSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
+			AllocatedBuffer stagingBuffer = VulkanBackEnd::create_buffer(textureInfo.textureSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
 
 			void* data;
-			vmaMapMemory(Vulkan::GetAllocator(), stagingBuffer._allocation, &data);
+			vmaMapMemory(VulkanBackEnd::GetAllocator(), stagingBuffer._allocation, &data);
 			AssetManager::unpack_texture(&textureInfo, assetFile.binaryBlob.data(), assetFile.binaryBlob.size(), (char*)data);
-			vmaUnmapMemory(Vulkan::GetAllocator(), stagingBuffer._allocation);
+			vmaUnmapMemory(VulkanBackEnd::GetAllocator(), stagingBuffer._allocation);
 
 			outTexture._width = jsonData["width"];
 			outTexture._height = jsonData["height"];
@@ -407,10 +407,10 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 			VmaAllocationCreateInfo dimg_allocinfo = {};
 			dimg_allocinfo.usage = VMA_MEMORY_USAGE_AUTO;
 
-			vmaCreateImage(Vulkan::GetAllocator(), &createInfo, &dimg_allocinfo, &newImage._image, &newImage._allocation, nullptr);
+			vmaCreateImage(VulkanBackEnd::GetAllocator(), &createInfo, &dimg_allocinfo, &newImage._image, &newImage._allocation, nullptr);
 
 			//transition image to transfer-receiver	
-			Vulkan::immediate_submit([&](VkCommandBuffer cmd)
+			VulkanBackEnd::immediate_submit([&](VkCommandBuffer cmd)
 				{
 					VkImageSubresourceRange range;
 					range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -517,7 +517,7 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 					vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 				});
 
-			vmaDestroyBuffer(Vulkan::GetAllocator(), stagingBuffer._buffer, stagingBuffer._allocation);
+			vmaDestroyBuffer(VulkanBackEnd::GetAllocator(), stagingBuffer._buffer, stagingBuffer._allocation);
 
 			outTexture.image = newImage;
 
@@ -525,7 +525,7 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 			VkImageViewCreateInfo imageinfo = vkinit::imageview_create_info(imageFormat, outTexture.image._image, VK_IMAGE_ASPECT_COLOR_BIT);
 			imageinfo.subresourceRange.levelCount = outTexture._mipLevels;
 
-			vkCreateImageView(Vulkan::GetDevice(), &imageinfo, nullptr, &outTexture.imageView);
+			vkCreateImageView(VulkanBackEnd::GetDevice(), &imageinfo, nullptr, &outTexture.imageView);
 
 			// isolate name
 			std::string filepath = file;
@@ -547,12 +547,12 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 		}
 
 		VkDeviceSize imageSize = outTexture._width * outTexture._height * 4;
-		AllocatedBuffer stagingBuffer = Vulkan::create_buffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+		AllocatedBuffer stagingBuffer = VulkanBackEnd::create_buffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
 
 		void* data;
-		vmaMapMemory(Vulkan::GetAllocator(), stagingBuffer._allocation, &data);
+		vmaMapMemory(VulkanBackEnd::GetAllocator(), stagingBuffer._allocation, &data);
 		memcpy(data, (void*)pixels, static_cast<size_t>(imageSize));
-		vmaUnmapMemory(Vulkan::GetAllocator(), stagingBuffer._allocation);
+		vmaUnmapMemory(VulkanBackEnd::GetAllocator(), stagingBuffer._allocation);
 		stbi_image_free(pixels);
 
 		VkExtent3D imageExtent;
@@ -586,10 +586,10 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 		VmaAllocationCreateInfo dimg_allocinfo = {};
 		dimg_allocinfo.usage = VMA_MEMORY_USAGE_AUTO;
 
-		vmaCreateImage(Vulkan::GetAllocator(), &createInfo, &dimg_allocinfo, &newImage._image, &newImage._allocation, nullptr);
+		vmaCreateImage(VulkanBackEnd::GetAllocator(), &createInfo, &dimg_allocinfo, &newImage._image, &newImage._allocation, nullptr);
 
 		//transition image to transfer-receiver	
-		Vulkan::immediate_submit([&](VkCommandBuffer cmd)
+		VulkanBackEnd::immediate_submit([&](VkCommandBuffer cmd)
 			{
 				VkImageSubresourceRange range;
 				range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -696,7 +696,7 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 				vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 			});
 
-		vmaDestroyBuffer(Vulkan::GetAllocator(), stagingBuffer._buffer, stagingBuffer._allocation);
+		vmaDestroyBuffer(VulkanBackEnd::GetAllocator(), stagingBuffer._buffer, stagingBuffer._allocation);
 
 		outTexture.image = newImage;
 
@@ -704,7 +704,7 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 		VkImageViewCreateInfo imageinfo = vkinit::imageview_create_info(imageFormat, outTexture.image._image, VK_IMAGE_ASPECT_COLOR_BIT);
 		imageinfo.subresourceRange.levelCount = outTexture._mipLevels;
 
-		vkCreateImageView(Vulkan::GetDevice(), &imageinfo, nullptr, &outTexture.imageView);
+		vkCreateImageView(VulkanBackEnd::GetDevice(), &imageinfo, nullptr, &outTexture.imageView);
 
 		// isolate name
 		std::string filepath = file;
@@ -818,7 +818,7 @@ bool AssetManager::LoadNextTexture() {
 				}
 				load_image_from_file(info.fullpath.c_str(), texture, imageFormat, false); // no mips
 				AddTexture(texture);
-				Vulkan::AddLoadingText(info.fullpath);
+				VulkanBackEnd::AddLoadingText(info.fullpath);
 				return true;
 			}
 		}
@@ -1043,7 +1043,7 @@ bool AssetManager::LoadNextModel() {
 			}
 			else {
 				_models[info.filename] = Model(info.fullpath.c_str());
-				Vulkan::AddLoadingText(info.fullpath);
+				VulkanBackEnd::AddLoadingText(info.fullpath);
 				return true;
 			}
 		}

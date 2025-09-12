@@ -7,8 +7,8 @@
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtx/euler_angles.hpp>
 #include "glm/gtx/hash.hpp"
-#include "vk_types.h"
-#include "vk_mesh.h"
+#include "API/Vulkan/vk_types.h"
+#include "API/Vulkan/vk_mesh.h"
 
 #define NEAR_PLANE 0.01f
 #define FAR_PLANE 25.0f

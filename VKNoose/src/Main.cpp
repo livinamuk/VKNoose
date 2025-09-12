@@ -1,15 +1,15 @@
-#include "vk_engine.h"
+#include "API/Vulkan/vk_backend.h"
+#include "BackEnd/BackEnd.h"
 #include <iostream>
 #define NOMINMAX
 #include "Windows.h"
 #include "Game/AssetManager.h"
-#include "BackEnd.h"
 
 void LazyKeyPresses();
 
 int main() {
     // Init
-    Vulkan::InitMinimum();
+    BackEnd::Init(WindowedMode::WINDOWED);
     GameData::Init();
 
     // Main loop
@@ -18,19 +18,19 @@ int main() {
 
         LazyKeyPresses();
 
-        if (!Vulkan::_loaded) {
-            Vulkan::LoadNextItem();
-            Vulkan::RenderLoadingFrame();
+        if (!VulkanBackEnd::_loaded) {
+            VulkanBackEnd::LoadNextItem();
+            VulkanBackEnd::RenderLoadingFrame();
         }
         else {
             GameData::Update();
             Audio::Update();
-            Vulkan::RenderGameFrame();
+            VulkanBackEnd::RenderGameFrame();
         }
     }
 
     // Cleanup
-    Vulkan::Cleanup();
+    VulkanBackEnd::Cleanup();
 	return 0;
 }
 
@@ -46,21 +46,21 @@ int main() {
 void LazyKeyPresses() {
 
     if (Input::KeyPressed(HELL_KEY_BACKSPACE)) {
-        Vulkan::_forceCloseWindow = true;
+        VulkanBackEnd::_forceCloseWindow = true;
     }
     if (Input::KeyPressed(HELL_KEY_C)) {
         GameData::GetPlayer().m_camera._disableHeadBob = !GameData::GetPlayer().m_camera._disableHeadBob;
         Audio::PlayAudio("RE_bleep.wav", 0.5f);
     }
     if (Input::KeyPressed(HELL_KEY_M)) {
-        Vulkan::_collisionEnabled = !Vulkan::_collisionEnabled;
+        VulkanBackEnd::_collisionEnabled = !VulkanBackEnd::_collisionEnabled;
         Audio::PlayAudio("RE_bleep.wav", 0.5f);
     }
     if (Input::KeyPressed(HELL_KEY_H)) {
-        Vulkan::hotload_shaders();
+        VulkanBackEnd::hotload_shaders();
     }
     if (Input::KeyPressed(HELL_KEY_Y)) {
-        Vulkan::_debugScene = !Vulkan::_debugScene;
+        VulkanBackEnd::_debugScene = !VulkanBackEnd::_debugScene;
         Audio::PlayAudio("RE_bleep.wav", 0.5f);
     }
     if (Input::KeyPressed(HELL_KEY_G)) {
@@ -71,23 +71,23 @@ void LazyKeyPresses() {
         TextBlitter::Type("GIVEN ALL ITEMS.");
     }
     if (Input::KeyPressed(HELL_KEY_U)) {
-        Vulkan::_renderGBuffer = !Vulkan::_renderGBuffer;
+        VulkanBackEnd::_renderGBuffer = !VulkanBackEnd::_renderGBuffer;
         Audio::PlayAudio("RE_bleep.wav", 0.5f);
     }
     if (Input::KeyPressed(HELL_KEY_T)) {
-        Vulkan::_usePathRayTracer = !Vulkan::_usePathRayTracer;
+        VulkanBackEnd::_usePathRayTracer = !VulkanBackEnd::_usePathRayTracer;
         Audio::PlayAudio("RE_bleep.wav", 0.5f);
     }
 
     if (Input::KeyPressed(HELL_KEY_B)) {
         Audio::PlayAudio("RE_bleep.wav", 0.5f);
-        int debugModeIndex = (int)Vulkan::_debugMode;
+        int debugModeIndex = (int)VulkanBackEnd::_debugMode;
         debugModeIndex++;
         if (debugModeIndex == (int)DebugMode::DEBUG_MODE_COUNT) {
             debugModeIndex = 0;
         }
         debugModeIndex;
-        Vulkan::_debugMode = (DebugMode)debugModeIndex;
+        VulkanBackEnd::_debugMode = (DebugMode)debugModeIndex;
     }
     if (Input::KeyPressed(HELL_KEY_R)) {
         TextBlitter::ResetBlitter();
@@ -97,6 +97,6 @@ void LazyKeyPresses() {
         Laptop::Init();
     }
     if (Input::KeyPressed(HELL_KEY_F)) {
-        Vulkan::ToggleFullscreen();
+        VulkanBackEnd::ToggleFullscreen();
     }
 }

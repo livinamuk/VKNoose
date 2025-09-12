@@ -1,4 +1,4 @@
-#include "../vk_types.h"
+#include "API/Vulkan/vk_types.h"
 #include <string>
 
 enum VertexDescriptionType { POSITION_NORMAL_TEXCOORD, POSITION_TEXCOORD, POSITION };

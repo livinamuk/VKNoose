@@ -92,12 +92,17 @@ struct RayTracingScratchBuffer
 };
 
 
-namespace Vulkan {
+namespace VulkanBackEnd {
+    bool InitMinimum();
+
+}
+
+
+namespace VulkanBackEnd {
 
 	inline bool _loaded = false;
 
-	void InitMinimum();
-	void CreateWindow();
+	
 	void CreateInstance();
 	void SelectPhysicalDevice(); 
 	void LoadShaders();
@@ -318,8 +323,6 @@ namespace Vulkan {
 
 
 	
-	//bool was_frame_buffer_resized() { return _frameBufferResized; }
-	static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 
 
 	void blit_render_target(VkCommandBuffer commandBuffer, RenderTarget& source, RenderTarget& destination, VkFilter filter);

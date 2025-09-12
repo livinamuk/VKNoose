@@ -2,7 +2,7 @@
 #include "NooseEnums.h"
 
 namespace BackEnd {
-
+    bool Init(WindowedMode windowedMode);
     void Update();
 
     // Window

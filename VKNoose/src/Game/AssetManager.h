@@ -1,8 +1,8 @@
 #pragma once
-#include "../vk_mesh.h"
-#include "../vk_types.h"
-#include "../vk_engine.h"
-#include "../Renderer/Material.hpp"
+#include "API/Vulkan/vk_mesh.h"
+#include "API/Vulkan/vk_types.h"
+#include "API/Vulkan/vk_backend.h"
+#include "Renderer/Material.hpp"
 #include <Filesystem>
 
 struct AssetFile {

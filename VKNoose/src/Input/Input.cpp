@@ -1,5 +1,5 @@
 #include "Input.h"
-#include "../vk_engine.h"
+#include "API/Vulkan/vk_backend.h"
 #include <GLFW/glfw3.h>
 
 bool _keyPressed[372];
@@ -22,7 +22,7 @@ bool _preventRightMouseHoldTillNextClick = false;
 void Input::Update() {
 
     glfwPollEvents();
-    GLFWwindow* window = Vulkan::GetWindow();
+    GLFWwindow* window = VulkanBackEnd::GetWindow();
 
     // Wheel
     _mouseWheelUp = false;
@@ -131,5 +131,5 @@ void Input::ForceSetStoredMousePosition(int x, int y) {
 void Input::SetMousePos(int x, int y) {
     _mouseX = x;
     _mouseY = y;
-    glfwSetCursorPos(Vulkan::GetWindow(), x, y);
+    glfwSetCursorPos(VulkanBackEnd::GetWindow(), x, y);
 }

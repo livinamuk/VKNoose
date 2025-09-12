@@ -68,7 +68,7 @@ void GameData::Update() {
 
 		std::vector collisionLines = Scene::GetCollisionLineVertices();
 
-		if (Vulkan::_collisionEnabled) {
+		if (VulkanBackEnd::_collisionEnabled) {
 			GameData::GetPlayer().EvaluateCollsions(collisionLines);
 		}
 		GameData::GetPlayer().UpdateMouselook(_deltaTime);
@@ -117,7 +117,7 @@ void GameData::Update() {
 	for (GameObject& gameObject : Scene::GetGameObjects()) {
 
 		if (gameObject.GetName() == "Cube") {
-			if (!Vulkan::_debugScene) {
+			if (!VulkanBackEnd::_debugScene) {
 				gameObject.SetScale(0);
 				//gameObject.DisableCollision();
 			}
@@ -127,7 +127,7 @@ void GameData::Update() {
 			}
 		}
 		if (gameObject.GetName() == "Cube2") {
-			if (!Vulkan::_debugScene) {
+			if (!VulkanBackEnd::_debugScene) {
 				gameObject.SetScale(0);
 				//gameObject.DisableCollision();
 			}
@@ -138,7 +138,7 @@ void GameData::Update() {
 		}
 
 		if (gameObject.GetName() == "Bed") {
-			if (Vulkan::_debugScene) {
+			if (VulkanBackEnd::_debugScene) {
 				gameObject.DisableCollision();
 				gameObject.SetScale(0);
 			}

@@ -24,7 +24,7 @@ namespace GLFWIntegration {
     int g_currentWindowWidth = 0;
     int g_currentWindowHeight = 0;
 
-    //void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+    void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 
     bool Init(WindowedMode windowedMode) {
         glfwInit();
@@ -59,12 +59,12 @@ namespace GLFWIntegration {
             glfwTerminate();
             return false;
         }
-        
+
         glfwSetWindowPos(g_window, 0, 0);
         glfwSetInputMode(g_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        glfwSetFramebufferSizeCallback(g_window, framebuffer_size_callback);
 
-        //glfwSetFramebufferSizeCallback(g_window, framebuffer_size_callback);
-        //glfwSetWindowUserPointer(g_window, this); // THIS MIGHT NEED SORTING???
+        return true;
     }
 
     void SetWindowedMode(const WindowedMode& windowedMode) {
@@ -147,7 +147,7 @@ namespace GLFWIntegration {
         return g_window;
     }
 
-    //void framebuffer_size_callback(GLFWwindow* /*window*/, int width, int height) {
-    //    // Nothing as of yet
-    //}
+    void framebuffer_size_callback(GLFWwindow* /*window*/, int /*width*/, int /*height*/) {
+        // Nothing as of yet
+    }
 }

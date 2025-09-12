@@ -1,11 +1,17 @@
 #include "BackEnd.h"
 #include "Input/Input.h"
 #include "GLFWIntegration.h"
+#include "API/Vulkan/vk_backend.h"
 
 namespace BackEnd {
-
     void UpdateSubSystems();
     void LazyKeypresses();
+
+    bool Init(WindowedMode windowedMode) {
+        if (!GLFWIntegration::Init(windowedMode)) return false;
+        if (!VulkanBackEnd::InitMinimum())        return false;
+        return true;
+    }
 
     void Update() {
         UpdateSubSystems();

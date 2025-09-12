@@ -1,7 +1,7 @@
 #pragma once
 #include "GameObject.h"
 #include "../Common.h"
-#include "../vk_types.h"
+#include "API/Vulkan/vk_types.h"
 
 struct RenderItem {
 	uint64_t _deviceAddress;
