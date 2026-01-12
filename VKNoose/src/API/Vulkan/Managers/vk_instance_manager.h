@@ -1,14 +1,15 @@
 #pragma once
-#include <vulkan/vulkan.h>
-#include <vector>
+#include "API/Vulkan/vk_common.h"
+
+struct GLFWwindow;
 
 namespace VulkanInstanceManager {
-    bool Init(const char** extraExtensions = nullptr, uint32_t extraCount = 0, bool enableValidation = true);
-    void CleanUp();
+    bool Init();
+    void CleanUp(); // TODO: Currently cleaned up in vk_backend.cpp
 
+    VkDebugUtilsMessengerEXT GetDebugMessenger();
     VkInstance GetInstance();
-    uint32_t GetApiVersion();
-    bool ValidationEnabled();
+    VkSurfaceKHR GetSurface();
 
-    VkSurfaceKHR CreateSurface(void* windowHandle);
+    bool ValidationEnabled();
 }

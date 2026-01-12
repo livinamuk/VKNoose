@@ -1,7 +1,6 @@
 #pragma once
+#include "API/Vulkan/vk_common.h"
 
-#include <vulkan/vulkan.h>
-#include <vk_mem_alloc.h>
 #include <iostream>
 #include <vector>
 

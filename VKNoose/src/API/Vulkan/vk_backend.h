@@ -1,4 +1,5 @@
 #pragma once
+#include "vk_common.h"
 
 #include "vk_types.h"
 #include "vk_mesh.h"
@@ -22,6 +23,9 @@
 #include "UI/TextBlitter.h"
 
 #include "Renderer/Pipeline.hpp"
+
+
+#include "VkBootstrap.h"
 
 constexpr unsigned int FRAME_OVERLAP = 2;
 
@@ -95,15 +99,32 @@ struct RayTracingScratchBuffer
 namespace VulkanBackEnd {
     bool InitMinimum();
 
+	VkDevice GetDevice();
+	VkInstance GetInstance();
+	VkSurfaceKHR GetSurface();
+	VmaAllocator GetAllocator();
+
+	void Cleanup();
+	void RenderGameFrame();
+	void RenderLoadingFrame();
+	void ToggleFullscreen();
+	bool ProgramIsMinimized();
+	void LoadNextItem();
+	void AddLoadingText(std::string text);
+
+
+	inline vkb::Instance g_bootstrapInstance;
+    inline vkb::Instance& GetBootstrapInstance() { return g_bootstrapInstance; }
 }
 
 
 namespace VulkanBackEnd {
 
+
+
 	inline bool _loaded = false;
 
 	
-	void CreateInstance();
 	void SelectPhysicalDevice(); 
 	void LoadShaders();
 	void CreateSwapchain();
@@ -115,15 +136,10 @@ namespace VulkanBackEnd {
 	void BlitRenderTargetIntoSwapChain(VkCommandBuffer commandBuffer, RenderTarget& renderTarget, uint32_t swapchainImageIndex);
 	void PrepareSwapchainForPresent(VkCommandBuffer commandBuffer, uint32_t swapchainImageIndex);
 
-	void ToggleFullscreen();
-	//bool ProgramShouldClose();
-	bool ProgramIsMinimized();
+
 
 	void UpdateBuffers2D();
 
-	void LoadNextItem();
-
-	void AddLoadingText(std::string text);
 
 	GLFWwindow* GetWindow();
 
@@ -177,9 +193,6 @@ namespace VulkanBackEnd {
 	inline VkShaderModule _composite_fragment_shader = nullptr;
 
 
-	VmaAllocator GetAllocator();
-	VkDevice GetDevice();
-
 
 	void create_buffers();
 	void UpdateBuffers();
@@ -200,8 +213,6 @@ namespace VulkanBackEnd {
 	inline HellDescriptorSet _dynamicDescriptorSet;
 	inline HellDescriptorSet _dynamicDescriptorSetInventory;
 	inline HellDescriptorSet _samplerDescriptorSet;
-	//inline HellDescriptorSet _denoiseATextureDescriptorSet;
-	//inline HellDescriptorSet _denoiseBTextureDescriptorSet;
 	
 	inline VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeaturesKHR{};
 
@@ -220,18 +231,10 @@ namespace VulkanBackEnd {
 	//int _selectedShader{ 0 };
 	inline DebugMode _debugMode = DebugMode::NONE;
 
-	inline VkInstance _instance;
-	inline VkPhysicalDevice _physicalDevice;
-
-	inline VkPhysicalDeviceProperties _gpuProperties;
 
 	inline FrameData _frames[FRAME_OVERLAP];
 
-	inline VkQueue _graphicsQueue;
-	inline uint32_t _graphicsQueueFamily;
 
-	inline VkSurfaceKHR _surface;
-	inline VkSwapchainKHR _swapchain;
 	inline VkFormat _swachainImageFormat;
 
 	inline std::vector<VkFramebuffer> _framebuffers;
@@ -248,13 +251,10 @@ namespace VulkanBackEnd {
 	inline UploadContext _uploadContext;
 
 
-
 	//initializes everything in the engine
 	
 	void init_raytracing();
-	void Cleanup();
-	void RenderGameFrame();
-	void RenderLoadingFrame();
+	
 
 	// Pipelines
 
@@ -281,27 +281,27 @@ namespace VulkanBackEnd {
 
 		RayTracingScratchBuffer createScratchBuffer(VkDeviceSize size);
 		uint32_t getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32* memTypeFound = nullptr);
-		inline VkPhysicalDeviceMemoryProperties _memoryProperties;
+		//inline VkPhysicalDeviceMemoryProperties g_memoryProperties;
 
-		inline PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR;
-		inline PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR;
-		inline PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR;
-		inline PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR;
-		inline PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR;
-		inline PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR;
-		inline PFN_vkBuildAccelerationStructuresKHR vkBuildAccelerationStructuresKHR;
-		inline PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR;
-		inline PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR;
-		inline PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR;
-		inline PFN_vkDebugMarkerSetObjectTagEXT pfnDebugMarkerSetObjectTag;
-		inline PFN_vkDebugMarkerSetObjectNameEXT pfnDebugMarkerSetObjectName;
-		inline PFN_vkCmdDebugMarkerBeginEXT pfnCmdDebugMarkerBegin;
-		inline PFN_vkCmdDebugMarkerEndEXT pfnCmdDebugMarkerEnd;
-		inline PFN_vkCmdDebugMarkerInsertEXT pfnCmdDebugMarkerInsert;
-		inline PFN_vkSetDebugUtilsObjectNameEXT vkSetDebugUtilsObjectNameEXT;
+		//inline PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR;
+		//inline PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR;
+		//inline PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR;
+		//inline PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR;
+		//inline PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR;
+		//inline PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR;
+		//inline PFN_vkBuildAccelerationStructuresKHR vkBuildAccelerationStructuresKHR;
+		//inline PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR;
+		//inline PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR;
+		//inline PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR;
+		//inline PFN_vkDebugMarkerSetObjectTagEXT pfnDebugMarkerSetObjectTag;
+		//inline PFN_vkDebugMarkerSetObjectNameEXT pfnDebugMarkerSetObjectName;
+		//inline PFN_vkCmdDebugMarkerBeginEXT pfnCmdDebugMarkerBegin;
+		//inline PFN_vkCmdDebugMarkerEndEXT pfnCmdDebugMarkerEnd;
+		//inline PFN_vkCmdDebugMarkerInsertEXT pfnCmdDebugMarkerInsert;
+		//inline PFN_vkSetDebugUtilsObjectNameEXT vkSetDebugUtilsObjectNameEXT;
 
-		inline VkPhysicalDeviceRayTracingPipelinePropertiesKHR  _rayTracingPipelineProperties{};
-		inline VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{};
+		//inline VkPhysicalDeviceRayTracingPipelinePropertiesKHR  _rayTracingPipelineProperties{};
+		//inline VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{};
 
 			void create_rt_buffers();
 			inline AccelerationStructure createBottomLevelAccelerationStructure(Mesh* mesh);

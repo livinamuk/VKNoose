@@ -123,7 +123,7 @@ bool load_shader(VkDevice device, std::string filePath, VkShaderStageFlagBits fl
 	nameInfo.objectType = VK_OBJECT_TYPE_SHADER_MODULE;
 	nameInfo.objectHandle = (uint64_t)shaderModule;
 	nameInfo.pObjectName = filePath.c_str();
-	VulkanBackEnd::vkSetDebugUtilsObjectNameEXT(VulkanBackEnd::GetDevice(), &nameInfo);
+	vkSetDebugUtilsObjectNameEXT(VulkanBackEnd::GetDevice(), &nameInfo);
 
 	return true;
 }

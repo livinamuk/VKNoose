@@ -36,8 +36,6 @@ int main() {
 
 
 
-
-
 #include "Game/GameData.h"
 #include "Game/Scene.h"
 #include "Game/Laptop.h"

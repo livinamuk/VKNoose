@@ -60,13 +60,13 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>vendor\VulkanMemoryAllocator\include;vendor\stb_image;vendor\TinyObjectLoader;vendor\GLFW\include;vendor\Vulkan\include;vendor\VkBootstrap;vendor\fmod\include;src\common;vendor;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>vendor\VulkanMemoryAllocator\include;vendor\stb_image;vendor\TinyObjectLoader;vendor\GLFW\include;vendor\Vulkan\include;vendor\VkBootstrap;vendor\fmod\include;src\common;vendor;vendor\volk\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>vendor\Vulkan;vendor\GLFW\lib\release;vendor\fmod\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;fmod_vc.lib;shaderc.lib;shaderc_util.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>glfw3.lib;fmod_vc.lib;shaderc.lib;shaderc_util.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -78,7 +78,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>vendor\glm;vendor\VulkanMemoryAllocator\include;vendor\stb_image;vendor\TinyObjectLoader;vendor\GLFW\include;vendor\vulkan\include;vendor\VkBootstrap;vendor\fmod\include;vendor\nlohmann_json\include;vendor\lz4\include;vendor\OpenImageIO\include;vendor\OpenImageDenoiser\include;src\common;src\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>vendor\glm;vendor\VulkanMemoryAllocator\include;vendor\stb_image;vendor\TinyObjectLoader;vendor\GLFW\include;vendor\vulkan\include;vendor\VkBootstrap;vendor\fmod\include;vendor\nlohmann_json\include;vendor\lz4\include;vendor\OpenImageIO\include;vendor\OpenImageDenoiser\include;src\common;src\;vendor\volt\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -86,14 +86,16 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>vendor\OpenImageIO\lib;vendor\Vulkan;vendor\GLFW\lib\release;vendor\lz4\lib;vendor\OpenImageDenoiser\lib;vendor\fmod\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>glfw3.lib;vulkan-1.lib;fmod_vc.lib;shaderc_combined.lib;liblz4_static.lib;OpenImageDenoise.lib;OpenImageIO.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>glfw3.lib;fmod_vc.lib;shaderc_combined.lib;liblz4_static.lib;OpenImageDenoise.lib;OpenImageIO.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /Y "$(ProjectDir)vendor\dll\fmod.dll" "$(TargetDir)fmod.dll"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\API\Vulkan\Managers\vk_device_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_instance_manager.cpp" />
+    <ClCompile Include="src\API\Vulkan\Managers\vk_memory_manager.cpp" />
     <ClCompile Include="src\Audio\Audio.cpp" />
     <ClCompile Include="src\BackEnd\BackEnd.cpp" />
     <ClCompile Include="src\Game\AssetManager.cpp" />
@@ -124,10 +126,14 @@
     <ClCompile Include="vendor\lz4\include\lz4hc.c" />
     <ClCompile Include="vendor\lz4\include\xxhash.c" />
     <ClCompile Include="vendor\VkBootstrap\VkBootstrap.cpp" />
+    <ClCompile Include="vendor\volk\include\volk\volk.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\API\Vulkan\Managers\vk_device_manager.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_instance_manager.h" />
+    <ClInclude Include="src\API\Vulkan\Managers\vk_memory_manager.h" />
     <ClInclude Include="src\API\Vulkan\plan.h" />
+    <ClInclude Include="src\API\Vulkan\vk_common.h" />
     <ClInclude Include="src\Audio\Audio.h" />
     <ClInclude Include="src\BackEnd\BackEnd.h" />
     <ClInclude Include="src\Common.h" />
