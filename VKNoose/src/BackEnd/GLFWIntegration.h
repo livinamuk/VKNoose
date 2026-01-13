@@ -7,6 +7,7 @@ namespace GLFWIntegration {
     void ToggleFullscreen();
     void ToggleFullscreen();
     void ForceCloseWindow();
+    void WaitUntilNotMinimized();
 
     bool WindowIsOpen();
     bool WindowHasFocus();

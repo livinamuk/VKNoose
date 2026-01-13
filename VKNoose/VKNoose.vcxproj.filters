@@ -117,6 +117,9 @@
     <ClCompile Include="vendor\volk\include\volk\volk.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\API\Vulkan\Managers\vk_swapchain_manager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="vendor\VkBootstrap\VkBootstrapDispatch.h">
@@ -252,6 +255,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\API\Vulkan\vk_common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\API\Vulkan\Managers\vk_swapchain_manager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

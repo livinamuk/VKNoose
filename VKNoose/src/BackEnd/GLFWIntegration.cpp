@@ -95,6 +95,15 @@ namespace GLFWIntegration {
     void ForceCloseWindow() {
         g_forceCloseWindow = true;
     }
+    
+    void WaitUntilNotMinimized() {
+        do {
+            glfwGetFramebufferSize(g_window, &g_currentWindowWidth, &g_currentWindowHeight);
+            if (g_currentWindowWidth == 0 || g_currentWindowHeight == 0) {
+                glfwWaitEvents();
+            }
+        } while (g_currentWindowWidth == 0 || g_currentWindowHeight == 0);
+    }
 
     bool WindowHasFocus() {
         return g_windowHasFocus;

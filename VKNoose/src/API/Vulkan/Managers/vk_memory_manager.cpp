@@ -14,10 +14,10 @@
 namespace VulkanMemoryManager {
     VmaAllocator g_allocator = VK_NULL_HANDLE;
 
-    bool Init(VkDevice device, VkPhysicalDevice physicalDevice) {
+    bool Init() {
         VkInstance instance = VulkanInstanceManager::GetInstance();
-        //VkDevice device = VulkanDeviceManager::GetDevice();
-        //VkPhysicalDevice physicalDevice = VulkanDeviceManager::GetPhysicalDevice();
+        VkDevice device = VulkanDeviceManager::GetDevice();
+        VkPhysicalDevice physicalDevice = VulkanDeviceManager::GetPhysicalDevice();
 
         VmaVulkanFunctions vulkanFunctions{};
         vulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;

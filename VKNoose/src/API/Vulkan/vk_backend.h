@@ -219,7 +219,7 @@ namespace VulkanBackEnd {
 	inline VkSampler _sampler;
 		 
 	// Render target shit
-	inline VkExtent2D _currentWindowExtent{ 512 , 288  };
+	//inline VkExtent2D _currentWindowExtent{ 512 , 288  };
 	//VkExtent2D _fullscreenModeExtent{ 512 , 288  };
 	inline const VkExtent2D _windowedModeExtent{ 512 * 4, 288 * 4 };
 	inline const VkExtent3D _renderTargetPresentExtent = { 512 , 288  , 1 };
@@ -235,11 +235,7 @@ namespace VulkanBackEnd {
 	inline FrameData _frames[FRAME_OVERLAP];
 
 
-	inline VkFormat _swachainImageFormat;
-
 	inline std::vector<VkFramebuffer> _framebuffers;
-	inline std::vector<VkImage> _swapchainImages;
-	inline std::vector<VkImageView> _swapchainImageViews;
 
 	inline HellDepthTarget _presentDepthTarget;
 	inline HellDepthTarget _gbufferDepthTarget;
@@ -346,8 +342,6 @@ namespace VulkanBackEnd {
 	void create_sampler();
 	void upload_meshes();
 	void upload_mesh(Mesh& mesh);
-
-	void recreate_dynamic_swapchain();
 
 
 	void create_command_buffers();

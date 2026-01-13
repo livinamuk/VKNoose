@@ -18,6 +18,7 @@
 #include "Managers/vk_device_manager.h"
 #include "Managers/vk_instance_manager.h"
 #include "Managers/vk_memory_manager.h"
+#include "Managers/vk_swapchain_manager.h"
 
 #define NOOSE_PI 3.14159265359f
 const bool _printAvaliableExtensions = false;
@@ -27,16 +28,19 @@ std::vector<std::string> _loadingText;
 RenderTarget _loadingScreenRenderTarget;
 
 namespace VulkanBackEnd {
-	VkDevice g_device = VK_NULL_HANDLE;
-	VkPhysicalDevice g_physicalDevice = VK_NULL_HANDLE;
-	VkSwapchainKHR g_swapchain = VK_NULL_HANDLE;
-	VkQueue g_graphicsQueue = VK_NULL_HANDLE;
-	uint32_t g_graphicsQueueFamily = UINT32_MAX;
-
-	VkDevice GetDevice() { return g_device; }
+	VkDevice GetDevice() { return VulkanDeviceManager::GetDevice(); }
 	VkInstance GetInstance() { return VulkanInstanceManager::GetInstance(); }
 	VkSurfaceKHR GetSurface() { return VulkanInstanceManager::GetSurface(); }
 	VmaAllocator GetAllocator() { return VulkanMemoryManager::GetAllocator(); }
+	VkPhysicalDevice GetPhysicalDevice() { return VulkanDeviceManager::GetPhysicalDevice(); }
+	VkQueue GetGraphicsQueue() { return VulkanDeviceManager::GetGraphicsQueue(); }
+	uint32_t GetGraphicsQueueFamily() { return VulkanDeviceManager::GetGraphicsQueueFamily(); }
+	VkQueue GetPresentQueue() { return VulkanDeviceManager::GetPresentQueue(); }
+	uint32_t GetPresentQueueFamily() { return VulkanDeviceManager::GetPresentQueueFamily(); }
+	VkSwapchainKHR GetSwapchain() { return VulkanSwapchainManager::GetSwapchain(); }
+	std::vector<VkImage>& GetSwapchainImages() { return VulkanSwapchainManager::GetSwapchainImages(); }
+	std::vector<VkImageView>& GetSwapchainImageViews() { return VulkanSwapchainManager::GetSwapchainImageViews(); }
+	VkFormat GetSwapchainImageFormat() { return VulkanSwapchainManager::GetSwapchainImageFormat(); }
 
 	const bool g_validationEnabled = true;
 }
@@ -44,40 +48,18 @@ namespace VulkanBackEnd {
 
 namespace VulkanBackEnd {
 	
-
     bool VulkanBackEnd::InitMinimum() {
-
-
-		if (volkInitialize() != VkResult::VK_SUCCESS) {
-			throw std::runtime_error("volkInitialize failed");
-        }
-
 		if (!VulkanInstanceManager::Init()) return false;
+		if (!VulkanDeviceManager::Init()) return false;
+		if (!VulkanMemoryManager::Init()) return false;
+		if (!VulkanSwapchainManager::Init()) return false;
 
-		volkLoadInstance(GetInstance());
-
-		std::cout << "vkEnumeratePhysicalDevices ptr: " << (void*)vkEnumeratePhysicalDevices << "\n";
-		if (!vkEnumeratePhysicalDevices) {
-			std::cout << "Still null. This TU is not using Volk properly.\n";
-			return false;
-		}
-
-		//if (!VulkanDeviceManager::Init()) return false;
-
-        SelectPhysicalDevice();
-
-		volkLoadDevice(GetDevice());
-
-		if (!VulkanMemoryManager::Init(g_device, g_physicalDevice)) return false;
-
-        CreateSwapchain();
-
-        load_shader(g_device, "text_blitter.vert", VK_SHADER_STAGE_VERTEX_BIT, &_text_blitter_vertex_shader);
-        load_shader(g_device, "text_blitter.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_text_blitter_fragment_shader);
+        load_shader(GetDevice(), "text_blitter.vert", VK_SHADER_STAGE_VERTEX_BIT, &_text_blitter_vertex_shader);
+        load_shader(GetDevice(), "text_blitter.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_text_blitter_fragment_shader);
 
         VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
         VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        _loadingScreenRenderTarget = RenderTarget(g_device, GetAllocator(), format, 512 * 2, 288 * 2, usage, "Loading Screen Render Target");
+        _loadingScreenRenderTarget = RenderTarget(GetDevice(), GetAllocator(), format, 512 * 2, 288 * 2, usage, "Loading Screen Render Target");
 
         create_command_buffers();
         create_sync_structures();
@@ -87,7 +69,7 @@ namespace VulkanBackEnd {
         // Create text blitter pipeline and pipeline layout
         _pipelines.textBlitter.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
         _pipelines.textBlitter.PushDescriptorSetLayout(_staticDescriptorSet.layout);
-        _pipelines.textBlitter.CreatePipelineLayout(g_device);
+        _pipelines.textBlitter.CreatePipelineLayout(GetDevice());
         _pipelines.textBlitter.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
         _pipelines.textBlitter.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
         _pipelines.textBlitter.SetPolygonMode(VK_POLYGON_MODE_FILL);
@@ -95,7 +77,7 @@ namespace VulkanBackEnd {
         _pipelines.textBlitter.SetColorBlending(true);
         _pipelines.textBlitter.SetDepthTest(false);
         _pipelines.textBlitter.SetDepthWrite(false);
-        _pipelines.textBlitter.Build(g_device, _text_blitter_vertex_shader, _text_blitter_fragment_shader, 1);
+        _pipelines.textBlitter.Build(GetDevice(), _text_blitter_vertex_shader, _text_blitter_fragment_shader, 1);
 
         AssetManager::Init();
         AssetManager::LoadFont();
@@ -106,7 +88,7 @@ namespace VulkanBackEnd {
         // Sampler
         VkDescriptorImageInfo samplerImageInfo = {};
         samplerImageInfo.sampler = _sampler;
-        _staticDescriptorSet.Update(g_device, 0, 1, VK_DESCRIPTOR_TYPE_SAMPLER, &samplerImageInfo);
+        _staticDescriptorSet.Update(GetDevice(), 0, 1, VK_DESCRIPTOR_TYPE_SAMPLER, &samplerImageInfo);
 
         // All textures
         VkDescriptorImageInfo textureImageInfo[TEXTURE_ARRAY_SIZE];
@@ -115,7 +97,7 @@ namespace VulkanBackEnd {
             textureImageInfo[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             textureImageInfo[i].imageView = (i < AssetManager::GetNumberOfTextures()) ? AssetManager::GetTexture(i)->imageView : AssetManager::GetTexture(0)->imageView; // Fill with dummy if you excede the amount of textures we loaded off disk. Can't have no junk data.
         }
-        _staticDescriptorSet.Update(g_device, 1, TEXTURE_ARRAY_SIZE, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, textureImageInfo);
+        _staticDescriptorSet.Update(GetDevice(), 1, TEXTURE_ARRAY_SIZE, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, textureImageInfo);
 
         create_buffers();
 
@@ -130,195 +112,6 @@ namespace VulkanBackEnd {
 
 
 #include <set>
-
-
-void VulkanBackEnd::SelectPhysicalDevice() {
-	VkInstance instance = VulkanInstanceManager::GetInstance();
-	VkSurfaceKHR surface = VulkanInstanceManager::GetSurface();
-
-	// Enumerate devices
-    uint32_t deviceCount = 0;
-    vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
-    if (deviceCount == 0) {
-        throw std::runtime_error("No Vulkan devices found");
-    }
-    std::vector<VkPhysicalDevice> devices(deviceCount);
-    vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
-
-    // Required extensions
-    std::vector<const char*> requiredExtensions = {
-        VK_KHR_MAINTENANCE_4_EXTENSION_NAME,
-        VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
-        VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
-        VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
-        VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
-        VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
-        VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
-        VK_KHR_SPIRV_1_4_EXTENSION_NAME,
-        VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME,
-        VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME,
-        VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME,
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME
-    };
-
-    // Select first suitable device
-    for (auto pd : devices) {
-        // Check extensions
-        uint32_t extCount = 0;
-        vkEnumerateDeviceExtensionProperties(pd, nullptr, &extCount, nullptr);
-        std::vector<VkExtensionProperties> available(extCount);
-        vkEnumerateDeviceExtensionProperties(pd, nullptr, &extCount, available.data());
-
-        bool allFound = true;
-        for (auto req : requiredExtensions) {
-            bool found = false;
-            for (auto& av : available) {
-                if (strcmp(req, av.extensionName) == 0) { found = true; break; }
-            }
-            if (!found) { allFound = false; break; }
-        }
-        if (!allFound) continue;
-
-        // Find queue families
-        uint32_t qCount = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(pd, &qCount, nullptr);
-        std::vector<VkQueueFamilyProperties> qProps(qCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(pd, &qCount, qProps.data());
-
-        int graphicsFam = -1, presentFam = -1;
-        for (uint32_t i = 0; i < qCount; ++i) {
-            if (qProps[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) graphicsFam = i;
-            VkBool32 presentSupport = VK_FALSE;
-            vkGetPhysicalDeviceSurfaceSupportKHR(pd, i, surface, &presentSupport);
-            if (presentSupport) presentFam = i;
-            if (graphicsFam != -1 && presentFam != -1) break;
-        }
-        if (graphicsFam == -1 || presentFam == -1) continue;
-
-        // This device is usable
-        g_physicalDevice = pd;
-        g_graphicsQueueFamily = graphicsFam;
-
-        // Enable features
-        VkPhysicalDeviceFeatures features{};
-        features.samplerAnisotropy = VK_TRUE;
-        features.shaderInt64 = VK_TRUE;
-
-        VkPhysicalDeviceVulkan12Features features12{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
-        features12.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
-        features12.runtimeDescriptorArray = VK_TRUE;
-        features12.descriptorBindingVariableDescriptorCount = VK_TRUE;
-        features12.descriptorBindingPartiallyBound = VK_TRUE;
-        features12.descriptorIndexing = VK_TRUE;
-        features12.bufferDeviceAddress = VK_TRUE;
-
-        VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipeline{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR };
-        rtPipeline.rayTracingPipeline = VK_TRUE;
-
-        VkPhysicalDeviceAccelerationStructureFeaturesKHR accel{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
-        accel.accelerationStructure = VK_TRUE;
-        accel.pNext = &rtPipeline;
-
-        VkPhysicalDeviceVulkan13Features features13{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
-        features13.maintenance4 = VK_TRUE;
-        features13.dynamicRendering = VK_TRUE;
-        features13.pNext = &accel;
-
-        VkPhysicalDeviceFeatures2 features2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
-        features2.features = features;
-        features2.pNext = &features12;
-        features12.pNext = &features13;
-
-        float priority = 1.0f;
-        std::vector<VkDeviceQueueCreateInfo> qInfos;
-        std::set<uint32_t> uniqueQ = { (uint32_t)graphicsFam, (uint32_t)presentFam };
-        for (uint32_t fam : uniqueQ) {
-            VkDeviceQueueCreateInfo qci{ VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO };
-            qci.queueFamilyIndex = fam;
-            qci.queueCount = 1;
-            qci.pQueuePriorities = &priority;
-            qInfos.push_back(qci);
-        }
-
-        VkDeviceCreateInfo dci{ VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
-        dci.queueCreateInfoCount = (uint32_t)qInfos.size();
-        dci.pQueueCreateInfos = qInfos.data();
-        dci.enabledExtensionCount = (uint32_t)requiredExtensions.size();
-        dci.ppEnabledExtensionNames = requiredExtensions.data();
-        dci.pNext = &features2;
-
-		VulkanDeviceManager::InitTest(g_physicalDevice);
-
-        if (vkCreateDevice(pd, &dci, nullptr, &g_device) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create logical device");
-        }
-
-        vkGetDeviceQueue(g_device, graphicsFam, 0, &g_graphicsQueue);
-        if (presentFam != graphicsFam) {
-            VkQueue presentQueue;
-            vkGetDeviceQueue(g_device, presentFam, 0, &presentQueue);
-        }
-
-
-
-
-        // Load function pointers (same as before)
-        //vkGetBufferDeviceAddressKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(vkGetDeviceProcAddr(g_device, "vkGetBufferDeviceAddressKHR"));
-        //vkCmdBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(g_device, "vkCmdBuildAccelerationStructuresKHR"));
-        //vkBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(g_device, "vkBuildAccelerationStructuresKHR"));
-        //vkCreateAccelerationStructureKHR = reinterpret_cast<PFN_vkCreateAccelerationStructureKHR>(vkGetDeviceProcAddr(g_device, "vkCreateAccelerationStructureKHR"));
-        //vkDestroyAccelerationStructureKHR = reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(vkGetDeviceProcAddr(g_device, "vkDestroyAccelerationStructureKHR"));
-        //vkGetAccelerationStructureBuildSizesKHR = reinterpret_cast<PFN_vkGetAccelerationStructureBuildSizesKHR>(vkGetDeviceProcAddr(g_device, "vkGetAccelerationStructureBuildSizesKHR"));
-        //vkGetAccelerationStructureDeviceAddressKHR = reinterpret_cast<PFN_vkGetAccelerationStructureDeviceAddressKHR>(vkGetDeviceProcAddr(g_device, "vkGetAccelerationStructureDeviceAddressKHR"));
-        //vkCmdTraceRaysKHR = reinterpret_cast<PFN_vkCmdTraceRaysKHR>(vkGetDeviceProcAddr(g_device, "vkCmdTraceRaysKHR"));
-        //vkGetRayTracingShaderGroupHandlesKHR = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(vkGetDeviceProcAddr(g_device, "vkGetRayTracingShaderGroupHandlesKHR"));
-        //vkCreateRayTracingPipelinesKHR = reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(vkGetDeviceProcAddr(g_device, "vkCreateRayTracingPipelinesKHR"));
-        //vkSetDebugUtilsObjectNameEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(vkGetDeviceProcAddr(g_device, "vkSetDebugUtilsObjectNameEXT"));
-
-        return; // done, first suitable device
-    }
-
-    throw std::runtime_error("No suitable Vulkan device found");
-
-    std::cout << "Selected physical device\n";
-}
-
-
-void VulkanBackEnd::CreateSwapchain() {
-	VkInstance instance = VulkanInstanceManager::GetInstance();
-	VkSurfaceKHR surface = VulkanInstanceManager::GetSurface();
-
-    GLFWwindow* _window = (GLFWwindow*)GLFWIntegration::GetWindowPointer();
-
-
-
-	int width;
-	int height;
-	glfwGetFramebufferSize(_window, &width, &height);
-	_currentWindowExtent.width = width;
-	_currentWindowExtent.height = height;
-
-	VkSurfaceFormatKHR format;
-	format.colorSpace = VkColorSpaceKHR::VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-	format.format = VkFormat::VK_FORMAT_R8G8B8A8_UNORM;
-
-	vkb::SwapchainBuilder swapchainBuilder(g_physicalDevice, g_device, surface);
-	swapchainBuilder.set_desired_format(format);
-	swapchainBuilder.set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR);
-	swapchainBuilder.set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR);
-	swapchainBuilder.set_desired_present_mode(VK_PRESENT_MODE_MAILBOX_KHR);
-	swapchainBuilder.set_desired_extent(_currentWindowExtent.width, _currentWindowExtent.height);
-	swapchainBuilder.set_image_usage_flags(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT); // added so you can blit into the swapchain
-	
-	vkb::Swapchain vkbSwapchain = swapchainBuilder.build().value();
-	g_swapchain = vkbSwapchain.swapchain;
-	_swapchainImages = vkbSwapchain.get_images().value();
-	_swapchainImageViews = vkbSwapchain.get_image_views().value();
-	_swachainImageFormat = vkbSwapchain.image_format;
-
-
-    std::cout << "Created swapchain\n";
-}
 
 
 void VulkanBackEnd::AddLoadingText(std::string text) {
@@ -414,24 +207,24 @@ void VulkanBackEnd::LoadNextItem() {
 
 void VulkanBackEnd::cleanup_shaders()
 {
-	vkDestroyShaderModule(g_device, _text_blitter_vertex_shader, nullptr);
-	vkDestroyShaderModule(g_device, _text_blitter_fragment_shader, nullptr);
-	vkDestroyShaderModule(g_device, _solid_color_vertex_shader, nullptr);
-	vkDestroyShaderModule(g_device, _solid_color_fragment_shader, nullptr);
-	vkDestroyShaderModule(g_device, _gbuffer_vertex_shader, nullptr);
-	vkDestroyShaderModule(g_device, _gbuffer_fragment_shader, nullptr);
-	vkDestroyShaderModule(g_device, _blur_horizontal_vertex_shader, nullptr);
-	vkDestroyShaderModule(g_device, _blur_horizontal_fragment_shader, nullptr);
-	vkDestroyShaderModule(g_device, _blur_vertical_vertex_shader, nullptr);
-	vkDestroyShaderModule(g_device, _blur_vertical_fragment_shader, nullptr);
-	vkDestroyShaderModule(g_device, _composite_vertex_shader, nullptr);
-	vkDestroyShaderModule(g_device, _composite_fragment_shader, nullptr);
-	vkDestroyShaderModule(g_device, _denoise_pass_A_vertex_shader, nullptr);
-	vkDestroyShaderModule(g_device, _denoise_pass_A_fragment_shader, nullptr);
-	vkDestroyShaderModule(g_device, _denoise_pass_B_vertex_shader, nullptr);
-	vkDestroyShaderModule(g_device, _denoise_pass_B_fragment_shader, nullptr);
-	vkDestroyShaderModule(g_device, _denoise_pass_C_vertex_shader, nullptr);
-	vkDestroyShaderModule(g_device, _denoise_pass_C_fragment_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _text_blitter_vertex_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _text_blitter_fragment_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _solid_color_vertex_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _solid_color_fragment_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _gbuffer_vertex_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _gbuffer_fragment_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _blur_horizontal_vertex_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _blur_horizontal_fragment_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _blur_vertical_vertex_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _blur_vertical_fragment_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _composite_vertex_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _composite_fragment_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _denoise_pass_A_vertex_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _denoise_pass_A_fragment_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _denoise_pass_B_vertex_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _denoise_pass_B_fragment_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _denoise_pass_C_vertex_shader, nullptr);
+	vkDestroyShaderModule(GetDevice(), _denoise_pass_C_fragment_shader, nullptr);
 }
 
 void VulkanBackEnd::Cleanup()
@@ -440,52 +233,52 @@ void VulkanBackEnd::Cleanup()
 
 
 	//make sure the gpu has stopped doing its things
-	vkDeviceWaitIdle(g_device);
+	vkDeviceWaitIdle(GetDevice());
 
 	cleanup_shaders();
 
 	// Pipelines
-	_pipelines.textBlitter.Cleanup(g_device);
-	_pipelines.composite.Cleanup(g_device);
-	_pipelines.lines.Cleanup(g_device);
-	_pipelines.denoisePassA.Cleanup(g_device);
-	_pipelines.denoisePassB.Cleanup(g_device);
-	_pipelines.denoisePassC.Cleanup(g_device);
-	_pipelines.denoiseBlurHorizontal.Cleanup(g_device);
-	_pipelines.denoiseBlurVertical.Cleanup(g_device);
+	_pipelines.textBlitter.Cleanup(GetDevice());
+	_pipelines.composite.Cleanup(GetDevice());
+	_pipelines.lines.Cleanup(GetDevice());
+	_pipelines.denoisePassA.Cleanup(GetDevice());
+	_pipelines.denoisePassB.Cleanup(GetDevice());
+	_pipelines.denoisePassC.Cleanup(GetDevice());
+	_pipelines.denoiseBlurHorizontal.Cleanup(GetDevice());
+	_pipelines.denoiseBlurVertical.Cleanup(GetDevice());
 
 	// Command pools
-	vkDestroyCommandPool(g_device, _uploadContext._commandPool, nullptr);
-	vkDestroyFence(g_device, _uploadContext._uploadFence, nullptr);
+	vkDestroyCommandPool(GetDevice(), _uploadContext._commandPool, nullptr);
+	vkDestroyFence(GetDevice(), _uploadContext._uploadFence, nullptr);
 
 	// Frame data
 	for (int i = 0; i < FRAME_OVERLAP; i++) {
-		vkDestroyCommandPool(g_device, _frames[i]._commandPool, nullptr);
-		vkDestroyFence(g_device, _frames[i]._renderFence, nullptr);
-		vkDestroySemaphore(g_device, _frames[i]._presentSemaphore, nullptr);
-		vkDestroySemaphore(g_device, _frames[i]._renderSemaphore, nullptr);
+		vkDestroyCommandPool(GetDevice(), _frames[i]._commandPool, nullptr);
+		vkDestroyFence(GetDevice(), _frames[i]._renderFence, nullptr);
+		vkDestroySemaphore(GetDevice(), _frames[i]._presentSemaphore, nullptr);
+		vkDestroySemaphore(GetDevice(), _frames[i]._renderSemaphore, nullptr);
 	}
 	// Render targets
-	_loadingScreenRenderTarget.cleanup(g_device, GetAllocator());
-	_renderTargets.present.cleanup(g_device, GetAllocator());
-	_renderTargets.gBufferBasecolor.cleanup(g_device, GetAllocator());
-	_renderTargets.gBufferNormal.cleanup(g_device, GetAllocator());
-	_renderTargets.gBufferRMA.cleanup(g_device, GetAllocator());
-	_renderTargets.denoiseTextureA.cleanup(g_device, GetAllocator());
-	_renderTargets.denoiseTextureB.cleanup(g_device, GetAllocator());
-	_renderTargets.denoiseTextureC.cleanup(g_device, GetAllocator());
-	_presentDepthTarget.Cleanup(g_device, GetAllocator());
-	_gbufferDepthTarget.Cleanup(g_device, GetAllocator());
-	_renderTargets.laptopDisplay.cleanup(g_device, GetAllocator());
-	_renderTargets.composite.cleanup(g_device, GetAllocator());
+	_loadingScreenRenderTarget.cleanup(GetDevice(), GetAllocator());
+	_renderTargets.present.cleanup(GetDevice(), GetAllocator());
+	_renderTargets.gBufferBasecolor.cleanup(GetDevice(), GetAllocator());
+	_renderTargets.gBufferNormal.cleanup(GetDevice(), GetAllocator());
+	_renderTargets.gBufferRMA.cleanup(GetDevice(), GetAllocator());
+	_renderTargets.denoiseTextureA.cleanup(GetDevice(), GetAllocator());
+	_renderTargets.denoiseTextureB.cleanup(GetDevice(), GetAllocator());
+	_renderTargets.denoiseTextureC.cleanup(GetDevice(), GetAllocator());
+	_presentDepthTarget.Cleanup(GetDevice(), GetAllocator());
+	_gbufferDepthTarget.Cleanup(GetDevice(), GetAllocator());
+	_renderTargets.laptopDisplay.cleanup(GetDevice(), GetAllocator());
+	_renderTargets.composite.cleanup(GetDevice(), GetAllocator());
 	//_renderTargetDenoiseA.cleanup(_device, _allocator);
 	//_renderTargetDenoiseB.cleanup(_device, _allocator);
 
 	// Swapchain
-	for (int i = 0; i < _swapchainImageViews.size(); i++) {
-		vkDestroyImageView(g_device, _swapchainImageViews[i], nullptr);
+	for (int i = 0; i < GetSwapchainImageViews().size(); i++) {
+		vkDestroyImageView(GetDevice(), GetSwapchainImageViews()[i], nullptr);
 	}
-	vkDestroySwapchainKHR(g_device, g_swapchain, nullptr);
+	vkDestroySwapchainKHR(GetDevice(), GetSwapchain(), nullptr);
 
 	// Mesh buffers
 	for (Mesh& mesh : AssetManager::GetMeshList()) {
@@ -495,7 +288,7 @@ void VulkanBackEnd::Cleanup()
 			vmaDestroyBuffer(GetAllocator(), mesh._indexBuffer._buffer, mesh._indexBuffer._allocation);
 		}
 		vmaDestroyBuffer(GetAllocator(), mesh._accelerationStructure.buffer._buffer, mesh._accelerationStructure.buffer._allocation);
-		vkDestroyAccelerationStructureKHR(g_device, mesh._accelerationStructure.handle, nullptr);
+		vkDestroyAccelerationStructureKHR(GetDevice(), mesh._accelerationStructure.handle, nullptr);
 	}
 	vmaDestroyBuffer(GetAllocator(), _lineListMesh._vertexBuffer._buffer, _lineListMesh._vertexBuffer._allocation);
 
@@ -510,17 +303,17 @@ void VulkanBackEnd::Cleanup()
 		_frames[i]._lightRenderInfoBufferInventory.Destroy(GetAllocator());
 	}
 	// Descriptor sets
-	_dynamicDescriptorSet.Destroy(g_device);
-	_dynamicDescriptorSetInventory.Destroy(g_device);
-	_staticDescriptorSet.Destroy(g_device);
-	_samplerDescriptorSet.Destroy(g_device);
+	_dynamicDescriptorSet.Destroy(GetDevice());
+	_dynamicDescriptorSetInventory.Destroy(GetDevice());
+	_staticDescriptorSet.Destroy(GetDevice());
+	_samplerDescriptorSet.Destroy(GetDevice());
 	//_denoiseATextureDescriptorSet.Destroy(_device);
 	//_denoiseBTextureDescriptorSet.Destroy(_device);
 
 	// Textures
 	for (int i = 0; i < AssetManager::GetNumberOfTextures(); i++) {
 		vmaDestroyImage(GetAllocator(), AssetManager::GetTexture(i)->image._image, AssetManager::GetTexture(i)->image._allocation);
-		vkDestroyImageView(g_device, AssetManager::GetTexture(i)->imageView, nullptr);
+		vkDestroyImageView(GetDevice(), AssetManager::GetTexture(i)->imageView, nullptr);
 	}
 	// Raytracing
 	cleanup_raytracing();
@@ -532,12 +325,12 @@ void VulkanBackEnd::Cleanup()
 	VkInstance instance = VulkanInstanceManager::GetInstance();
 	VkSurfaceKHR surface = VulkanInstanceManager::GetSurface();
 
-	vkDestroyDescriptorPool(g_device, _descriptorPool, nullptr);
-	vkDestroySampler(g_device, _sampler, nullptr);
+	vkDestroyDescriptorPool(GetDevice(), _descriptorPool, nullptr);
+	vkDestroySampler(GetDevice(), _sampler, nullptr);
 	vmaDestroyAllocator(GetAllocator());
 	vkDestroySurfaceKHR(instance, surface, nullptr);
 	vkb::destroy_debug_utils_messenger(instance, debugMessenger);
-	vkDestroyDevice(g_device, nullptr);
+	vkDestroyDevice(GetDevice(), nullptr);
 	vkDestroyInstance(instance, nullptr);
 	glfwDestroyWindow(_window);
 	glfwTerminate();
@@ -552,14 +345,14 @@ void VulkanBackEnd::init_raytracing() {
 
 	std::vector<VkDescriptorSetLayout> rtDescriptorSetLayouts = { _dynamicDescriptorSet.layout, _staticDescriptorSet.layout, _samplerDescriptorSet.layout };
 
-	_raytracer.CreatePipeline(g_device, rtDescriptorSetLayouts, 2);
-	_raytracer.CreateShaderBindingTable(g_device, GetAllocator(), _rayTracingPipelineProperties);
+	_raytracer.CreatePipeline(GetDevice(), rtDescriptorSetLayouts, 2);
+	_raytracer.CreateShaderBindingTable(GetDevice(), GetAllocator(), _rayTracingPipelineProperties);
 
-	_raytracerPath.CreatePipeline(g_device, rtDescriptorSetLayouts, 2);
-	_raytracerPath.CreateShaderBindingTable(g_device, GetAllocator(), _rayTracingPipelineProperties);
+	_raytracerPath.CreatePipeline(GetDevice(), rtDescriptorSetLayouts, 2);
+	_raytracerPath.CreateShaderBindingTable(GetDevice(), GetAllocator(), _rayTracingPipelineProperties);
 
-	_raytracerMousePick.CreatePipeline(g_device, rtDescriptorSetLayouts, 2);
-	_raytracerMousePick.CreateShaderBindingTable(g_device, GetAllocator(), _rayTracingPipelineProperties);	
+	_raytracerMousePick.CreatePipeline(GetDevice(), rtDescriptorSetLayouts, 2);
+	_raytracerMousePick.CreateShaderBindingTable(GetDevice(), GetAllocator(), _rayTracingPipelineProperties);	
 }
 
 
@@ -577,41 +370,41 @@ void VulkanBackEnd::cleanup_raytracing()
 	vmaDestroyBuffer(GetAllocator(), _frames[0]._inventoryTLAS.buffer._buffer, _frames[0]._inventoryTLAS.buffer._allocation);
 	vmaDestroyBuffer(GetAllocator(), _frames[1]._inventoryTLAS.buffer._buffer, _frames[1]._inventoryTLAS.buffer._allocation);
 
-	vkDestroyAccelerationStructureKHR(g_device, _frames[0]._sceneTLAS.handle, nullptr);
-	vkDestroyAccelerationStructureKHR(g_device, _frames[1]._sceneTLAS.handle, nullptr);
-	vkDestroyAccelerationStructureKHR(g_device, _frames[0]._inventoryTLAS.handle, nullptr);
-	vkDestroyAccelerationStructureKHR(g_device, _frames[1]._inventoryTLAS.handle, nullptr);
+	vkDestroyAccelerationStructureKHR(GetDevice(), _frames[0]._sceneTLAS.handle, nullptr);
+	vkDestroyAccelerationStructureKHR(GetDevice(), _frames[1]._sceneTLAS.handle, nullptr);
+	vkDestroyAccelerationStructureKHR(GetDevice(), _frames[0]._inventoryTLAS.handle, nullptr);
+	vkDestroyAccelerationStructureKHR(GetDevice(), _frames[1]._inventoryTLAS.handle, nullptr);
 
-	_renderTargets.rt_first_hit_color.cleanup(g_device, GetAllocator());
-	_renderTargets.rt_first_hit_base_color.cleanup(g_device, GetAllocator());
-	_renderTargets.rt_first_hit_normals.cleanup(g_device, GetAllocator());
-	_renderTargets.rt_second_hit_color.cleanup(g_device, GetAllocator());
+	_renderTargets.rt_first_hit_color.cleanup(GetDevice(), GetAllocator());
+	_renderTargets.rt_first_hit_base_color.cleanup(GetDevice(), GetAllocator());
+	_renderTargets.rt_first_hit_normals.cleanup(GetDevice(), GetAllocator());
+	_renderTargets.rt_second_hit_color.cleanup(GetDevice(), GetAllocator());
 	//_renderTargets.rt_inventory.cleanup(_device, _allocator);
 
-	_raytracer.Cleanup(g_device, GetAllocator());
-	_raytracerPath.Cleanup(g_device, GetAllocator());
-	_raytracerMousePick.Cleanup(g_device, GetAllocator());
+	_raytracer.Cleanup(GetDevice(), GetAllocator());
+	_raytracerPath.Cleanup(GetDevice(), GetAllocator());
+	_raytracerMousePick.Cleanup(GetDevice(), GetAllocator());
 }
 
 void VulkanBackEnd::create_command_buffers()
 {
-	VkCommandPoolCreateInfo commandPoolInfo = vkinit::command_pool_create_info(g_graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+	VkCommandPoolCreateInfo commandPoolInfo = vkinit::command_pool_create_info(GetGraphicsQueueFamily(), VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
 	for (int i = 0; i < FRAME_OVERLAP; i++) {
-		VK_CHECK(vkCreateCommandPool(g_device, &commandPoolInfo, nullptr, &_frames[i]._commandPool));
+		VK_CHECK(vkCreateCommandPool(GetDevice(), &commandPoolInfo, nullptr, &_frames[i]._commandPool));
 
 		//allocate the default command buffer that we will use for rendering
 		VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_frames[i]._commandPool, 1);
-		VK_CHECK(vkAllocateCommandBuffers(g_device, &cmdAllocInfo, &_frames[i]._commandBuffer));
+		VK_CHECK(vkAllocateCommandBuffers(GetDevice(), &cmdAllocInfo, &_frames[i]._commandBuffer));
 	}
 
 	//create command pool for upload context
-	VkCommandPoolCreateInfo uploadCommandPoolInfo = vkinit::command_pool_create_info(g_graphicsQueueFamily);
+	VkCommandPoolCreateInfo uploadCommandPoolInfo = vkinit::command_pool_create_info(GetGraphicsQueueFamily());
 
 	//create command buffer for upload context
-	VK_CHECK(vkCreateCommandPool(g_device, &uploadCommandPoolInfo, nullptr, &_uploadContext._commandPool));
+	VK_CHECK(vkCreateCommandPool(GetDevice(), &uploadCommandPoolInfo, nullptr, &_uploadContext._commandPool));
 	VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_uploadContext._commandPool, 1);
-	VK_CHECK(vkAllocateCommandBuffers(g_device, &cmdAllocInfo, &_uploadContext._commandBuffer));
+	VK_CHECK(vkAllocateCommandBuffers(GetDevice(), &cmdAllocInfo, &_uploadContext._commandBuffer));
 
     std::cout << "Created command buffers\n";
 }
@@ -657,6 +450,9 @@ void VulkanBackEnd::RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuff
 
 
 void VulkanBackEnd::BlitRenderTargetIntoSwapChain(VkCommandBuffer commandBuffer, RenderTarget& renderTarget, uint32_t swapchainImageIndex) {
+	int32_t width = GLFWIntegration::GetCurrentWindowWidth();
+	int32_t height = GLFWIntegration::GetCurrentWindowHeight();
+
 	renderTarget.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_MEMORY_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 	VkImageSubresourceRange range;
 	range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -668,7 +464,7 @@ void VulkanBackEnd::BlitRenderTargetIntoSwapChain(VkCommandBuffer commandBuffer,
 	swapChainBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	swapChainBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	swapChainBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	swapChainBarrier.image = _swapchainImages[swapchainImageIndex];
+	swapChainBarrier.image = GetSwapchainImages()[swapchainImageIndex];
 	swapChainBarrier.subresourceRange = range;
 	swapChainBarrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 	swapChainBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
@@ -683,8 +479,8 @@ void VulkanBackEnd::BlitRenderTargetIntoSwapChain(VkCommandBuffer commandBuffer,
 	region.dstOffsets[0].x = 0;
 	region.dstOffsets[0].y = 0;
 	region.dstOffsets[0].z = 0;
-	region.dstOffsets[1].x = _currentWindowExtent.width;
-	region.dstOffsets[1].y = _currentWindowExtent.height;
+	region.dstOffsets[1].x = width;
+	region.dstOffsets[1].y = height;
 	region.dstOffsets[1].z = 1;
 	region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	region.srcSubresource.mipLevel = 0;
@@ -699,9 +495,9 @@ void VulkanBackEnd::BlitRenderTargetIntoSwapChain(VkCommandBuffer commandBuffer,
 	uint32_t regionCount = 1;
 	region.srcOffsets[1].x = renderTarget._extent.width;
 	region.srcOffsets[1].y = renderTarget._extent.height;
-	region.dstOffsets[1].x = _currentWindowExtent.width;
-	region.dstOffsets[1].y = _currentWindowExtent.height;
-	vkCmdBlitImage(commandBuffer, renderTarget._image, srcLayout, _swapchainImages[swapchainImageIndex], dstLayout, regionCount, &region, VkFilter::VK_FILTER_NEAREST);
+	region.dstOffsets[1].x = width;
+	region.dstOffsets[1].y = height;
+	vkCmdBlitImage(commandBuffer, renderTarget._image, srcLayout, GetSwapchainImages()[swapchainImageIndex], dstLayout, regionCount, &region, VkFilter::VK_FILTER_NEAREST);
 
 }
 
@@ -716,7 +512,7 @@ void VulkanBackEnd::PrepareSwapchainForPresent(VkCommandBuffer commandBuffer, ui
 	swapChainBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	swapChainBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 	swapChainBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	swapChainBarrier.image = _swapchainImages[swapchainImageIndex];
+	swapChainBarrier.image = GetSwapchainImages()[swapchainImageIndex];
 	swapChainBarrier.subresourceRange = range;
 	swapChainBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 	swapChainBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
@@ -738,15 +534,15 @@ void VulkanBackEnd::RenderLoadingFrame()
 	VkCommandBuffer commandBuffer = _frames[_frameNumber % FRAME_OVERLAP]._commandBuffer;
 	VkCommandBufferBeginInfo commandBufferInfo = vkinit::command_buffer_begin_info();
 
-	vkWaitForFences(g_device, 1, &renderFence, VK_TRUE, UINT64_MAX);
+	vkWaitForFences(GetDevice(), 1, &renderFence, VK_TRUE, UINT64_MAX);
 
 	UpdateBuffers2D();
-	_dynamicDescriptorSet.Update(g_device, 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstances2DBuffer.buffer);
+	_dynamicDescriptorSet.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstances2DBuffer.buffer);
 
-	vkResetFences(g_device, 1, &renderFence);
+	vkResetFences(GetDevice(), 1, &renderFence);
 
 	uint32_t swapchainImageIndex;
-	VkResult result = vkAcquireNextImageKHR(g_device, g_swapchain, UINT64_MAX, presentSemaphore, VK_NULL_HANDLE, &swapchainImageIndex);
+	VkResult result = vkAcquireNextImageKHR(GetDevice(), GetSwapchain(), UINT64_MAX, presentSemaphore, VK_NULL_HANDLE, &swapchainImageIndex);
 
 	VK_CHECK(vkResetCommandBuffer(commandBuffer, 0));
 	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferInfo));
@@ -767,18 +563,20 @@ void VulkanBackEnd::RenderLoadingFrame()
 	submit.pWaitSemaphores = &get_current_frame()._presentSemaphore;
 	submit.signalSemaphoreCount = 1;
 	submit.pSignalSemaphores = &get_current_frame()._renderSemaphore;
-	VK_CHECK(vkQueueSubmit(g_graphicsQueue, 1, &submit, get_current_frame()._renderFence));
+	VK_CHECK(vkQueueSubmit(GetGraphicsQueue(), 1, &submit, get_current_frame()._renderFence));
+
+	VkSwapchainKHR swapchain = GetSwapchain();
 
 	VkPresentInfoKHR presentInfo2 = vkinit::present_info();
-	presentInfo2.pSwapchains = &g_swapchain;
+	presentInfo2.pSwapchains = &swapchain;
 	presentInfo2.swapchainCount = 1;
 	presentInfo2.pWaitSemaphores = &get_current_frame()._renderSemaphore;
 	presentInfo2.waitSemaphoreCount = 1;
 	presentInfo2.pImageIndices = &swapchainImageIndex;
-	result = vkQueuePresentKHR(g_graphicsQueue, &presentInfo2);
+	result = vkQueuePresentKHR(GetGraphicsQueue(), &presentInfo2);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-		recreate_dynamic_swapchain();
+		VulkanSwapchainManager::RecreateSwapchain();
 	}
 }
 
@@ -796,16 +594,16 @@ void VulkanBackEnd::RenderGameFrame()
 	VkCommandBuffer commandBuffer = _frames[_frameNumber % FRAME_OVERLAP]._commandBuffer;
 	VkCommandBufferBeginInfo commandBufferInfo = vkinit::command_buffer_begin_info();
 
-	vkWaitForFences(g_device, 1, &renderFence, VK_TRUE, UINT64_MAX);
+	vkWaitForFences(GetDevice(), 1, &renderFence, VK_TRUE, UINT64_MAX);
 
 	// Prep
 	{
 		// Recreate TLAS for current frame
 		vmaDestroyBuffer(GetAllocator(), get_current_frame()._sceneTLAS.buffer._buffer, get_current_frame()._sceneTLAS.buffer._allocation);
-		vkDestroyAccelerationStructureKHR(g_device, get_current_frame()._sceneTLAS.handle, nullptr);
+		vkDestroyAccelerationStructureKHR(GetDevice(), get_current_frame()._sceneTLAS.handle, nullptr);
 		create_top_level_acceleration_structure(Scene::GetMeshInstancesForSceneAccelerationStructure(), get_current_frame()._sceneTLAS);
 		vmaDestroyBuffer(GetAllocator(), get_current_frame()._inventoryTLAS.buffer._buffer, get_current_frame()._inventoryTLAS.buffer._allocation);
-		vkDestroyAccelerationStructureKHR(g_device, get_current_frame()._inventoryTLAS.handle, nullptr);
+		vkDestroyAccelerationStructureKHR(GetDevice(), get_current_frame()._inventoryTLAS.handle, nullptr);
 		create_top_level_acceleration_structure(Scene::GetMeshInstancesForInventoryAccelerationStructure(), get_current_frame()._inventoryTLAS);
 
 		get_required_lines();
@@ -814,10 +612,10 @@ void VulkanBackEnd::RenderGameFrame()
 		UpdateDynamicDescriptorSet();
 	}
 
-	vkResetFences(g_device, 1, &renderFence);
+	vkResetFences(GetDevice(), 1, &renderFence);
 
 	uint32_t swapchainImageIndex;
-	VkResult result = vkAcquireNextImageKHR(g_device, g_swapchain, UINT64_MAX, presentSemaphore, VK_NULL_HANDLE, &swapchainImageIndex);
+	VkResult result = vkAcquireNextImageKHR(GetDevice(), GetSwapchain(), UINT64_MAX, presentSemaphore, VK_NULL_HANDLE, &swapchainImageIndex);
 
 	VK_CHECK(vkResetCommandBuffer(commandBuffer, 0));
 	//VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferInfo));
@@ -839,18 +637,20 @@ void VulkanBackEnd::RenderGameFrame()
 	submit.pWaitSemaphores = &get_current_frame()._presentSemaphore;
 	submit.signalSemaphoreCount = 1;
 	submit.pSignalSemaphores = &get_current_frame()._renderSemaphore;
-	VK_CHECK(vkQueueSubmit(g_graphicsQueue, 1, &submit, get_current_frame()._renderFence));
+	VK_CHECK(vkQueueSubmit(GetGraphicsQueue(), 1, &submit, get_current_frame()._renderFence));
+
+    VkSwapchainKHR swapchain = GetSwapchain();
 
 	VkPresentInfoKHR presentInfo2 = vkinit::present_info();
-	presentInfo2.pSwapchains = &g_swapchain;
+	presentInfo2.pSwapchains = &swapchain;
 	presentInfo2.swapchainCount = 1;
 	presentInfo2.pWaitSemaphores = &get_current_frame()._renderSemaphore;
 	presentInfo2.waitSemaphoreCount = 1;
 	presentInfo2.pImageIndices = &swapchainImageIndex;
-	result = vkQueuePresentKHR(g_graphicsQueue, &presentInfo2);
+	result = vkQueuePresentKHR(GetGraphicsQueue(), &presentInfo2);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-		recreate_dynamic_swapchain();
+		VulkanSwapchainManager::RecreateSwapchain();
 	}
 
 	_frameNumber++;
@@ -859,8 +659,7 @@ void VulkanBackEnd::RenderGameFrame()
 
 void VulkanBackEnd::ToggleFullscreen() {
     GLFWIntegration::ToggleFullscreen();
-
-    recreate_dynamic_swapchain();
+    VulkanSwapchainManager::RecreateSwapchain();
 }
 
 
@@ -901,7 +700,7 @@ void VulkanBackEnd::create_render_targets()
 	{
 		VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 		VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
-		_renderTargets.present = RenderTarget(g_device, GetAllocator(), format, _renderTargetPresentExtent.width, _renderTargetPresentExtent.height, usageFlags, "present render target");
+		_renderTargets.present = RenderTarget(GetDevice(), GetAllocator(), format, _renderTargetPresentExtent.width, _renderTargetPresentExtent.height, usageFlags, "present render target");
 	}
 	int scale = 2;
 	uint32_t width = _renderTargets.present._extent.width * scale;
@@ -911,25 +710,25 @@ void VulkanBackEnd::create_render_targets()
 	{
 		VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;// VK_FORMAT_R8G8B8A8_UNORM;
 		VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-		_renderTargets.rt_first_hit_color = RenderTarget(g_device, GetAllocator(), format, width, height, usage, "rt first hit color render target");
-		_renderTargets.rt_first_hit_normals = RenderTarget(g_device, GetAllocator(), format, width, height, usage, "rt first hit normals render target");
-		_renderTargets.rt_first_hit_base_color = RenderTarget(g_device, GetAllocator(), format, width, height, usage, "rt first hit base color render target");
-		_renderTargets.rt_second_hit_color = RenderTarget(g_device, GetAllocator(), format, width, height, usage, "rt second hit color render target"); 
+		_renderTargets.rt_first_hit_color = RenderTarget(GetDevice(), GetAllocator(), format, width, height, usage, "rt first hit color render target");
+		_renderTargets.rt_first_hit_normals = RenderTarget(GetDevice(), GetAllocator(), format, width, height, usage, "rt first hit normals render target");
+		_renderTargets.rt_first_hit_base_color = RenderTarget(GetDevice(), GetAllocator(), format, width, height, usage, "rt first hit base color render target");
+		_renderTargets.rt_second_hit_color = RenderTarget(GetDevice(), GetAllocator(), format, width, height, usage, "rt second hit color render target"); 
 	}
 
 	// GBuffer
 	{
 		VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
 		VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-		_renderTargets.gBufferBasecolor = RenderTarget(g_device, GetAllocator(), format, width, height, usage, "gbuffer base color render target");
-		_renderTargets.gBufferNormal = RenderTarget(g_device, GetAllocator(), format, width, height, usage, "gbuffer base normal render target");
-		_renderTargets.gBufferRMA = RenderTarget(g_device, GetAllocator(), format, width, height, usage, "gbuffer base rma render target");
+		_renderTargets.gBufferBasecolor = RenderTarget(GetDevice(), GetAllocator(), format, width, height, usage, "gbuffer base color render target");
+		_renderTargets.gBufferNormal = RenderTarget(GetDevice(), GetAllocator(), format, width, height, usage, "gbuffer base normal render target");
+		_renderTargets.gBufferRMA = RenderTarget(GetDevice(), GetAllocator(), format, width, height, usage, "gbuffer base rma render target");
 	}	
 	// Laptop screen
 	{
 		VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
 		VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-		_renderTargets.laptopDisplay = RenderTarget(g_device, GetAllocator(), format, LAPTOP_DISPLAY_WIDTH, LAPTOP_DISPLAY_HEIGHT, usage, "laptop display render target");
+		_renderTargets.laptopDisplay = RenderTarget(GetDevice(), GetAllocator(), format, LAPTOP_DISPLAY_WIDTH, LAPTOP_DISPLAY_HEIGHT, usage, "laptop display render target");
 	}
 	
 
@@ -945,46 +744,21 @@ void VulkanBackEnd::create_render_targets()
 	//hardcoding the depth format to 32 bit float
 	_depthFormat = VK_FORMAT_D32_SFLOAT;
 
-	_presentDepthTarget.Create(g_device, GetAllocator(), VK_FORMAT_D32_SFLOAT, _renderTargets.present._extent);
-	_gbufferDepthTarget.Create(g_device, GetAllocator(), VK_FORMAT_D32_SFLOAT, _renderTargets.gBufferNormal._extent);
+	_presentDepthTarget.Create(GetDevice(), GetAllocator(), VK_FORMAT_D32_SFLOAT, _renderTargets.present._extent);
+	_gbufferDepthTarget.Create(GetDevice(), GetAllocator(), VK_FORMAT_D32_SFLOAT, _renderTargets.gBufferNormal._extent);
 	
 	// Blur target
 	VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-	_renderTargets.composite = RenderTarget(g_device, GetAllocator(), format, width, height, usage, "composite render targe");
+	_renderTargets.composite = RenderTarget(GetDevice(), GetAllocator(), format, width, height, usage, "composite render targe");
 
 	float denoiseWidth = _renderTargets.rt_first_hit_color._extent.width;
 	float denoiseHeight = _renderTargets.rt_first_hit_color._extent.height;
-	_renderTargets.denoiseTextureA = RenderTarget(g_device, GetAllocator(), format, denoiseWidth, denoiseHeight, usage, "denoise A render target");
-	_renderTargets.denoiseTextureB = RenderTarget(g_device, GetAllocator(), format, denoiseWidth, denoiseHeight, usage, "denoise B render target");
-	_renderTargets.denoiseTextureC = RenderTarget(g_device, GetAllocator(), format, denoiseWidth, denoiseHeight, usage, "denoise C render target");
+	_renderTargets.denoiseTextureA = RenderTarget(GetDevice(), GetAllocator(), format, denoiseWidth, denoiseHeight, usage, "denoise A render target");
+	_renderTargets.denoiseTextureB = RenderTarget(GetDevice(), GetAllocator(), format, denoiseWidth, denoiseHeight, usage, "denoise B render target");
+	_renderTargets.denoiseTextureC = RenderTarget(GetDevice(), GetAllocator(), format, denoiseWidth, denoiseHeight, usage, "denoise C render target");
 }
 
-void VulkanBackEnd::recreate_dynamic_swapchain()
-{
-    GLFWwindow* _window = (GLFWwindow*)GLFWIntegration::GetWindowPointer();
 
-
-
-	std::cout << "Recreating swapchain...\n";
-
-	while (_currentWindowExtent.width == 0 || _currentWindowExtent.height == 0) {
-		int width, height;
-		glfwGetFramebufferSize(_window, &width, &height);
-		_currentWindowExtent.width = width;
-		_currentWindowExtent.height = height;
-		glfwWaitEvents();
-	}
-
-	vkDeviceWaitIdle(g_device);
-
-	for (int i = 0; i < _swapchainImages.size(); i++) {
-		vkDestroyImageView(g_device, _swapchainImageViews[i], nullptr);
-	}
-
-	vkDestroySwapchainKHR(g_device, g_swapchain, nullptr);
-
-	CreateSwapchain();
-}
 
 
 void VulkanBackEnd::create_sync_structures()
@@ -993,12 +767,12 @@ void VulkanBackEnd::create_sync_structures()
 	VkSemaphoreCreateInfo semaphoreCreateInfo = vkinit::semaphore_create_info();
 
 	for (int i = 0; i < FRAME_OVERLAP; i++) {
-		VK_CHECK(vkCreateFence(g_device, &fenceCreateInfo, nullptr, &_frames[i]._renderFence));
-		VK_CHECK(vkCreateSemaphore(g_device, &semaphoreCreateInfo, nullptr, &_frames[i]._presentSemaphore));
-		VK_CHECK(vkCreateSemaphore(g_device, &semaphoreCreateInfo, nullptr, &_frames[i]._renderSemaphore));
+		VK_CHECK(vkCreateFence(GetDevice(), &fenceCreateInfo, nullptr, &_frames[i]._renderFence));
+		VK_CHECK(vkCreateSemaphore(GetDevice(), &semaphoreCreateInfo, nullptr, &_frames[i]._presentSemaphore));
+		VK_CHECK(vkCreateSemaphore(GetDevice(), &semaphoreCreateInfo, nullptr, &_frames[i]._renderSemaphore));
 	}
 	VkFenceCreateInfo uploadFenceCreateInfo = vkinit::fence_create_info();
-	VK_CHECK(vkCreateFence(g_device, &uploadFenceCreateInfo, nullptr, &_uploadContext._uploadFence));
+	VK_CHECK(vkCreateFence(GetDevice(), &uploadFenceCreateInfo, nullptr, &_uploadContext._uploadFence));
 
     std::cout << "Created sync structures\n";
 }
@@ -1007,11 +781,11 @@ void VulkanBackEnd::hotload_shaders()
 {
 	std::cout << "Hotloading shaders...\n";
 
-	vkDeviceWaitIdle(g_device);
+	vkDeviceWaitIdle(GetDevice());
 
-	_raytracer.Cleanup(g_device, GetAllocator());
-	_raytracerPath.Cleanup(g_device, GetAllocator());
-	_raytracerMousePick.Cleanup(g_device, GetAllocator());
+	_raytracer.Cleanup(GetDevice(), GetAllocator());
+	_raytracerPath.Cleanup(GetDevice(), GetAllocator());
+	_raytracerMousePick.Cleanup(GetDevice(), GetAllocator());
 
 	//load_shader(_device, "composite.vert", VK_SHADER_STAGE_VERTEX_BIT, &_composite_vertex_shader);
 	//load_shader(_device, "composite.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_composite_fragment_shader);
@@ -1055,33 +829,33 @@ void Vulkan::hotload_shaders()
 
 void VulkanBackEnd::LoadShaders()
 {
-	load_shader(g_device, "solid_color.vert", VK_SHADER_STAGE_VERTEX_BIT, &_solid_color_vertex_shader);
-	load_shader(g_device, "solid_color.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_solid_color_fragment_shader);
+	load_shader(GetDevice(), "solid_color.vert", VK_SHADER_STAGE_VERTEX_BIT, &_solid_color_vertex_shader);
+	load_shader(GetDevice(), "solid_color.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_solid_color_fragment_shader);
 
-	load_shader(g_device, "gbuffer.vert", VK_SHADER_STAGE_VERTEX_BIT, &_gbuffer_vertex_shader);
-	load_shader(g_device, "gbuffer.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_gbuffer_fragment_shader);
+	load_shader(GetDevice(), "gbuffer.vert", VK_SHADER_STAGE_VERTEX_BIT, &_gbuffer_vertex_shader);
+	load_shader(GetDevice(), "gbuffer.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_gbuffer_fragment_shader);
 
-	load_shader(g_device, "denoise_pass_A.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_A_vertex_shader);
-	load_shader(g_device, "denoise_pass_A.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_A_fragment_shader);
+	load_shader(GetDevice(), "denoise_pass_A.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_A_vertex_shader);
+	load_shader(GetDevice(), "denoise_pass_A.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_A_fragment_shader);
 
-	load_shader(g_device, "denoise_pass_B.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_B_vertex_shader);
-	load_shader(g_device, "denoise_pass_B.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_B_fragment_shader);
+	load_shader(GetDevice(), "denoise_pass_B.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_B_vertex_shader);
+	load_shader(GetDevice(), "denoise_pass_B.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_B_fragment_shader);
 
-	load_shader(g_device, "denoise_pass_C.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_C_vertex_shader);
-	load_shader(g_device, "denoise_pass_C.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_C_fragment_shader);
+	load_shader(GetDevice(), "denoise_pass_C.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_C_vertex_shader);
+	load_shader(GetDevice(), "denoise_pass_C.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_C_fragment_shader);
 
-	load_shader(g_device, "blur_horizontal.vert", VK_SHADER_STAGE_VERTEX_BIT, &_blur_horizontal_vertex_shader);
-	load_shader(g_device, "blur_horizontal.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_blur_horizontal_fragment_shader);
+	load_shader(GetDevice(), "blur_horizontal.vert", VK_SHADER_STAGE_VERTEX_BIT, &_blur_horizontal_vertex_shader);
+	load_shader(GetDevice(), "blur_horizontal.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_blur_horizontal_fragment_shader);
 
-	load_shader(g_device, "blur_vertical.vert", VK_SHADER_STAGE_VERTEX_BIT, &_blur_vertical_vertex_shader);
-	load_shader(g_device, "blur_vertical.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_blur_vertical_fragment_shader);
+	load_shader(GetDevice(), "blur_vertical.vert", VK_SHADER_STAGE_VERTEX_BIT, &_blur_vertical_vertex_shader);
+	load_shader(GetDevice(), "blur_vertical.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_blur_vertical_fragment_shader);
 
-	load_shader(g_device, "composite.vert", VK_SHADER_STAGE_VERTEX_BIT, &_composite_vertex_shader);
-	load_shader(g_device, "composite.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_composite_fragment_shader);
+	load_shader(GetDevice(), "composite.vert", VK_SHADER_STAGE_VERTEX_BIT, &_composite_vertex_shader);
+	load_shader(GetDevice(), "composite.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_composite_fragment_shader);
 	
-	_raytracer.LoadShaders(g_device, "raygen.rgen", "miss.rmiss", "shadow.rmiss", "closesthit.rchit");
-	_raytracerPath.LoadShaders(g_device, "path_raygen.rgen", "path_miss.rmiss", "path_shadow.rmiss", "path_closesthit.rchit");
-	_raytracerMousePick.LoadShaders(g_device, "mousepick_raygen.rgen", "mousepick_miss.rmiss", "path_shadow.rmiss", "mousepick_closesthit.rchit");
+	_raytracer.LoadShaders(GetDevice(), "raygen.rgen", "miss.rmiss", "shadow.rmiss", "closesthit.rchit");
+	_raytracerPath.LoadShaders(GetDevice(), "path_raygen.rgen", "path_miss.rmiss", "path_shadow.rmiss", "path_closesthit.rchit");
+	_raytracerMousePick.LoadShaders(GetDevice(), "mousepick_raygen.rgen", "mousepick_miss.rmiss", "path_shadow.rmiss", "mousepick_closesthit.rchit");
 }
 
 
@@ -1091,7 +865,7 @@ void VulkanBackEnd::create_pipelines()
 	_pipelines.composite.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
 	_pipelines.composite.PushDescriptorSetLayout(_staticDescriptorSet.layout);
 	_pipelines.composite.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
-	_pipelines.composite.CreatePipelineLayout(g_device);
+	_pipelines.composite.CreatePipelineLayout(GetDevice());
 	_pipelines.composite.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
 	_pipelines.composite.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	_pipelines.composite.SetPolygonMode(VK_POLYGON_MODE_FILL);
@@ -1099,14 +873,14 @@ void VulkanBackEnd::create_pipelines()
 	_pipelines.composite.SetColorBlending(false);
 	_pipelines.composite.SetDepthTest(false);
 	_pipelines.composite.SetDepthWrite(false);
-	_pipelines.composite.Build(g_device, _composite_vertex_shader, _composite_fragment_shader, 1);
+	_pipelines.composite.Build(GetDevice(), _composite_vertex_shader, _composite_fragment_shader, 1);
 	
 	// Lines pipeline
 	_pipelines.lines.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
 	_pipelines.lines.PushDescriptorSetLayout(_staticDescriptorSet.layout);
 	_pipelines.lines.SetPushConstantSize(sizeof(LineShaderPushConstants));
 	_pipelines.lines.SetPushConstantCount(1);
-	_pipelines.lines.CreatePipelineLayout(g_device);
+	_pipelines.lines.CreatePipelineLayout(GetDevice());
 	_pipelines.lines.SetVertexDescription(VertexDescriptionType::POSITION);
 	_pipelines.lines.SetTopology(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
 	_pipelines.lines.SetPolygonMode(VK_POLYGON_MODE_FILL);
@@ -1114,11 +888,11 @@ void VulkanBackEnd::create_pipelines()
 	_pipelines.lines.SetColorBlending(false);
 	_pipelines.lines.SetDepthTest(false);
 	_pipelines.lines.SetDepthWrite(false);
-	_pipelines.lines.Build(g_device, _solid_color_vertex_shader, _solid_color_fragment_shader, 1);
+	_pipelines.lines.Build(GetDevice(), _solid_color_vertex_shader, _solid_color_fragment_shader, 1);
 
 	// Denoise A pipeline
 	_pipelines.denoisePassA.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
-	_pipelines.denoisePassA.CreatePipelineLayout(g_device);
+	_pipelines.denoisePassA.CreatePipelineLayout(GetDevice());
 	_pipelines.denoisePassA.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
 	_pipelines.denoisePassA.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	_pipelines.denoisePassA.SetPolygonMode(VK_POLYGON_MODE_FILL);
@@ -1126,11 +900,11 @@ void VulkanBackEnd::create_pipelines()
 	_pipelines.denoisePassA.SetColorBlending(false);
 	_pipelines.denoisePassA.SetDepthTest(false);
 	_pipelines.denoisePassA.SetDepthWrite(false);
-	_pipelines.denoisePassA.Build(g_device, _denoise_pass_A_vertex_shader, _denoise_pass_A_fragment_shader, 1);
+	_pipelines.denoisePassA.Build(GetDevice(), _denoise_pass_A_vertex_shader, _denoise_pass_A_fragment_shader, 1);
 	
 	// Denoise B pipeline
 	_pipelines.denoisePassB.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
-	_pipelines.denoisePassB.CreatePipelineLayout(g_device);
+	_pipelines.denoisePassB.CreatePipelineLayout(GetDevice());
 	_pipelines.denoisePassB.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
 	_pipelines.denoisePassB.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	_pipelines.denoisePassB.SetPolygonMode(VK_POLYGON_MODE_FILL);
@@ -1138,11 +912,11 @@ void VulkanBackEnd::create_pipelines()
 	_pipelines.denoisePassB.SetColorBlending(false);
 	_pipelines.denoisePassB.SetDepthTest(false);
 	_pipelines.denoisePassB.SetDepthWrite(false);
-	_pipelines.denoisePassB.Build(g_device, _denoise_pass_B_vertex_shader, _denoise_pass_B_fragment_shader, 1);
+	_pipelines.denoisePassB.Build(GetDevice(), _denoise_pass_B_vertex_shader, _denoise_pass_B_fragment_shader, 1);
 
 	// Denoise C pipeline
 	_pipelines.denoisePassC.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
-	_pipelines.denoisePassC.CreatePipelineLayout(g_device);
+	_pipelines.denoisePassC.CreatePipelineLayout(GetDevice());
 	_pipelines.denoisePassC.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
 	_pipelines.denoisePassC.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	_pipelines.denoisePassC.SetPolygonMode(VK_POLYGON_MODE_FILL);
@@ -1150,11 +924,11 @@ void VulkanBackEnd::create_pipelines()
 	_pipelines.denoisePassC.SetColorBlending(false);
 	_pipelines.denoisePassC.SetDepthTest(false);
 	_pipelines.denoisePassC.SetDepthWrite(false);
-	_pipelines.denoisePassC.Build(g_device, _denoise_pass_C_vertex_shader, _denoise_pass_C_fragment_shader, 1);
+	_pipelines.denoisePassC.Build(GetDevice(), _denoise_pass_C_vertex_shader, _denoise_pass_C_fragment_shader, 1);
 	
 	// Blur horizontal
 	_pipelines.denoiseBlurHorizontal.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
-	_pipelines.denoiseBlurHorizontal.CreatePipelineLayout(g_device);
+	_pipelines.denoiseBlurHorizontal.CreatePipelineLayout(GetDevice());
 	_pipelines.denoiseBlurHorizontal.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
 	_pipelines.denoiseBlurHorizontal.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	_pipelines.denoiseBlurHorizontal.SetPolygonMode(VK_POLYGON_MODE_FILL);
@@ -1162,11 +936,11 @@ void VulkanBackEnd::create_pipelines()
 	_pipelines.denoiseBlurHorizontal.SetColorBlending(false);
 	_pipelines.denoiseBlurHorizontal.SetDepthTest(false);
 	_pipelines.denoiseBlurHorizontal.SetDepthWrite(false);
-	_pipelines.denoiseBlurHorizontal.Build(g_device, _blur_horizontal_vertex_shader, _blur_horizontal_fragment_shader, 1);
+	_pipelines.denoiseBlurHorizontal.Build(GetDevice(), _blur_horizontal_vertex_shader, _blur_horizontal_fragment_shader, 1);
 
 	// Blur vertical
 	_pipelines.denoiseBlurVertical.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
-	_pipelines.denoiseBlurVertical.CreatePipelineLayout(g_device);
+	_pipelines.denoiseBlurVertical.CreatePipelineLayout(GetDevice());
 	_pipelines.denoiseBlurVertical.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
 	_pipelines.denoiseBlurVertical.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	_pipelines.denoiseBlurVertical.SetPolygonMode(VK_POLYGON_MODE_FILL);
@@ -1174,7 +948,7 @@ void VulkanBackEnd::create_pipelines()
 	_pipelines.denoiseBlurVertical.SetColorBlending(false);
 	_pipelines.denoiseBlurVertical.SetDepthTest(false);
 	_pipelines.denoiseBlurVertical.SetDepthWrite(false);
-	_pipelines.denoiseBlurVertical.Build(g_device, _blur_vertical_vertex_shader, _blur_vertical_fragment_shader, 1);
+	_pipelines.denoiseBlurVertical.Build(GetDevice(), _blur_vertical_vertex_shader, _blur_vertical_fragment_shader, 1);
 	
 	// Raster pipeline
 	/* {
@@ -1381,7 +1155,7 @@ void VulkanBackEnd::add_debug_name(VkBuffer buffer, const char* name) {
 	nameInfo.objectType = VK_OBJECT_TYPE_BUFFER;
 	nameInfo.objectHandle = (uint64_t)buffer;
 	nameInfo.pObjectName = name;
-	vkSetDebugUtilsObjectNameEXT(g_device, &nameInfo);
+	vkSetDebugUtilsObjectNameEXT(GetDevice(), &nameInfo);
 }
 
 void VulkanBackEnd::add_debug_name(VkDescriptorSetLayout descriptorSetLayout, const char* name) {
@@ -1390,7 +1164,7 @@ void VulkanBackEnd::add_debug_name(VkDescriptorSetLayout descriptorSetLayout, co
 	nameInfo.objectType = VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT;
 	nameInfo.objectHandle = (uint64_t)descriptorSetLayout;
 	nameInfo.pObjectName = name;
-	vkSetDebugUtilsObjectNameEXT(g_device, &nameInfo);
+	vkSetDebugUtilsObjectNameEXT(GetDevice(), &nameInfo);
 }
 
 size_t VulkanBackEnd::pad_uniform_buffer_size(size_t originalSize) {
@@ -1418,12 +1192,12 @@ void VulkanBackEnd::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& 
 	VK_CHECK(vkEndCommandBuffer(cmd));
 
 	VkSubmitInfo submit = vkinit::submit_info(&cmd);
-	VK_CHECK(vkQueueSubmit(g_graphicsQueue, 1, &submit, _uploadContext._uploadFence));
+	VK_CHECK(vkQueueSubmit(GetGraphicsQueue(), 1, &submit, _uploadContext._uploadFence));
 
-	vkWaitForFences(g_device, 1, &_uploadContext._uploadFence, true, 9999999999);
-	vkResetFences(g_device, 1, &_uploadContext._uploadFence);
+	vkWaitForFences(GetDevice(), 1, &_uploadContext._uploadFence, true, 9999999999);
+	vkResetFences(GetDevice(), 1, &_uploadContext._uploadFence);
 
-	vkResetCommandPool(g_device, _uploadContext._commandPool, 0);
+	vkResetCommandPool(GetDevice(), _uploadContext._commandPool, 0);
 }
 
 void VulkanBackEnd::create_sampler() {
@@ -1444,7 +1218,7 @@ void VulkanBackEnd::create_sampler() {
 	samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 	samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;;
 	samplerInfo.anisotropyEnable = VK_TRUE;
-	vkCreateSampler(g_device, &samplerInfo, nullptr, &_sampler);
+	vkCreateSampler(GetDevice(), &samplerInfo, nullptr, &_sampler);
 
     std::cout << "created sampler\n";
 }
@@ -1473,7 +1247,7 @@ void VulkanBackEnd::create_descriptors() {
 	descriptorPoolCreateInfo.poolSizeCount = (uint32_t)sizes.size();
 	descriptorPoolCreateInfo.pPoolSizes = sizes.data();
 
-	vkCreateDescriptorPool(g_device, &descriptorPoolCreateInfo, nullptr, &_descriptorPool);
+	vkCreateDescriptorPool(GetDevice(), &descriptorPoolCreateInfo, nullptr, &_descriptorPool);
 
 	// Dynamic 
 	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 0, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// acceleration structure
@@ -1481,8 +1255,8 @@ void VulkanBackEnd::create_descriptors() {
 	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// all 3D mesh instances
 	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, 1, VK_SHADER_STAGE_VERTEX_BIT);																			// all 2d mesh instances
 	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);																	// light positions and colors
-	_dynamicDescriptorSet.BuildSetLayout(g_device);
-	_dynamicDescriptorSet.AllocateSet(g_device, _descriptorPool);
+	_dynamicDescriptorSet.BuildSetLayout(GetDevice());
+	_dynamicDescriptorSet.AllocateSet(GetDevice(), _descriptorPool);
 	add_debug_name(_dynamicDescriptorSet.layout, "DynamicDescriptorSetLayout");
 	// Dynamic inventory
 	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 0, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// acceleration structure
@@ -1490,8 +1264,8 @@ void VulkanBackEnd::create_descriptors() {
 	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// all 3D mesh instances
 	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, 1, VK_SHADER_STAGE_VERTEX_BIT);																			// all 2d mesh instances
 	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);																	// light positions and colors
-	_dynamicDescriptorSetInventory.BuildSetLayout(g_device);
-	_dynamicDescriptorSetInventory.AllocateSet(g_device, _descriptorPool);
+	_dynamicDescriptorSetInventory.BuildSetLayout(GetDevice());
+	_dynamicDescriptorSetInventory.AllocateSet(GetDevice(), _descriptorPool);
 	add_debug_name(_dynamicDescriptorSetInventory.layout, "_dynamicDescriptorSetInventory");
 
 	// Static 
@@ -1504,8 +1278,8 @@ void VulkanBackEnd::create_descriptors() {
 	_staticDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 6, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// rt output image: first hit normals
 	_staticDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 7, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// rt output image: first hit base color
 	_staticDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 8, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// rt output image: second hit color
-	_staticDescriptorSet.BuildSetLayout(g_device);
-	_staticDescriptorSet.AllocateSet(g_device, _descriptorPool);
+	_staticDescriptorSet.BuildSetLayout(GetDevice());
+	_staticDescriptorSet.AllocateSet(GetDevice(), _descriptorPool);
 	add_debug_name(_staticDescriptorSet.layout, "StaticDescriptorSetLayout");
 
 	// Samplers
@@ -1517,8 +1291,8 @@ void VulkanBackEnd::create_descriptors() {
 	_samplerDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 5, 1, VK_SHADER_STAGE_FRAGMENT_BIT); // denoise texture B
 	_samplerDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 6, 1, VK_SHADER_STAGE_FRAGMENT_BIT); // denoise texture C
 	_samplerDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 7, 1, VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR); // laptop
-	_samplerDescriptorSet.BuildSetLayout(g_device);
-	_samplerDescriptorSet.AllocateSet(g_device, _descriptorPool);
+	_samplerDescriptorSet.BuildSetLayout(GetDevice());
+	_samplerDescriptorSet.AllocateSet(GetDevice(), _descriptorPool);
 	add_debug_name(_samplerDescriptorSet.layout, "_samplerDescriptorSet");												// depth aware blur texture
 
 	// Denoiser sampler A
@@ -1587,7 +1361,7 @@ uint64_t VulkanBackEnd::get_buffer_device_address(VkBuffer buffer)
 	VkBufferDeviceAddressInfoKHR bufferDeviceAI{};
 	bufferDeviceAI.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
 	bufferDeviceAI.buffer = buffer;
-	return vkGetBufferDeviceAddressKHR(g_device, &bufferDeviceAI);
+	return vkGetBufferDeviceAddressKHR(GetDevice(), &bufferDeviceAI);
 }
 
 RayTracingScratchBuffer VulkanBackEnd::createScratchBuffer(VkDeviceSize size)
@@ -1608,7 +1382,7 @@ RayTracingScratchBuffer VulkanBackEnd::createScratchBuffer(VkDeviceSize size)
 	VkBufferDeviceAddressInfoKHR bufferDeviceAddressInfo{};
 	bufferDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
 	bufferDeviceAddressInfo.buffer = scratchBuffer.handle._buffer;
-	scratchBuffer.deviceAddress = vkGetBufferDeviceAddressKHR(g_device, &bufferDeviceAddressInfo);
+	scratchBuffer.deviceAddress = vkGetBufferDeviceAddressKHR(GetDevice(), &bufferDeviceAddressInfo);
 
 	return scratchBuffer;
 }
@@ -1773,7 +1547,7 @@ AccelerationStructure VulkanBackEnd::createBottomLevelAccelerationStructure(Mesh
 	VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo{};
 	accelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
 	vkGetAccelerationStructureBuildSizesKHR(
-		g_device,
+		GetDevice(),
 		VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
 		&accelerationStructureBuildGeometryInfo,
 		&numTriangles,
@@ -1787,7 +1561,7 @@ AccelerationStructure VulkanBackEnd::createBottomLevelAccelerationStructure(Mesh
 	accelerationStructureCreateInfo.buffer = bottomLevelAS.buffer._buffer;
 	accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
 	accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-	vkCreateAccelerationStructureKHR(g_device, &accelerationStructureCreateInfo, nullptr, &bottomLevelAS.handle);
+	vkCreateAccelerationStructureKHR(GetDevice(), &accelerationStructureCreateInfo, nullptr, &bottomLevelAS.handle);
 
 	// Create a small scratch buffer used during build of the bottom level acceleration structure
 	RayTracingScratchBuffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
@@ -1820,7 +1594,7 @@ AccelerationStructure VulkanBackEnd::createBottomLevelAccelerationStructure(Mesh
 	VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
 	accelerationDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
 	accelerationDeviceAddressInfo.accelerationStructure = bottomLevelAS.handle;
-	bottomLevelAS.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(g_device, &accelerationDeviceAddressInfo);
+	bottomLevelAS.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(GetDevice(), &accelerationDeviceAddressInfo);
 
 	vmaDestroyBuffer(GetAllocator(), scratchBuffer.handle._buffer, scratchBuffer.handle._allocation);
 
@@ -1899,7 +1673,7 @@ void VulkanBackEnd::create_top_level_acceleration_structure(std::vector<VkAccele
 	VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo{};
 	accelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
 	vkGetAccelerationStructureBuildSizesKHR(
-		g_device,
+		GetDevice(),
 		VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
 		&buildInfo,
 		&numInstances,
@@ -1912,7 +1686,7 @@ void VulkanBackEnd::create_top_level_acceleration_structure(std::vector<VkAccele
 	accelerationStructureCreateInfo.buffer = outTLAS.buffer._buffer;
 	accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
 	accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-	vkCreateAccelerationStructureKHR(g_device, &accelerationStructureCreateInfo, nullptr, &outTLAS.handle);
+	vkCreateAccelerationStructureKHR(GetDevice(), &accelerationStructureCreateInfo, nullptr, &outTLAS.handle);
 
 	// Create a small scratch buffer used during build of the top level acceleration structure
 	RayTracingScratchBuffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
@@ -1934,7 +1708,7 @@ void VulkanBackEnd::create_top_level_acceleration_structure(std::vector<VkAccele
 	accelerationStructureBuildRangeInfo.transformOffset = 0;
 	std::vector<VkAccelerationStructureBuildRangeInfoKHR*> accelerationBuildStructureRangeInfos = { &accelerationStructureBuildRangeInfo };
 
-	vkDeviceWaitIdle(g_device);
+	vkDeviceWaitIdle(GetDevice());
 
 	// Build the acceleration structure on the device via a one-time command buffer submission
 	// Some implementations may support acceleration structure building on the host (VkPhysicalDeviceAccelerationStructureFeaturesKHR->accelerationStructureHostCommands), but we prefer device builds
@@ -1949,7 +1723,7 @@ void VulkanBackEnd::create_top_level_acceleration_structure(std::vector<VkAccele
 	VkAccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo{};
 	accelerationDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
 	accelerationDeviceAddressInfo.accelerationStructure = outTLAS.handle;
-	outTLAS.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(g_device, &accelerationDeviceAddressInfo);
+	outTLAS.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(GetDevice(), &accelerationDeviceAddressInfo);
 
 	vmaDestroyBuffer(GetAllocator(), scratchBuffer.handle._buffer, scratchBuffer.handle._allocation);
 	
@@ -2065,7 +1839,7 @@ void VulkanBackEnd::update_static_descriptor_set() {
 	// Sample
 	VkDescriptorImageInfo samplerImageInfo = {};
 	samplerImageInfo.sampler = _sampler;
-	_staticDescriptorSet.Update(g_device, 0, 1, VK_DESCRIPTOR_TYPE_SAMPLER, &samplerImageInfo);
+	_staticDescriptorSet.Update(GetDevice(), 0, 1, VK_DESCRIPTOR_TYPE_SAMPLER, &samplerImageInfo);
 
 	// All textures
 	VkDescriptorImageInfo textureImageInfo[TEXTURE_ARRAY_SIZE];
@@ -2074,28 +1848,28 @@ void VulkanBackEnd::update_static_descriptor_set() {
 		textureImageInfo[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		textureImageInfo[i].imageView = (i < AssetManager::GetNumberOfTextures()) ? AssetManager::GetTexture(i)->imageView : AssetManager::GetTexture(0)->imageView; // Fill with dummy if you excede the amount of textures we loaded off disk. Can't have no junk data.
 	}
-	_staticDescriptorSet.Update(g_device, 1, TEXTURE_ARRAY_SIZE, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, textureImageInfo);
+	_staticDescriptorSet.Update(GetDevice(), 1, TEXTURE_ARRAY_SIZE, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, textureImageInfo);
 	
 	// All vertex and index data
-	_staticDescriptorSet.Update(g_device, 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, _rtVertexBuffer._buffer);
-	_staticDescriptorSet.Update(g_device, 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, _rtIndexBuffer._buffer);
+	_staticDescriptorSet.Update(GetDevice(), 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, _rtVertexBuffer._buffer);
+	_staticDescriptorSet.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, _rtIndexBuffer._buffer);
 
 	// Raytracing storage image and all vertex/index data
 	VkDescriptorImageInfo storageImageDescriptor{};
 	storageImageDescriptor.imageView = _renderTargets.rt_first_hit_color._view;
 	storageImageDescriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-	_staticDescriptorSet.Update(g_device, 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &storageImageDescriptor);
+	_staticDescriptorSet.Update(GetDevice(), 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &storageImageDescriptor);
 
 	// 1x1 mouse picking buffer
-	_staticDescriptorSet.Update(g_device, 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, _mousePickResultBuffer._buffer);
+	_staticDescriptorSet.Update(GetDevice(), 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, _mousePickResultBuffer._buffer);
 
 	// RT normals and depth
 	storageImageDescriptor.imageView = _renderTargets.rt_first_hit_normals._view;
-	_staticDescriptorSet.Update(g_device, 6, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &storageImageDescriptor);
+	_staticDescriptorSet.Update(GetDevice(), 6, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &storageImageDescriptor);
 	storageImageDescriptor.imageView = _renderTargets.rt_first_hit_base_color._view;
-	_staticDescriptorSet.Update(g_device, 7, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &storageImageDescriptor);
+	_staticDescriptorSet.Update(GetDevice(), 7, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &storageImageDescriptor);
 	storageImageDescriptor.imageView = _renderTargets.rt_second_hit_color._view;
-	_staticDescriptorSet.Update(g_device, 8, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &storageImageDescriptor);
+	_staticDescriptorSet.Update(GetDevice(), 8, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &storageImageDescriptor);
 
 	// This below is just so you can bind THE GBUFFER DEPTH TARGET in shaders. Needs layout general
 	immediate_submit([=](VkCommandBuffer cmd) {
@@ -2113,28 +1887,28 @@ void VulkanBackEnd::update_static_descriptor_set() {
 	storageImageDescriptor2.sampler = _sampler;
 
 	storageImageDescriptor2.imageView = _renderTargets.rt_first_hit_color._view;
-	_samplerDescriptorSet.Update(g_device, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
+	_samplerDescriptorSet.Update(GetDevice(), 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
 	storageImageDescriptor2.imageView = _renderTargets.rt_first_hit_normals._view;
-	_samplerDescriptorSet.Update(g_device, 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
+	_samplerDescriptorSet.Update(GetDevice(), 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
 	storageImageDescriptor2.imageView = _renderTargets.rt_first_hit_base_color._view;
-	_samplerDescriptorSet.Update(g_device, 2, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
+	_samplerDescriptorSet.Update(GetDevice(), 2, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
 	storageImageDescriptor2.imageView = _renderTargets.rt_second_hit_color._view;
-	_samplerDescriptorSet.Update(g_device, 3, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
+	_samplerDescriptorSet.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
 	storageImageDescriptor2.imageView = _renderTargets.denoiseTextureA._view;
-	_samplerDescriptorSet.Update(g_device, 4, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
+	_samplerDescriptorSet.Update(GetDevice(), 4, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
 	storageImageDescriptor2.imageView = _renderTargets.denoiseTextureB._view;
-	_samplerDescriptorSet.Update(g_device, 5, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
+	_samplerDescriptorSet.Update(GetDevice(), 5, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
 	storageImageDescriptor2.imageView = _renderTargets.denoiseTextureC._view;
-	_samplerDescriptorSet.Update(g_device, 6, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
+	_samplerDescriptorSet.Update(GetDevice(), 6, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
 	storageImageDescriptor2.imageView = _renderTargets.laptopDisplay._view;
-	_samplerDescriptorSet.Update(g_device, 7, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
+	_samplerDescriptorSet.Update(GetDevice(), 7, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
 	/*storageImageDescriptor2.imageView = _renderTargets.denoiseA._view;
 	_denoiseATextureDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
@@ -2145,17 +1919,17 @@ void VulkanBackEnd::update_static_descriptor_set() {
 
 void VulkanBackEnd::UpdateDynamicDescriptorSet() {
 
-	_dynamicDescriptorSetInventory.Update(g_device, 0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &get_current_frame()._inventoryTLAS.handle);
-	_dynamicDescriptorSetInventory.Update(g_device, 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, get_current_frame()._inventoryCamDataBuffer.buffer);
-	_dynamicDescriptorSetInventory.Update(g_device, 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstancesInventoryBuffer.buffer);
-	_dynamicDescriptorSetInventory.Update(g_device, 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstances2DBuffer.buffer);
-	_dynamicDescriptorSetInventory.Update(g_device, 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._lightRenderInfoBufferInventory.buffer);
+	_dynamicDescriptorSetInventory.Update(GetDevice(), 0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &get_current_frame()._inventoryTLAS.handle);
+	_dynamicDescriptorSetInventory.Update(GetDevice(), 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, get_current_frame()._inventoryCamDataBuffer.buffer);
+	_dynamicDescriptorSetInventory.Update(GetDevice(), 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstancesInventoryBuffer.buffer);
+	_dynamicDescriptorSetInventory.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstances2DBuffer.buffer);
+	_dynamicDescriptorSetInventory.Update(GetDevice(), 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._lightRenderInfoBufferInventory.buffer);
 	
-	_dynamicDescriptorSet.Update(g_device, 0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &get_current_frame()._sceneTLAS.handle);
-	_dynamicDescriptorSet.Update(g_device, 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, get_current_frame()._sceneCamDataBuffer.buffer);
-	_dynamicDescriptorSet.Update(g_device, 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstancesSceneBuffer.buffer);	
-	_dynamicDescriptorSet.Update(g_device, 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstances2DBuffer.buffer);
-	_dynamicDescriptorSet.Update(g_device, 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._lightRenderInfoBuffer.buffer);
+	_dynamicDescriptorSet.Update(GetDevice(), 0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &get_current_frame()._sceneTLAS.handle);
+	_dynamicDescriptorSet.Update(GetDevice(), 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, get_current_frame()._sceneCamDataBuffer.buffer);
+	_dynamicDescriptorSet.Update(GetDevice(), 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstancesSceneBuffer.buffer);	
+	_dynamicDescriptorSet.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstances2DBuffer.buffer);
+	_dynamicDescriptorSet.Update(GetDevice(), 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._lightRenderInfoBuffer.buffer);
 }
 
 
@@ -2187,8 +1961,10 @@ void VulkanBackEnd::blit_render_target(VkCommandBuffer commandBuffer, RenderTarg
 	vkCmdBlitImage(commandBuffer, source._image, srcLayout, destination._image, dstLayout, regionCount, &region, filter);
 }
 
-void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex)
-{
+void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
+	uint32_t currentWindowWidth = GLFWIntegration::GetCurrentWindowWidth();
+	uint32_t currentWindowHeight = GLFWIntegration::GetCurrentWindowHeight();
+
 	// Now fill your command buffer
 	int32_t frameIndex = _frameNumber % FRAME_OVERLAP;
 	VkCommandBuffer commandBuffer = _frames[frameIndex]._commandBuffer;
@@ -2798,7 +2574,7 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex)
 		swapChainBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		swapChainBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		swapChainBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		swapChainBarrier.image = _swapchainImages[swapchainIndex];
+		swapChainBarrier.image = GetSwapchainImages()[swapchainIndex];
 		swapChainBarrier.subresourceRange = range;
 		swapChainBarrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 		swapChainBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
@@ -2814,8 +2590,8 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex)
 		region.dstOffsets[0].x = 0;
 		region.dstOffsets[0].y = 0;
 		region.dstOffsets[0].z = 0;
-		region.dstOffsets[1].x = _currentWindowExtent.width;
-		region.dstOffsets[1].y = _currentWindowExtent.height;
+		region.dstOffsets[1].x = currentWindowWidth;
+		region.dstOffsets[1].y = currentWindowHeight;
 		region.dstOffsets[1].z = 1;
 		region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		region.srcSubresource.mipLevel = 0;
@@ -2832,16 +2608,16 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex)
 		// Blit the image into the swapchain
 		region.srcOffsets[1].x = _renderTargets.present._extent.width;
 		region.srcOffsets[1].y = _renderTargets.present._extent.height;
-		region.dstOffsets[1].x = _currentWindowExtent.width;
-		region.dstOffsets[1].y = _currentWindowExtent.height;
-		vkCmdBlitImage(commandBuffer, _renderTargets.present._image, srcLayout, _swapchainImages[swapchainIndex], dstLayout, regionCount, &region, VkFilter::VK_FILTER_NEAREST);
+		region.dstOffsets[1].x = currentWindowWidth;
+		region.dstOffsets[1].y = currentWindowHeight;
+		vkCmdBlitImage(commandBuffer, _renderTargets.present._image, srcLayout, GetSwapchainImages()[swapchainIndex], dstLayout, regionCount, &region, VkFilter::VK_FILTER_NEAREST);
 
 		// Prepare swap chain for present
 		swapChainBarrier = {};
 		swapChainBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		swapChainBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 		swapChainBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		swapChainBarrier.image = _swapchainImages[swapchainIndex];
+		swapChainBarrier.image = GetSwapchainImages()[swapchainIndex];
 		swapChainBarrier.subresourceRange = range;
 		swapChainBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 		swapChainBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
@@ -2918,7 +2694,7 @@ void VulkanBackEnd::get_required_lines() {
 		nameInfo.objectType = VK_OBJECT_TYPE_BUFFER;
 		nameInfo.objectHandle = (uint64_t)_lineListMesh._vertexBuffer._buffer;
 		nameInfo.pObjectName = "Line list mesh";
-		vkSetDebugUtilsObjectNameEXT(g_device, &nameInfo); 
+		vkSetDebugUtilsObjectNameEXT(GetDevice(), &nameInfo); 
 		runOnce = false;
 	}
 

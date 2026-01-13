@@ -1252,8 +1252,7 @@ std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForInvent
 	return instances;
 }
 
-std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForSceneAccelerationStructure()
-{
+std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForSceneAccelerationStructure() {
 	int instanceCustomIndex = 0;
 	std::vector<VkAccelerationStructureInstanceKHR> instances;
 

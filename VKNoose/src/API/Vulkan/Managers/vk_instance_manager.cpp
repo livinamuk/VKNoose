@@ -29,6 +29,11 @@ namespace VulkanInstanceManager {
     }
 
     bool Init() {
+        if (volkInitialize() != VkResult::VK_SUCCESS) {
+            std::cout << "volkInitialize failed\n";
+            return false;
+        }
+
         vkb::InstanceBuilder builder;
         builder.set_app_name("Unloved");
         builder.request_validation_layers(g_validationEnabled);
@@ -43,6 +48,8 @@ namespace VulkanInstanceManager {
         // Create surface
         GLFWwindow* window = (GLFWwindow*)GLFWIntegration::GetWindowPointer();
         glfwCreateWindowSurface(g_instance, window, nullptr, &g_surface);
+
+        volkLoadInstance(g_instance);
 
         std::cout << "VulkanInstanceManager::Init()\n";
         return true;
