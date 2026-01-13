@@ -97,6 +97,8 @@
     <ClCompile Include="src\API\Vulkan\Managers\vk_instance_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_memory_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_swapchain_manager.cpp" />
+    <ClCompile Include="src\API\Vulkan\Types\vk_allocated_image.cpp" />
+    <ClCompile Include="src\API\Vulkan\Types\vk_shader.cpp" />
     <ClCompile Include="src\Audio\Audio.cpp" />
     <ClCompile Include="src\BackEnd\BackEnd.cpp" />
     <ClCompile Include="src\Game\AssetManager.cpp" />
@@ -135,6 +137,8 @@
     <ClInclude Include="src\API\Vulkan\Managers\vk_memory_manager.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_swapchain_manager.h" />
     <ClInclude Include="src\API\Vulkan\plan.h" />
+    <ClInclude Include="src\API\Vulkan\Types\vk_allocated_image.h" />
+    <ClInclude Include="src\API\Vulkan\Types\vk_shader.h" />
     <ClInclude Include="src\API\Vulkan\vk_common.h" />
     <ClInclude Include="src\Audio\Audio.h" />
     <ClInclude Include="src\BackEnd\BackEnd.h" />

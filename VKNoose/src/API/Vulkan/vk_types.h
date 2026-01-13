@@ -212,7 +212,7 @@ struct RenderTarget {
 	}
 };
 
-struct AllocatedImage {
+struct AllocatedImageOLD {
 	VkImage _image;
 	VmaAllocation _allocation;
 };
@@ -243,7 +243,7 @@ struct AccelerationStructure {
 };
 
 struct Texture {
-	AllocatedImage image;
+	AllocatedImageOLD image;
 	VkImageView imageView;
 	int _width = 0;
 	int _height = 0;

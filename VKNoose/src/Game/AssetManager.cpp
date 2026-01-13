@@ -402,7 +402,7 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 			createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 			createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-			AllocatedImage newImage;
+			AllocatedImageOLD newImage;
 
 			VmaAllocationCreateInfo dimg_allocinfo = {};
 			dimg_allocinfo.usage = VMA_MEMORY_USAGE_AUTO;
@@ -581,7 +581,7 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 		createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-		AllocatedImage newImage;
+		AllocatedImageOLD newImage;
 
 		VmaAllocationCreateInfo dimg_allocinfo = {};
 		dimg_allocinfo.usage = VMA_MEMORY_USAGE_AUTO;

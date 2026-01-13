@@ -20,12 +20,13 @@
 #include "Managers/vk_memory_manager.h"
 #include "Managers/vk_swapchain_manager.h"
 
+#include "Types/vk_allocated_image.h"
+#include "Types/vk_shader.h"
+
 #define NOOSE_PI 3.14159265359f
 const bool _printAvaliableExtensions = false;
 float _deltaTime;
 std::vector<std::string> _loadingText;
-
-RenderTarget _loadingScreenRenderTarget;
 
 namespace VulkanBackEnd {
 	VkDevice GetDevice() { return VulkanDeviceManager::GetDevice(); }
@@ -42,12 +43,63 @@ namespace VulkanBackEnd {
 	std::vector<VkImageView>& GetSwapchainImageViews() { return VulkanSwapchainManager::GetSwapchainImageViews(); }
 	VkFormat GetSwapchainImageFormat() { return VulkanSwapchainManager::GetSwapchainImageFormat(); }
 
-	const bool g_validationEnabled = true;
+	// Shaders
+	VkShaderModule _gbuffer_vertex_shader = nullptr;
+	VkShaderModule _gbuffer_fragment_shader = nullptr;
+	VkShaderModule _solid_color_vertex_shader = nullptr;
+	VkShaderModule _solid_color_fragment_shader = nullptr;
+	VkShaderModule _text_blitter_vertex_shader = nullptr;
+	VkShaderModule _text_blitter_fragment_shader = nullptr;
+	VkShaderModule _composite_vertex_shader = nullptr;
+	VkShaderModule _composite_fragment_shader = nullptr;
+	
+	// Pipelines
+	inline struct Pipelines {
+		Pipeline composite;
+		Pipeline textBlitter;
+		Pipeline lines;
+	} _pipelines;
+
 }
 
+// Will become VulkanRenderer:
+namespace VulkanBackEnd {
+	std::unordered_map<std::string, AllocatedImage> g_allocatedImages;
+	std::unordered_map<std::string, VulkanShader> g_shaders;
+
+	AllocatedImage& CreateAllocatedImage(const std::string& name, VkFormat imageFormat, VkExtent3D imageExtent, VkImageUsageFlags usage) {
+		g_allocatedImages[name] = AllocatedImage(GetDevice(), GetAllocator(), imageFormat, imageExtent, usage, name);
+		return g_allocatedImages[name];
+	}
+
+	VulkanShader& CreateShader(const std::string& name) {
+		g_shaders[name] = VulkanShader();
+		return g_shaders[name];
+	}
+
+	AllocatedImage* GetAllocatedImage(const std::string& name) {
+		auto it = g_allocatedImages.find(name);
+		if (it != g_allocatedImages.end()) {
+			return &it->second;
+		}
+		std::cerr << "Failed to get AllocatedImage: " << name << "\n";
+		return nullptr;
+	}
+
+	VulkanShader* GetShader(const std::string& name) {
+		auto it = g_shaders.find(name);
+		if (it != g_shaders.end()) {
+			return &it->second;
+		}
+		std::cerr << "Failed to get VulkanShader: " << name << "\n";
+		return nullptr;
+	}
+
+	void BlitAllocatedImageToSwapchain(VkCommandBuffer cmd, AllocatedImage& srcImage, uint32_t swapchainIndex);
+}
 
 namespace VulkanBackEnd {
-	
+
     bool VulkanBackEnd::InitMinimum() {
 		if (!VulkanInstanceManager::Init()) return false;
 		if (!VulkanDeviceManager::Init()) return false;
@@ -57,9 +109,13 @@ namespace VulkanBackEnd {
         load_shader(GetDevice(), "text_blitter.vert", VK_SHADER_STAGE_VERTEX_BIT, &_text_blitter_vertex_shader);
         load_shader(GetDevice(), "text_blitter.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_text_blitter_fragment_shader);
 
-        VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
-        VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        _loadingScreenRenderTarget = RenderTarget(GetDevice(), GetAllocator(), format, 512 * 2, 288 * 2, usage, "Loading Screen Render Target");
+		VulkanShader& textBlitter = CreateShader("TextBlitter");
+
+        VkFormat imageFormat = VK_FORMAT_R8G8B8A8_UNORM;
+        VkExtent3D imageExtent = { 512 * 2, 288 * 2, 1 };
+		VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+		
+		AllocatedImage& loadingScreen = CreateAllocatedImage("LoadingScreen", imageFormat, imageExtent, usage);
 
         create_command_buffers();
         create_sync_structures();
@@ -67,7 +123,7 @@ namespace VulkanBackEnd {
         create_descriptors();
 
         // Create text blitter pipeline and pipeline layout
-        _pipelines.textBlitter.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
+        _pipelines.textBlitter.PushDescriptorSetLayout(_frames[0].m_dynamicDescriptorSet.layout);
         _pipelines.textBlitter.PushDescriptorSetLayout(_staticDescriptorSet.layout);
         _pipelines.textBlitter.CreatePipelineLayout(GetDevice());
         _pipelines.textBlitter.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
@@ -205,32 +261,20 @@ void VulkanBackEnd::LoadNextItem() {
 }
 
 
-void VulkanBackEnd::cleanup_shaders()
-{
+void VulkanBackEnd::cleanup_shaders() {
 	vkDestroyShaderModule(GetDevice(), _text_blitter_vertex_shader, nullptr);
 	vkDestroyShaderModule(GetDevice(), _text_blitter_fragment_shader, nullptr);
 	vkDestroyShaderModule(GetDevice(), _solid_color_vertex_shader, nullptr);
 	vkDestroyShaderModule(GetDevice(), _solid_color_fragment_shader, nullptr);
 	vkDestroyShaderModule(GetDevice(), _gbuffer_vertex_shader, nullptr);
 	vkDestroyShaderModule(GetDevice(), _gbuffer_fragment_shader, nullptr);
-	vkDestroyShaderModule(GetDevice(), _blur_horizontal_vertex_shader, nullptr);
-	vkDestroyShaderModule(GetDevice(), _blur_horizontal_fragment_shader, nullptr);
-	vkDestroyShaderModule(GetDevice(), _blur_vertical_vertex_shader, nullptr);
-	vkDestroyShaderModule(GetDevice(), _blur_vertical_fragment_shader, nullptr);
 	vkDestroyShaderModule(GetDevice(), _composite_vertex_shader, nullptr);
 	vkDestroyShaderModule(GetDevice(), _composite_fragment_shader, nullptr);
-	vkDestroyShaderModule(GetDevice(), _denoise_pass_A_vertex_shader, nullptr);
-	vkDestroyShaderModule(GetDevice(), _denoise_pass_A_fragment_shader, nullptr);
-	vkDestroyShaderModule(GetDevice(), _denoise_pass_B_vertex_shader, nullptr);
-	vkDestroyShaderModule(GetDevice(), _denoise_pass_B_fragment_shader, nullptr);
-	vkDestroyShaderModule(GetDevice(), _denoise_pass_C_vertex_shader, nullptr);
-	vkDestroyShaderModule(GetDevice(), _denoise_pass_C_fragment_shader, nullptr);
 }
 
 void VulkanBackEnd::Cleanup()
 {
     GLFWwindow* _window = (GLFWwindow*)GLFWIntegration::GetWindowPointer();
-
 
 	//make sure the gpu has stopped doing its things
 	vkDeviceWaitIdle(GetDevice());
@@ -241,11 +285,6 @@ void VulkanBackEnd::Cleanup()
 	_pipelines.textBlitter.Cleanup(GetDevice());
 	_pipelines.composite.Cleanup(GetDevice());
 	_pipelines.lines.Cleanup(GetDevice());
-	_pipelines.denoisePassA.Cleanup(GetDevice());
-	_pipelines.denoisePassB.Cleanup(GetDevice());
-	_pipelines.denoisePassC.Cleanup(GetDevice());
-	_pipelines.denoiseBlurHorizontal.Cleanup(GetDevice());
-	_pipelines.denoiseBlurVertical.Cleanup(GetDevice());
 
 	// Command pools
 	vkDestroyCommandPool(GetDevice(), _uploadContext._commandPool, nullptr);
@@ -253,26 +292,23 @@ void VulkanBackEnd::Cleanup()
 
 	// Frame data
 	for (int i = 0; i < FRAME_OVERLAP; i++) {
-		vkDestroyCommandPool(GetDevice(), _frames[i]._commandPool, nullptr);
-		vkDestroyFence(GetDevice(), _frames[i]._renderFence, nullptr);
-		vkDestroySemaphore(GetDevice(), _frames[i]._presentSemaphore, nullptr);
-		vkDestroySemaphore(GetDevice(), _frames[i]._renderSemaphore, nullptr);
+		vkDestroySemaphore(GetDevice(), _frames[i].m_presentSemaphore, nullptr);
+		vkDestroyFence(GetDevice(), _frames[i].m_renderFence, nullptr);
+
+		for (VkSemaphore sem : _frames[i].m_renderSemaphores) {
+			vkDestroySemaphore(GetDevice(), sem, nullptr);
+		}
 	}
+
 	// Render targets
-	_loadingScreenRenderTarget.cleanup(GetDevice(), GetAllocator());
 	_renderTargets.present.cleanup(GetDevice(), GetAllocator());
 	_renderTargets.gBufferBasecolor.cleanup(GetDevice(), GetAllocator());
 	_renderTargets.gBufferNormal.cleanup(GetDevice(), GetAllocator());
 	_renderTargets.gBufferRMA.cleanup(GetDevice(), GetAllocator());
-	_renderTargets.denoiseTextureA.cleanup(GetDevice(), GetAllocator());
-	_renderTargets.denoiseTextureB.cleanup(GetDevice(), GetAllocator());
-	_renderTargets.denoiseTextureC.cleanup(GetDevice(), GetAllocator());
 	_presentDepthTarget.Cleanup(GetDevice(), GetAllocator());
 	_gbufferDepthTarget.Cleanup(GetDevice(), GetAllocator());
 	_renderTargets.laptopDisplay.cleanup(GetDevice(), GetAllocator());
 	_renderTargets.composite.cleanup(GetDevice(), GetAllocator());
-	//_renderTargetDenoiseA.cleanup(_device, _allocator);
-	//_renderTargetDenoiseB.cleanup(_device, _allocator);
 
 	// Swapchain
 	for (int i = 0; i < GetSwapchainImageViews().size(); i++) {
@@ -303,12 +339,10 @@ void VulkanBackEnd::Cleanup()
 		_frames[i]._lightRenderInfoBufferInventory.Destroy(GetAllocator());
 	}
 	// Descriptor sets
-	_dynamicDescriptorSet.Destroy(GetDevice());
-	_dynamicDescriptorSetInventory.Destroy(GetDevice());
+	//_dynamicDescriptorSet.Destroy(GetDevice());
+	//_dynamicDescriptorSetInventory.Destroy(GetDevice());
 	_staticDescriptorSet.Destroy(GetDevice());
 	_samplerDescriptorSet.Destroy(GetDevice());
-	//_denoiseATextureDescriptorSet.Destroy(_device);
-	//_denoiseBTextureDescriptorSet.Destroy(_device);
 
 	// Textures
 	for (int i = 0; i < AssetManager::GetNumberOfTextures(); i++) {
@@ -343,7 +377,7 @@ uint32_t alignedSize(uint32_t value, uint32_t alignment) {
 void VulkanBackEnd::init_raytracing() {
 	const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& _rayTracingPipelineProperties = VulkanDeviceManager::GetRayTracingPipelineProperties();
 
-	std::vector<VkDescriptorSetLayout> rtDescriptorSetLayouts = { _dynamicDescriptorSet.layout, _staticDescriptorSet.layout, _samplerDescriptorSet.layout };
+	std::vector<VkDescriptorSetLayout> rtDescriptorSetLayouts = { _frames[0].m_dynamicDescriptorSet.layout, _staticDescriptorSet.layout, _samplerDescriptorSet.layout };
 
 	_raytracer.CreatePipeline(GetDevice(), rtDescriptorSetLayouts, 2);
 	_raytracer.CreateShaderBindingTable(GetDevice(), GetAllocator(), _rayTracingPipelineProperties);
@@ -391,11 +425,11 @@ void VulkanBackEnd::create_command_buffers()
 	VkCommandPoolCreateInfo commandPoolInfo = vkinit::command_pool_create_info(GetGraphicsQueueFamily(), VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
 	for (int i = 0; i < FRAME_OVERLAP; i++) {
-		VK_CHECK(vkCreateCommandPool(GetDevice(), &commandPoolInfo, nullptr, &_frames[i]._commandPool));
+		VK_CHECK(vkCreateCommandPool(GetDevice(), &commandPoolInfo, nullptr, &_frames[i].m_commandPool));
 
 		//allocate the default command buffer that we will use for rendering
-		VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_frames[i]._commandPool, 1);
-		VK_CHECK(vkAllocateCommandBuffers(GetDevice(), &cmdAllocInfo, &_frames[i]._commandBuffer));
+		VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_frames[i].m_commandPool, 1);
+		VK_CHECK(vkAllocateCommandBuffers(GetDevice(), &cmdAllocInfo, &_frames[i].m_commandBuffer));
 	}
 
 	//create command pool for upload context
@@ -412,36 +446,46 @@ void VulkanBackEnd::create_command_buffers()
 
 
 void VulkanBackEnd::RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuffer) {
+	// Retrieve the image from the registry
+	AllocatedImage* loadingTarget = GetAllocatedImage("LoadingScreen");
+	if (!loadingTarget) return;
 
-	std::vector<VkRenderingAttachmentInfoKHR> colorAttachments;
-	VkRenderingAttachmentInfoKHR colorAttachment = {};
-	colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-	colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
+	FrameData& frame = get_current_frame();
+
+	// Transition to the layout expected by the rendering info
+	loadingTarget->TransitionLayout(
+		commandBuffer,
+		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+	);
+
+	VkRenderingAttachmentInfo colorAttachment = {};
+	colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	colorAttachment.imageView = loadingTarget->GetImageView();
+	colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	colorAttachment.clearValue = { 0.0, 0.0, 0, 0 };
-	colorAttachment.imageView = _loadingScreenRenderTarget._view;
-	colorAttachments.push_back(colorAttachment);
+	colorAttachment.clearValue = { {{ 0.0f, 0.0f, 0.0f, 1.0f }} };
 
-	VkRenderingInfoKHR renderingInfo{};
-	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-	renderingInfo.renderArea = { 0, 0, _loadingScreenRenderTarget._extent.width, _loadingScreenRenderTarget._extent.height };
+	VkRenderingInfo renderingInfo = {};
+	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	renderingInfo.renderArea = { 0, 0, (uint32_t)loadingTarget->GetWidth(), (uint32_t)loadingTarget->GetHeight()};
 	renderingInfo.layerCount = 1;
-	renderingInfo.colorAttachmentCount = colorAttachments.size();
-	renderingInfo.pColorAttachments = colorAttachments.data();
-	renderingInfo.pDepthAttachment = nullptr;
-	renderingInfo.pStencilAttachment = nullptr;
+	renderingInfo.colorAttachmentCount = 1;
+	renderingInfo.pColorAttachments = &colorAttachment;
 
 	vkCmdBeginRendering(commandBuffer, &renderingInfo);
-	cmd_SetViewportSize(commandBuffer, _loadingScreenRenderTarget);
+
+	cmd_SetViewportSize(commandBuffer, loadingTarget->GetWidth(), loadingTarget->GetHeight());
 	cmd_BindPipeline(commandBuffer, _pipelines.textBlitter);
-	cmd_BindDescriptorSet(commandBuffer, _pipelines.textBlitter, 0, _dynamicDescriptorSet);
+	cmd_BindDescriptorSet(commandBuffer, _pipelines.textBlitter, 0, frame.m_dynamicDescriptorSet);
 	cmd_BindDescriptorSet(commandBuffer, _pipelines.textBlitter, 1, _staticDescriptorSet);
 
-	// Draw Text plus maybe crosshair
 	for (int i = 0; i < RasterRenderer::instanceCount; i++) {
-		if (RasterRenderer::_UIToRender[i].destination == RasterRenderer::Destination::MAIN_UI)
+		if (RasterRenderer::_UIToRender[i].destination == RasterRenderer::Destination::MAIN_UI) {
 			RasterRenderer::DrawMesh(commandBuffer, i);
+		}
 	}
 	RasterRenderer::ClearQueue();
 
@@ -519,65 +563,128 @@ void VulkanBackEnd::PrepareSwapchainForPresent(VkCommandBuffer commandBuffer, ui
 	vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &swapChainBarrier);
 }
 
+void VulkanBackEnd::BlitAllocatedImageToSwapchain(VkCommandBuffer cmd, AllocatedImage& srcImage, uint32_t swapchainIndex) {
+	int32_t windowWidth = GLFWIntegration::GetCurrentWindowWidth();
+	int32_t windowHeight = GLFWIntegration::GetCurrentWindowHeight();
 
-void VulkanBackEnd::RenderLoadingFrame()
-{
+	// Prepare source image for blit
+	srcImage.TransitionLayout(cmd, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+	// Prepare swapchain image for blit
+	VkImage swapchainImage = GetSwapchainImages()[swapchainIndex];
+
+	VkImageMemoryBarrier swapchainBarrier = {};
+	swapchainBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	swapchainBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	swapchainBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	swapchainBarrier.image = swapchainImage;
+	swapchainBarrier.srcAccessMask = 0;
+	swapchainBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	swapchainBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	swapchainBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	swapchainBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	swapchainBarrier.subresourceRange.baseMipLevel = 0;
+	swapchainBarrier.subresourceRange.levelCount = 1;
+	swapchainBarrier.subresourceRange.baseArrayLayer = 0;
+	swapchainBarrier.subresourceRange.layerCount = 1;
+
+	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &swapchainBarrier);
+
+	VkImageBlit blitRegion = {};
+	// Source region
+	blitRegion.srcOffsets[0] = { 0, 0, 0 };
+	blitRegion.srcOffsets[1] = { srcImage.GetWidth(), srcImage.GetHeight(), 1 };
+	blitRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	blitRegion.srcSubresource.mipLevel = 0;
+	blitRegion.srcSubresource.baseArrayLayer = 0;
+	blitRegion.srcSubresource.layerCount = 1;
+
+	// Destination region (Swapchain)
+	blitRegion.dstOffsets[0] = { 0, 0, 0 };
+	blitRegion.dstOffsets[1] = { windowWidth, windowHeight, 1 };
+	blitRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	blitRegion.dstSubresource.mipLevel = 0;
+	blitRegion.dstSubresource.baseArrayLayer = 0;
+	blitRegion.dstSubresource.layerCount = 1;
+
+	vkCmdBlitImage(cmd, srcImage.GetImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapchainImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blitRegion, VK_FILTER_LINEAR);
+}
+
+void VulkanBackEnd::RenderLoadingFrame() {
 	if (ProgramIsMinimized())
 		return;
 
+	AllocatedImage* loadingTarget = GetAllocatedImage("LoadingScreen");
+	if (!loadingTarget) return;
+
 	AddDebugText();
-	TextBlitter::Update(GameData::GetDeltaTime(), _loadingScreenRenderTarget._extent.width, _loadingScreenRenderTarget._extent.height);
+	TextBlitter::Update(GameData::GetDeltaTime(), loadingTarget->GetWidth(), loadingTarget->GetHeight());
 
-	int32_t frameIndex = _frameNumber % FRAME_OVERLAP;
-	VkFence renderFence = get_current_frame()._renderFence;
-	VkSemaphore presentSemaphore = get_current_frame()._presentSemaphore;
-	VkCommandBuffer commandBuffer = _frames[_frameNumber % FRAME_OVERLAP]._commandBuffer;
-	VkCommandBufferBeginInfo commandBufferInfo = vkinit::command_buffer_begin_info();
+	FrameData& frame = get_current_frame();
+	VkCommandBuffer commandBuffer = frame.m_commandBuffer;
 
-	vkWaitForFences(GetDevice(), 1, &renderFence, VK_TRUE, UINT64_MAX);
+	// Wait for the GPU to finish the last frame using this FrameData slot
+	vkWaitForFences(GetDevice(), 1, &frame.m_renderFence, VK_TRUE, UINT64_MAX);
+	vkResetFences(GetDevice(), 1, &frame.m_renderFence);
 
 	UpdateBuffers2D();
-	_dynamicDescriptorSet.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstances2DBuffer.buffer);
-
-	vkResetFences(GetDevice(), 1, &renderFence);
+	frame.m_dynamicDescriptorSet.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, frame._meshInstances2DBuffer.buffer);
 
 	uint32_t swapchainImageIndex;
-	VkResult result = vkAcquireNextImageKHR(GetDevice(), GetSwapchain(), UINT64_MAX, presentSemaphore, VK_NULL_HANDLE, &swapchainImageIndex);
+	VkResult result = vkAcquireNextImageKHR(GetDevice(), GetSwapchain(), UINT64_MAX, frame.m_presentSemaphore, VK_NULL_HANDLE, &swapchainImageIndex);
 
+	// Reset and begin command buffer
 	VK_CHECK(vkResetCommandBuffer(commandBuffer, 0));
-	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferInfo));
+	VkCommandBufferBeginInfo beginInfo = {};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
-	_loadingScreenRenderTarget.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-
+	// Record the actual rendering
 	RecordAssetLoadingRenderCommands(commandBuffer);
 
-	BlitRenderTargetIntoSwapChain(commandBuffer, _loadingScreenRenderTarget, swapchainImageIndex);
+	// Blit and Prepare
+	BlitAllocatedImageToSwapchain(commandBuffer, *loadingTarget, swapchainImageIndex);
 	PrepareSwapchainForPresent(commandBuffer, swapchainImageIndex);
 
 	VK_CHECK(vkEndCommandBuffer(commandBuffer));
 
-	VkSubmitInfo submit = vkinit::submit_info(&commandBuffer);
+	// Select the semaphore corresponding to the swapchain image index
+	VkSemaphore renderFinishedSemaphore = frame.m_renderSemaphores[swapchainImageIndex];
+
+	VkSubmitInfo submit = {};
+	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
 	VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	submit.pWaitDstStageMask = &waitStage;
+
 	submit.waitSemaphoreCount = 1;
-	submit.pWaitSemaphores = &get_current_frame()._presentSemaphore;
+	submit.pWaitSemaphores = &frame.m_presentSemaphore;
+
 	submit.signalSemaphoreCount = 1;
-	submit.pSignalSemaphores = &get_current_frame()._renderSemaphore;
-	VK_CHECK(vkQueueSubmit(GetGraphicsQueue(), 1, &submit, get_current_frame()._renderFence));
+	submit.pSignalSemaphores = &renderFinishedSemaphore;
+
+	submit.commandBufferCount = 1;
+	submit.pCommandBuffers = &commandBuffer;
+
+	VK_CHECK(vkQueueSubmit(GetGraphicsQueue(), 1, &submit, frame.m_renderFence));
 
 	VkSwapchainKHR swapchain = GetSwapchain();
 
-	VkPresentInfoKHR presentInfo2 = vkinit::present_info();
-	presentInfo2.pSwapchains = &swapchain;
-	presentInfo2.swapchainCount = 1;
-	presentInfo2.pWaitSemaphores = &get_current_frame()._renderSemaphore;
-	presentInfo2.waitSemaphoreCount = 1;
-	presentInfo2.pImageIndices = &swapchainImageIndex;
-	result = vkQueuePresentKHR(GetGraphicsQueue(), &presentInfo2);
+	VkPresentInfoKHR presentInfo = {};
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	presentInfo.pSwapchains = &swapchain;
+	presentInfo.swapchainCount = 1;
+	presentInfo.pWaitSemaphores = &renderFinishedSemaphore;
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pImageIndices = &swapchainImageIndex;
+
+	result = vkQueuePresentKHR(GetGraphicsQueue(), &presentInfo);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
 		VulkanSwapchainManager::RecreateSwapchain();
 	}
+
+	_frameNumber++;
 }
 
 
@@ -588,23 +695,23 @@ void VulkanBackEnd::RenderGameFrame()
 
 	TextBlitter::Update(GameData::GetDeltaTime(), _renderTargets.present._extent.width, _renderTargets.present._extent.height);
 
-	int32_t frameIndex = _frameNumber % FRAME_OVERLAP;
-	VkFence renderFence = get_current_frame()._renderFence;
-	VkSemaphore presentSemaphore = get_current_frame()._presentSemaphore;
-	VkCommandBuffer commandBuffer = _frames[_frameNumber % FRAME_OVERLAP]._commandBuffer;
-	VkCommandBufferBeginInfo commandBufferInfo = vkinit::command_buffer_begin_info();
+	FrameData& frame = get_current_frame();
+	VkFence renderFence = frame.m_renderFence;
+	VkSemaphore presentSemaphore = frame.m_presentSemaphore;
+	VkCommandBuffer commandBuffer = frame.m_commandBuffer;
 
+	// Ensure the GPU has finished using this frame's resources
 	vkWaitForFences(GetDevice(), 1, &renderFence, VK_TRUE, UINT64_MAX);
 
-	// Prep
+	// Prepare frame resources
 	{
-		// Recreate TLAS for current frame
-		vmaDestroyBuffer(GetAllocator(), get_current_frame()._sceneTLAS.buffer._buffer, get_current_frame()._sceneTLAS.buffer._allocation);
-		vkDestroyAccelerationStructureKHR(GetDevice(), get_current_frame()._sceneTLAS.handle, nullptr);
-		create_top_level_acceleration_structure(Scene::GetMeshInstancesForSceneAccelerationStructure(), get_current_frame()._sceneTLAS);
-		vmaDestroyBuffer(GetAllocator(), get_current_frame()._inventoryTLAS.buffer._buffer, get_current_frame()._inventoryTLAS.buffer._allocation);
-		vkDestroyAccelerationStructureKHR(GetDevice(), get_current_frame()._inventoryTLAS.handle, nullptr);
-		create_top_level_acceleration_structure(Scene::GetMeshInstancesForInventoryAccelerationStructure(), get_current_frame()._inventoryTLAS);
+		vmaDestroyBuffer(GetAllocator(), frame._sceneTLAS.buffer._buffer, frame._sceneTLAS.buffer._allocation);
+		vkDestroyAccelerationStructureKHR(GetDevice(), frame._sceneTLAS.handle, nullptr);
+		create_top_level_acceleration_structure(Scene::GetMeshInstancesForSceneAccelerationStructure(), frame._sceneTLAS);
+
+		vmaDestroyBuffer(GetAllocator(), frame._inventoryTLAS.buffer._buffer, frame._inventoryTLAS.buffer._allocation);
+		vkDestroyAccelerationStructureKHR(GetDevice(), frame._inventoryTLAS.handle, nullptr);
+		create_top_level_acceleration_structure(Scene::GetMeshInstancesForInventoryAccelerationStructure(), frame._inventoryTLAS);
 
 		get_required_lines();
 		UpdateBuffers();
@@ -617,37 +724,33 @@ void VulkanBackEnd::RenderGameFrame()
 	uint32_t swapchainImageIndex;
 	VkResult result = vkAcquireNextImageKHR(GetDevice(), GetSwapchain(), UINT64_MAX, presentSemaphore, VK_NULL_HANDLE, &swapchainImageIndex);
 
-	VK_CHECK(vkResetCommandBuffer(commandBuffer, 0));
-	//VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferInfo));
-
-	//_renderTargets.present.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-
-	//RecordCommandsAssetLoading(commandBuffer);
+	// Recording logic (currently encapsulated in build_rt_command_buffers for your RT path)
 	build_rt_command_buffers(swapchainImageIndex);
 
-	//BlitRenderTargetIntoSwapChain(commandBuffer, _renderTargets.present, swapchainImageIndex);
-	//PrepareSwapchainForPresent(commandBuffer, swapchainImageIndex);
-
-	//VK_CHECK(vkEndCommandBuffer(commandBuffer));
+	// Select the unique semaphore for this swapchain image
+	VkSemaphore renderFinishedSemaphore = frame.m_renderSemaphores[swapchainImageIndex];
 
 	VkSubmitInfo submit = vkinit::submit_info(&commandBuffer);
 	VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
 	submit.pWaitDstStageMask = &waitStage;
 	submit.waitSemaphoreCount = 1;
-	submit.pWaitSemaphores = &get_current_frame()._presentSemaphore;
+	submit.pWaitSemaphores = &presentSemaphore;
+
 	submit.signalSemaphoreCount = 1;
-	submit.pSignalSemaphores = &get_current_frame()._renderSemaphore;
-	VK_CHECK(vkQueueSubmit(GetGraphicsQueue(), 1, &submit, get_current_frame()._renderFence));
+	submit.pSignalSemaphores = &renderFinishedSemaphore;
 
-    VkSwapchainKHR swapchain = GetSwapchain();
+	VK_CHECK(vkQueueSubmit(GetGraphicsQueue(), 1, &submit, renderFence));
 
-	VkPresentInfoKHR presentInfo2 = vkinit::present_info();
-	presentInfo2.pSwapchains = &swapchain;
-	presentInfo2.swapchainCount = 1;
-	presentInfo2.pWaitSemaphores = &get_current_frame()._renderSemaphore;
-	presentInfo2.waitSemaphoreCount = 1;
-	presentInfo2.pImageIndices = &swapchainImageIndex;
-	result = vkQueuePresentKHR(GetGraphicsQueue(), &presentInfo2);
+	VkSwapchainKHR swapchain = GetSwapchain();
+	VkPresentInfoKHR presentInfo = vkinit::present_info();
+	presentInfo.pSwapchains = &swapchain;
+	presentInfo.swapchainCount = 1;
+	presentInfo.pWaitSemaphores = &renderFinishedSemaphore;
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pImageIndices = &swapchainImageIndex;
+
+	result = vkQueuePresentKHR(GetGraphicsQueue(), &presentInfo);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
 		VulkanSwapchainManager::RecreateSwapchain();
@@ -750,32 +853,44 @@ void VulkanBackEnd::create_render_targets()
 	// Blur target
 	VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	_renderTargets.composite = RenderTarget(GetDevice(), GetAllocator(), format, width, height, usage, "composite render targe");
-
-	float denoiseWidth = _renderTargets.rt_first_hit_color._extent.width;
-	float denoiseHeight = _renderTargets.rt_first_hit_color._extent.height;
-	_renderTargets.denoiseTextureA = RenderTarget(GetDevice(), GetAllocator(), format, denoiseWidth, denoiseHeight, usage, "denoise A render target");
-	_renderTargets.denoiseTextureB = RenderTarget(GetDevice(), GetAllocator(), format, denoiseWidth, denoiseHeight, usage, "denoise B render target");
-	_renderTargets.denoiseTextureC = RenderTarget(GetDevice(), GetAllocator(), format, denoiseWidth, denoiseHeight, usage, "denoise C render target");
 }
 
 
 
+void VulkanBackEnd::create_sync_structures() {
+	VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-void VulkanBackEnd::create_sync_structures()
-{
-	VkFenceCreateInfo fenceCreateInfo = vkinit::fence_create_info(VK_FENCE_CREATE_SIGNALED_BIT);
-	VkSemaphoreCreateInfo semaphoreCreateInfo = vkinit::semaphore_create_info();
+	VkFenceCreateInfo fenceCreateInfo = {};
+	fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+	// Get the actual number of swapchain images
+	uint32_t swapchainImageCount = static_cast<uint32_t>(VulkanSwapchainManager::GetSwapchainImages().size());
+	if (swapchainImageCount == 0) {
+		std::cerr << "Failed to create sync structures: Swapchain images not initialized.\n";
+		return;
+	}
 
 	for (int i = 0; i < FRAME_OVERLAP; i++) {
-		VK_CHECK(vkCreateFence(GetDevice(), &fenceCreateInfo, nullptr, &_frames[i]._renderFence));
-		VK_CHECK(vkCreateSemaphore(GetDevice(), &semaphoreCreateInfo, nullptr, &_frames[i]._presentSemaphore));
-		VK_CHECK(vkCreateSemaphore(GetDevice(), &semaphoreCreateInfo, nullptr, &_frames[i]._renderSemaphore));
-	}
-	VkFenceCreateInfo uploadFenceCreateInfo = vkinit::fence_create_info();
-	VK_CHECK(vkCreateFence(GetDevice(), &uploadFenceCreateInfo, nullptr, &_uploadContext._uploadFence));
+		vkCreateSemaphore(GetDevice(), &semaphoreCreateInfo, nullptr, &_frames[i].m_presentSemaphore);
+		vkCreateFence(GetDevice(), &fenceCreateInfo, nullptr, &_frames[i].m_renderFence);
 
-    std::cout << "Created sync structures\n";
+		// Ensure the vector is sized and filled for this frame slot
+		_frames[i].m_renderSemaphores.assign(swapchainImageCount, VK_NULL_HANDLE);
+		for (uint32_t j = 0; j < swapchainImageCount; j++) {
+			vkCreateSemaphore(GetDevice(), &semaphoreCreateInfo, nullptr, &_frames[i].m_renderSemaphores[j]);
+		}
+	}
+
+	// Initialize Upload Context Fence (must be unsignaled for first use in immediate_submit)
+	VkFenceCreateInfo uploadFenceCreateInfo = {};
+	uploadFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	vkCreateFence(GetDevice(), &uploadFenceCreateInfo, nullptr, &_uploadContext._uploadFence);
+
+	std::cout << "Created sync structures\n";
 }
+
 
 void VulkanBackEnd::hotload_shaders()
 {
@@ -787,44 +902,12 @@ void VulkanBackEnd::hotload_shaders()
 	_raytracerPath.Cleanup(GetDevice(), GetAllocator());
 	_raytracerMousePick.Cleanup(GetDevice(), GetAllocator());
 
-	//load_shader(_device, "composite.vert", VK_SHADER_STAGE_VERTEX_BIT, &_composite_vertex_shader);
-	//load_shader(_device, "composite.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_composite_fragment_shader);
-
-	//_raytracer.LoadShaders(_device, "raygen.rgen", "miss.rmiss", "shadow.rmiss", "closesthit.rchit");
-	//_raytracerPath.LoadShaders(_device, "path_raygen.rgen", "path_miss.rmiss", "path_shadow.rmiss", "path_closesthit.rchit");
-	//_raytracerMousePick.LoadShaders(_device, "mousepick_raygen.rgen", "mousepick_miss.rmiss", "path_shadow.rmiss", "mousepick_closesthit.rchit");
-
 	LoadShaders();
 
 	create_pipelines();
 
 	init_raytracing();
 }
-/*
-void Vulkan::hotload_shaders()
-{
-	std::cout << "Hotloading shaders...\n";
-
-	vkDeviceWaitIdle(_device);
-
-	_compositePipeline.Cleanup(_device);
-	_denoisePipeline.Cleanup(_device);
-	_rasterPipeline.Cleanup(_device);
-	_textBlitterPipeline.Cleanup(_device);
-	_computePipeline.Cleanup(_device);
-
-	vkDestroyPipeline(_device, _linelistPipeline, nullptr);
-	vkDestroyPipelineLayout(_device, _linelistPipelineLayout, nullptr);
-
-	_raytracer.Cleanup(_device, _allocator);
-	_raytracerPath.Cleanup(_device, _allocator);
-	_raytracerMousePick.Cleanup(_device, _allocator);
-
-	LoadShaders();
-	create_pipelines();
-
-	init_raytracing();
-}*/
 
 
 void VulkanBackEnd::LoadShaders()
@@ -834,21 +917,6 @@ void VulkanBackEnd::LoadShaders()
 
 	load_shader(GetDevice(), "gbuffer.vert", VK_SHADER_STAGE_VERTEX_BIT, &_gbuffer_vertex_shader);
 	load_shader(GetDevice(), "gbuffer.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_gbuffer_fragment_shader);
-
-	load_shader(GetDevice(), "denoise_pass_A.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_A_vertex_shader);
-	load_shader(GetDevice(), "denoise_pass_A.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_A_fragment_shader);
-
-	load_shader(GetDevice(), "denoise_pass_B.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_B_vertex_shader);
-	load_shader(GetDevice(), "denoise_pass_B.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_B_fragment_shader);
-
-	load_shader(GetDevice(), "denoise_pass_C.vert", VK_SHADER_STAGE_VERTEX_BIT, &_denoise_pass_C_vertex_shader);
-	load_shader(GetDevice(), "denoise_pass_C.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_denoise_pass_C_fragment_shader);
-
-	load_shader(GetDevice(), "blur_horizontal.vert", VK_SHADER_STAGE_VERTEX_BIT, &_blur_horizontal_vertex_shader);
-	load_shader(GetDevice(), "blur_horizontal.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_blur_horizontal_fragment_shader);
-
-	load_shader(GetDevice(), "blur_vertical.vert", VK_SHADER_STAGE_VERTEX_BIT, &_blur_vertical_vertex_shader);
-	load_shader(GetDevice(), "blur_vertical.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_blur_vertical_fragment_shader);
 
 	load_shader(GetDevice(), "composite.vert", VK_SHADER_STAGE_VERTEX_BIT, &_composite_vertex_shader);
 	load_shader(GetDevice(), "composite.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_composite_fragment_shader);
@@ -862,7 +930,7 @@ void VulkanBackEnd::LoadShaders()
 void VulkanBackEnd::create_pipelines()
 {
 	// Commposite pipeline
-	_pipelines.composite.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
+	_pipelines.composite.PushDescriptorSetLayout(_frames[0].m_dynamicDescriptorSet.layout);
 	_pipelines.composite.PushDescriptorSetLayout(_staticDescriptorSet.layout);
 	_pipelines.composite.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
 	_pipelines.composite.CreatePipelineLayout(GetDevice());
@@ -876,7 +944,7 @@ void VulkanBackEnd::create_pipelines()
 	_pipelines.composite.Build(GetDevice(), _composite_vertex_shader, _composite_fragment_shader, 1);
 	
 	// Lines pipeline
-	_pipelines.lines.PushDescriptorSetLayout(_dynamicDescriptorSet.layout);
+	_pipelines.lines.PushDescriptorSetLayout(_frames[0].m_dynamicDescriptorSet.layout);
 	_pipelines.lines.PushDescriptorSetLayout(_staticDescriptorSet.layout);
 	_pipelines.lines.SetPushConstantSize(sizeof(LineShaderPushConstants));
 	_pipelines.lines.SetPushConstantCount(1);
@@ -891,64 +959,64 @@ void VulkanBackEnd::create_pipelines()
 	_pipelines.lines.Build(GetDevice(), _solid_color_vertex_shader, _solid_color_fragment_shader, 1);
 
 	// Denoise A pipeline
-	_pipelines.denoisePassA.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
-	_pipelines.denoisePassA.CreatePipelineLayout(GetDevice());
-	_pipelines.denoisePassA.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
-	_pipelines.denoisePassA.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-	_pipelines.denoisePassA.SetPolygonMode(VK_POLYGON_MODE_FILL);
-	_pipelines.denoisePassA.SetCullModeFlags(VK_CULL_MODE_NONE);
-	_pipelines.denoisePassA.SetColorBlending(false);
-	_pipelines.denoisePassA.SetDepthTest(false);
-	_pipelines.denoisePassA.SetDepthWrite(false);
-	_pipelines.denoisePassA.Build(GetDevice(), _denoise_pass_A_vertex_shader, _denoise_pass_A_fragment_shader, 1);
-	
-	// Denoise B pipeline
-	_pipelines.denoisePassB.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
-	_pipelines.denoisePassB.CreatePipelineLayout(GetDevice());
-	_pipelines.denoisePassB.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
-	_pipelines.denoisePassB.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-	_pipelines.denoisePassB.SetPolygonMode(VK_POLYGON_MODE_FILL);
-	_pipelines.denoisePassB.SetCullModeFlags(VK_CULL_MODE_NONE);
-	_pipelines.denoisePassB.SetColorBlending(false);
-	_pipelines.denoisePassB.SetDepthTest(false);
-	_pipelines.denoisePassB.SetDepthWrite(false);
-	_pipelines.denoisePassB.Build(GetDevice(), _denoise_pass_B_vertex_shader, _denoise_pass_B_fragment_shader, 1);
-
-	// Denoise C pipeline
-	_pipelines.denoisePassC.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
-	_pipelines.denoisePassC.CreatePipelineLayout(GetDevice());
-	_pipelines.denoisePassC.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
-	_pipelines.denoisePassC.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-	_pipelines.denoisePassC.SetPolygonMode(VK_POLYGON_MODE_FILL);
-	_pipelines.denoisePassC.SetCullModeFlags(VK_CULL_MODE_NONE);
-	_pipelines.denoisePassC.SetColorBlending(false);
-	_pipelines.denoisePassC.SetDepthTest(false);
-	_pipelines.denoisePassC.SetDepthWrite(false);
-	_pipelines.denoisePassC.Build(GetDevice(), _denoise_pass_C_vertex_shader, _denoise_pass_C_fragment_shader, 1);
-	
-	// Blur horizontal
-	_pipelines.denoiseBlurHorizontal.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
-	_pipelines.denoiseBlurHorizontal.CreatePipelineLayout(GetDevice());
-	_pipelines.denoiseBlurHorizontal.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
-	_pipelines.denoiseBlurHorizontal.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-	_pipelines.denoiseBlurHorizontal.SetPolygonMode(VK_POLYGON_MODE_FILL);
-	_pipelines.denoiseBlurHorizontal.SetCullModeFlags(VK_CULL_MODE_NONE);
-	_pipelines.denoiseBlurHorizontal.SetColorBlending(false);
-	_pipelines.denoiseBlurHorizontal.SetDepthTest(false);
-	_pipelines.denoiseBlurHorizontal.SetDepthWrite(false);
-	_pipelines.denoiseBlurHorizontal.Build(GetDevice(), _blur_horizontal_vertex_shader, _blur_horizontal_fragment_shader, 1);
-
-	// Blur vertical
-	_pipelines.denoiseBlurVertical.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
-	_pipelines.denoiseBlurVertical.CreatePipelineLayout(GetDevice());
-	_pipelines.denoiseBlurVertical.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
-	_pipelines.denoiseBlurVertical.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-	_pipelines.denoiseBlurVertical.SetPolygonMode(VK_POLYGON_MODE_FILL);
-	_pipelines.denoiseBlurVertical.SetCullModeFlags(VK_CULL_MODE_NONE);
-	_pipelines.denoiseBlurVertical.SetColorBlending(false);
-	_pipelines.denoiseBlurVertical.SetDepthTest(false);
-	_pipelines.denoiseBlurVertical.SetDepthWrite(false);
-	_pipelines.denoiseBlurVertical.Build(GetDevice(), _blur_vertical_vertex_shader, _blur_vertical_fragment_shader, 1);
+	//_pipelines.denoisePassA.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
+	//_pipelines.denoisePassA.CreatePipelineLayout(GetDevice());
+	//_pipelines.denoisePassA.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
+	//_pipelines.denoisePassA.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	//_pipelines.denoisePassA.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	//_pipelines.denoisePassA.SetCullModeFlags(VK_CULL_MODE_NONE);
+	//_pipelines.denoisePassA.SetColorBlending(false);
+	//_pipelines.denoisePassA.SetDepthTest(false);
+	//_pipelines.denoisePassA.SetDepthWrite(false);
+	//_pipelines.denoisePassA.Build(GetDevice(), _denoise_pass_A_vertex_shader, _denoise_pass_A_fragment_shader, 1);
+	//
+	//// Denoise B pipeline
+	//_pipelines.denoisePassB.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
+	//_pipelines.denoisePassB.CreatePipelineLayout(GetDevice());
+	//_pipelines.denoisePassB.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
+	//_pipelines.denoisePassB.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	//_pipelines.denoisePassB.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	//_pipelines.denoisePassB.SetCullModeFlags(VK_CULL_MODE_NONE);
+	//_pipelines.denoisePassB.SetColorBlending(false);
+	//_pipelines.denoisePassB.SetDepthTest(false);
+	//_pipelines.denoisePassB.SetDepthWrite(false);
+	//_pipelines.denoisePassB.Build(GetDevice(), _denoise_pass_B_vertex_shader, _denoise_pass_B_fragment_shader, 1);
+	//
+	//// Denoise C pipeline
+	//_pipelines.denoisePassC.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
+	//_pipelines.denoisePassC.CreatePipelineLayout(GetDevice());
+	//_pipelines.denoisePassC.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
+	//_pipelines.denoisePassC.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	//_pipelines.denoisePassC.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	//_pipelines.denoisePassC.SetCullModeFlags(VK_CULL_MODE_NONE);
+	//_pipelines.denoisePassC.SetColorBlending(false);
+	//_pipelines.denoisePassC.SetDepthTest(false);
+	//_pipelines.denoisePassC.SetDepthWrite(false);
+	//_pipelines.denoisePassC.Build(GetDevice(), _denoise_pass_C_vertex_shader, _denoise_pass_C_fragment_shader, 1);
+	//
+	//// Blur horizontal
+	//_pipelines.denoiseBlurHorizontal.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
+	//_pipelines.denoiseBlurHorizontal.CreatePipelineLayout(GetDevice());
+	//_pipelines.denoiseBlurHorizontal.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
+	//_pipelines.denoiseBlurHorizontal.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	//_pipelines.denoiseBlurHorizontal.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	//_pipelines.denoiseBlurHorizontal.SetCullModeFlags(VK_CULL_MODE_NONE);
+	//_pipelines.denoiseBlurHorizontal.SetColorBlending(false);
+	//_pipelines.denoiseBlurHorizontal.SetDepthTest(false);
+	//_pipelines.denoiseBlurHorizontal.SetDepthWrite(false);
+	//_pipelines.denoiseBlurHorizontal.Build(GetDevice(), _blur_horizontal_vertex_shader, _blur_horizontal_fragment_shader, 1);
+	//
+	//// Blur vertical
+	//_pipelines.denoiseBlurVertical.PushDescriptorSetLayout(_samplerDescriptorSet.layout);
+	//_pipelines.denoiseBlurVertical.CreatePipelineLayout(GetDevice());
+	//_pipelines.denoiseBlurVertical.SetVertexDescription(VertexDescriptionType::POSITION_TEXCOORD);
+	//_pipelines.denoiseBlurVertical.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	//_pipelines.denoiseBlurVertical.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	//_pipelines.denoiseBlurVertical.SetCullModeFlags(VK_CULL_MODE_NONE);
+	//_pipelines.denoiseBlurVertical.SetColorBlending(false);
+	//_pipelines.denoiseBlurVertical.SetDepthTest(false);
+	//_pipelines.denoiseBlurVertical.SetDepthWrite(false);
+	//_pipelines.denoiseBlurVertical.Build(GetDevice(), _blur_vertical_vertex_shader, _blur_vertical_fragment_shader, 1);
 	
 	// Raster pipeline
 	/* {
@@ -1249,25 +1317,26 @@ void VulkanBackEnd::create_descriptors() {
 
 	vkCreateDescriptorPool(GetDevice(), &descriptorPoolCreateInfo, nullptr, &_descriptorPool);
 
-	// Dynamic 
-	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 0, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// acceleration structure
-	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// camera data
-	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// all 3D mesh instances
-	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, 1, VK_SHADER_STAGE_VERTEX_BIT);																			// all 2d mesh instances
-	_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);																	// light positions and colors
-	_dynamicDescriptorSet.BuildSetLayout(GetDevice());
-	_dynamicDescriptorSet.AllocateSet(GetDevice(), _descriptorPool);
-	add_debug_name(_dynamicDescriptorSet.layout, "DynamicDescriptorSetLayout");
-	// Dynamic inventory
-	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 0, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// acceleration structure
-	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// camera data
-	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// all 3D mesh instances
-	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, 1, VK_SHADER_STAGE_VERTEX_BIT);																			// all 2d mesh instances
-	_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);																	// light positions and colors
-	_dynamicDescriptorSetInventory.BuildSetLayout(GetDevice());
-	_dynamicDescriptorSetInventory.AllocateSet(GetDevice(), _descriptorPool);
-	add_debug_name(_dynamicDescriptorSetInventory.layout, "_dynamicDescriptorSetInventory");
-
+	for (int i = 0; i < FRAME_OVERLAP; i++) {
+		// Dynamic 
+		_frames[i].m_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 0, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// acceleration structure
+		_frames[i].m_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// camera data
+		_frames[i].m_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// all 3D mesh instances
+		_frames[i].m_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, 1, VK_SHADER_STAGE_VERTEX_BIT);																			// all 2d mesh instances
+		_frames[i].m_dynamicDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);																	// light positions and colors
+		_frames[i].m_dynamicDescriptorSet.BuildSetLayout(GetDevice());
+		_frames[i].m_dynamicDescriptorSet.AllocateSet(GetDevice(), _descriptorPool);
+		add_debug_name(_frames[i].m_dynamicDescriptorSet.layout, "DynamicDescriptorSetLayout");
+		// Dynamic inventory
+		_frames[i].m_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 0, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);					// acceleration structure
+		_frames[i].m_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// camera data
+		_frames[i].m_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);	// all 3D mesh instances
+		_frames[i].m_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, 1, VK_SHADER_STAGE_VERTEX_BIT);																			// all 2d mesh instances
+		_frames[i].m_dynamicDescriptorSetInventory.AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);																	// light positions and colors
+		_frames[i].m_dynamicDescriptorSetInventory.BuildSetLayout(GetDevice());
+		_frames[i].m_dynamicDescriptorSetInventory.AllocateSet(GetDevice(), _descriptorPool);
+		add_debug_name(_frames[i].m_dynamicDescriptorSetInventory.layout, "_dynamicDescriptorSetInventory");
+	}
 	// Static 
 	_staticDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_SAMPLER, 0, 1, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_FRAGMENT_BIT);							// sampler
 	_staticDescriptorSet.AddBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, TEXTURE_ARRAY_SIZE, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_FRAGMENT_BIT);	// all textures
@@ -1898,38 +1967,24 @@ void VulkanBackEnd::update_static_descriptor_set() {
 	storageImageDescriptor2.imageView = _renderTargets.rt_second_hit_color._view;
 	_samplerDescriptorSet.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
 
-	storageImageDescriptor2.imageView = _renderTargets.denoiseTextureA._view;
-	_samplerDescriptorSet.Update(GetDevice(), 4, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
-
-	storageImageDescriptor2.imageView = _renderTargets.denoiseTextureB._view;
-	_samplerDescriptorSet.Update(GetDevice(), 5, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
-
-	storageImageDescriptor2.imageView = _renderTargets.denoiseTextureC._view;
-	_samplerDescriptorSet.Update(GetDevice(), 6, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
-
 	storageImageDescriptor2.imageView = _renderTargets.laptopDisplay._view;
 	_samplerDescriptorSet.Update(GetDevice(), 7, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
-
-	/*storageImageDescriptor2.imageView = _renderTargets.denoiseA._view;
-	_denoiseATextureDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);
-
-	storageImageDescriptor2.imageView = _renderTargets.denoiseB._view;
-	_denoiseBTextureDescriptorSet.Update(_device, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &storageImageDescriptor2);	*/
 }
 
 void VulkanBackEnd::UpdateDynamicDescriptorSet() {
+	FrameData& frame = get_current_frame();
 
-	_dynamicDescriptorSetInventory.Update(GetDevice(), 0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &get_current_frame()._inventoryTLAS.handle);
-	_dynamicDescriptorSetInventory.Update(GetDevice(), 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, get_current_frame()._inventoryCamDataBuffer.buffer);
-	_dynamicDescriptorSetInventory.Update(GetDevice(), 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstancesInventoryBuffer.buffer);
-	_dynamicDescriptorSetInventory.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstances2DBuffer.buffer);
-	_dynamicDescriptorSetInventory.Update(GetDevice(), 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._lightRenderInfoBufferInventory.buffer);
+	frame.m_dynamicDescriptorSetInventory.Update(GetDevice(), 0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &get_current_frame()._inventoryTLAS.handle);
+	frame.m_dynamicDescriptorSetInventory.Update(GetDevice(), 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, get_current_frame()._inventoryCamDataBuffer.buffer);
+	frame.m_dynamicDescriptorSetInventory.Update(GetDevice(), 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstancesInventoryBuffer.buffer);
+	frame.m_dynamicDescriptorSetInventory.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstances2DBuffer.buffer);
+	frame.m_dynamicDescriptorSetInventory.Update(GetDevice(), 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._lightRenderInfoBufferInventory.buffer);
 	
-	_dynamicDescriptorSet.Update(GetDevice(), 0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &get_current_frame()._sceneTLAS.handle);
-	_dynamicDescriptorSet.Update(GetDevice(), 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, get_current_frame()._sceneCamDataBuffer.buffer);
-	_dynamicDescriptorSet.Update(GetDevice(), 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstancesSceneBuffer.buffer);	
-	_dynamicDescriptorSet.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstances2DBuffer.buffer);
-	_dynamicDescriptorSet.Update(GetDevice(), 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._lightRenderInfoBuffer.buffer);
+	frame.m_dynamicDescriptorSet.Update(GetDevice(), 0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &get_current_frame()._sceneTLAS.handle);
+	frame.m_dynamicDescriptorSet.Update(GetDevice(), 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, get_current_frame()._sceneCamDataBuffer.buffer);
+	frame.m_dynamicDescriptorSet.Update(GetDevice(), 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstancesSceneBuffer.buffer);	
+	frame.m_dynamicDescriptorSet.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._meshInstances2DBuffer.buffer);
+	frame.m_dynamicDescriptorSet.Update(GetDevice(), 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, get_current_frame()._lightRenderInfoBuffer.buffer);
 }
 
 
@@ -1967,15 +2022,17 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 
 	// Now fill your command buffer
 	int32_t frameIndex = _frameNumber % FRAME_OVERLAP;
-	VkCommandBuffer commandBuffer = _frames[frameIndex]._commandBuffer;
+	VkCommandBuffer commandBuffer = _frames[frameIndex].m_commandBuffer;
 	VkCommandBufferBeginInfo cmdBufInfo = vkinit::command_buffer_begin_info();
 	VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+	FrameData& frame = get_current_frame();
 
 	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &cmdBufInfo));
 
 	if (_usePathRayTracer) {
 		cmd_BindRayTracingPipeline(commandBuffer, _raytracerPath.pipeline);
-		cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerPath.pipelineLayout, 0, _dynamicDescriptorSet);
+		cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerPath.pipelineLayout, 0, frame.m_dynamicDescriptorSet);
 		cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerPath.pipelineLayout, 1, _staticDescriptorSet);
 		cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerPath.pipelineLayout, 2, _samplerDescriptorSet);
 
@@ -1989,7 +2046,7 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 		// Inventory?
 		if (GameData::inventoryOpen) {
 			_renderTargets.rt_first_hit_color.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-			cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerPath.pipelineLayout, 0, _dynamicDescriptorSetInventory);	
+			cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerPath.pipelineLayout, 0, frame.m_dynamicDescriptorSetInventory);
 			vkCmdTraceRaysKHR(commandBuffer, &_raytracerPath.raygenShaderSbtEntry, &_raytracerPath.missShaderSbtEntry, &_raytracerPath.hitShaderSbtEntry, &_raytracerPath.callableShaderSbtEntry, _renderTargets.rt_first_hit_color._extent.width, _renderTargets.rt_first_hit_color._extent.height, 1);
 		}
 
@@ -2025,7 +2082,7 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 	// Mouse pick
 	_renderTargets.rt_first_hit_color.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 	cmd_BindRayTracingPipeline(commandBuffer, _raytracerMousePick.pipeline);
-	cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerMousePick.pipelineLayout, 0, _dynamicDescriptorSet);
+	cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerMousePick.pipelineLayout, 0, frame.m_dynamicDescriptorSet);
 	cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerMousePick.pipelineLayout, 1, _staticDescriptorSet);
 	vkCmdTraceRaysKHR(commandBuffer, &_raytracerMousePick.raygenShaderSbtEntry, &_raytracerMousePick.missShaderSbtEntry, &_raytracerMousePick.hitShaderSbtEntry, &_raytracerMousePick.callableShaderSbtEntry, 1, 1, 1);
 		
@@ -2109,7 +2166,7 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 			vkCmdBeginRendering(commandBuffer, &renderingInfo);
 			cmd_SetViewportSize(commandBuffer, _renderTargets.laptopDisplay);
 			cmd_BindPipeline(commandBuffer, _pipelines.textBlitter);
-			cmd_BindDescriptorSet(commandBuffer, _pipelines.textBlitter, 0, _dynamicDescriptorSet);
+			cmd_BindDescriptorSet(commandBuffer, _pipelines.textBlitter, 0, frame.m_dynamicDescriptorSet);
 			cmd_BindDescriptorSet(commandBuffer, _pipelines.textBlitter, 1, _staticDescriptorSet);
 
 			// Draw Text plus maybe crosshair
@@ -2120,183 +2177,6 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 			vkCmdEndRendering(commandBuffer);
 		}
 	}
-
-	/////////////
-	// DENOISE //
-
-	{
-		// denoise pass A:  read secound hit texture, write to texture A
-		VkRenderingAttachmentInfoKHR colorAttachment{};
-		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-		colorAttachment.imageView = _renderTargets.denoiseTextureA._view;
-		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		VkRenderingInfoKHR renderingInfo{};
-		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-		renderingInfo.renderArea = { 0, 0, _renderTargets.denoiseTextureA._extent.width, _renderTargets.denoiseTextureA._extent.height };
-		renderingInfo.layerCount = 1;
-		renderingInfo.colorAttachmentCount = 1;
-		renderingInfo.pColorAttachments = &colorAttachment;
-		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
-		renderingInfo.pStencilAttachment = nullptr;
-		_renderTargets.rt_second_hit_color.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-		_renderTargets.denoiseTextureA.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-		vkCmdBeginRendering(commandBuffer, &renderingInfo);
-		cmd_SetViewportSize(commandBuffer, _renderTargets.denoiseTextureA);
-		cmd_BindPipeline(commandBuffer, _pipelines.denoisePassA);
-		cmd_BindDescriptorSet(commandBuffer, _pipelines.denoisePassA, 0, _samplerDescriptorSet);
-		int quadMeshIndex = AssetManager::GetModel("fullscreen_quad")->_meshIndices[0];
-		Mesh* mesh = AssetManager::GetMesh(quadMeshIndex);
-		mesh->draw(commandBuffer, 0);
-		vkCmdEndRendering(commandBuffer);
-	
-		// now horizontal blur that:  read texture A, write to texture B
-		colorAttachment = {};
-		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-		colorAttachment.imageView = _renderTargets.denoiseTextureB._view;
-		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		renderingInfo = {};
-		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-		renderingInfo.renderArea = { 0, 0, _renderTargets.denoiseTextureB._extent.width, _renderTargets.denoiseTextureB._extent.height };
-		renderingInfo.layerCount = 1;
-		renderingInfo.colorAttachmentCount = 1;
-		renderingInfo.pColorAttachments = &colorAttachment;
-		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
-		renderingInfo.pStencilAttachment = nullptr;
-		_renderTargets.denoiseTextureA.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-		_renderTargets.denoiseTextureB.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-		vkCmdBeginRendering(commandBuffer, &renderingInfo);
-		cmd_SetViewportSize(commandBuffer, _renderTargets.denoiseTextureB);
-		cmd_BindPipeline(commandBuffer, _pipelines.denoiseBlurHorizontal);
-		cmd_BindDescriptorSet(commandBuffer, _pipelines.denoiseBlurHorizontal, 0, _samplerDescriptorSet);
-		mesh->draw(commandBuffer, 0);
-		vkCmdEndRendering(commandBuffer);
-
-		// now vertical blur that: 	read texture B, write to texture C
-		colorAttachment = {};
-		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-		colorAttachment.imageView = _renderTargets.denoiseTextureC._view;
-		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		renderingInfo = {};
-		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-		renderingInfo.renderArea = { 0, 0, _renderTargets.denoiseTextureC._extent.width, _renderTargets.denoiseTextureC._extent.height };
-		renderingInfo.layerCount = 1;
-		renderingInfo.colorAttachmentCount = 1;
-		renderingInfo.pColorAttachments = &colorAttachment;
-		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
-		renderingInfo.pStencilAttachment = nullptr;
-		_renderTargets.denoiseTextureB.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-		_renderTargets.denoiseTextureC.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-		vkCmdBeginRendering(commandBuffer, &renderingInfo);
-		cmd_SetViewportSize(commandBuffer, _renderTargets.denoiseTextureC);
-		cmd_BindPipeline(commandBuffer, _pipelines.denoiseBlurVertical);
-		cmd_BindDescriptorSet(commandBuffer, _pipelines.denoiseBlurVertical, 0, _samplerDescriptorSet);
-		mesh->draw(commandBuffer, 0);
-		vkCmdEndRendering(commandBuffer);
-		
-		// denoise pass B:  read texture C, write to texture A
-		colorAttachment = {};
-		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-		colorAttachment.imageView = _renderTargets.denoiseTextureA._view;
-		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		renderingInfo = {};
-		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-		renderingInfo.renderArea = { 0, 0, _renderTargets.denoiseTextureA._extent.width, _renderTargets.denoiseTextureA._extent.height };
-		renderingInfo.layerCount = 1;
-		renderingInfo.colorAttachmentCount = 1;
-		renderingInfo.pColorAttachments = &colorAttachment;
-		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
-		renderingInfo.pStencilAttachment = nullptr;
-		_renderTargets.denoiseTextureC.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-		_renderTargets.denoiseTextureA.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-		vkCmdBeginRendering(commandBuffer, &renderingInfo);
-		cmd_SetViewportSize(commandBuffer, _renderTargets.denoiseTextureA);
-		cmd_BindPipeline(commandBuffer, _pipelines.denoisePassB);
-		cmd_BindDescriptorSet(commandBuffer, _pipelines.denoisePassB, 0, _samplerDescriptorSet);
-		mesh->draw(commandBuffer, 0);
-		vkCmdEndRendering(commandBuffer);
-		
-		
-		// now horizontal blur that:  read texture A, write to texture B
-		colorAttachment = {};
-		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-		colorAttachment.imageView = _renderTargets.denoiseTextureB._view;
-		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		renderingInfo = {};
-		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-		renderingInfo.renderArea = { 0, 0, _renderTargets.denoiseTextureB._extent.width, _renderTargets.denoiseTextureB._extent.height };
-		renderingInfo.layerCount = 1;
-		renderingInfo.colorAttachmentCount = 1;
-		renderingInfo.pColorAttachments = &colorAttachment;
-		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
-		renderingInfo.pStencilAttachment = nullptr;
-		_renderTargets.denoiseTextureA.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-		_renderTargets.denoiseTextureB.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-		vkCmdBeginRendering(commandBuffer, &renderingInfo);
-		cmd_SetViewportSize(commandBuffer, _renderTargets.denoiseTextureB);
-		cmd_BindPipeline(commandBuffer, _pipelines.denoiseBlurHorizontal);
-		cmd_BindDescriptorSet(commandBuffer, _pipelines.denoiseBlurHorizontal, 0, _samplerDescriptorSet);
-		mesh->draw(commandBuffer, 0);
-		vkCmdEndRendering(commandBuffer);
-
-		// now vertical blur that: 	read texture B, write to texture C
-		colorAttachment = {};
-		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-		colorAttachment.imageView = _renderTargets.denoiseTextureC._view;
-		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		renderingInfo = {};
-		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-		renderingInfo.renderArea = { 0, 0, _renderTargets.denoiseTextureC._extent.width, _renderTargets.denoiseTextureC._extent.height };
-		renderingInfo.layerCount = 1;
-		renderingInfo.colorAttachmentCount = 1;
-		renderingInfo.pColorAttachments = &colorAttachment;
-		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
-		renderingInfo.pStencilAttachment = nullptr;
-		_renderTargets.denoiseTextureB.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-		_renderTargets.denoiseTextureC.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-		vkCmdBeginRendering(commandBuffer, &renderingInfo);
-		cmd_SetViewportSize(commandBuffer, _renderTargets.denoiseTextureC);
-		cmd_BindPipeline(commandBuffer, _pipelines.denoiseBlurVertical);
-		cmd_BindDescriptorSet(commandBuffer, _pipelines.denoiseBlurVertical, 0, _samplerDescriptorSet);
-		mesh->draw(commandBuffer, 0);
-		vkCmdEndRendering(commandBuffer);
-		
-		// denoise pass C: read texture C, write to texture B
-		colorAttachment = {};
-		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-		colorAttachment.imageView = _renderTargets.denoiseTextureB._view;
-		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		renderingInfo = {};
-		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-		renderingInfo.renderArea = { 0, 0, _renderTargets.denoiseTextureB._extent.width, _renderTargets.denoiseTextureB._extent.height };
-		renderingInfo.layerCount = 1;
-		renderingInfo.colorAttachmentCount = 1;
-		renderingInfo.pColorAttachments = &colorAttachment;
-		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
-		renderingInfo.pStencilAttachment = nullptr;
-		_renderTargets.denoiseTextureC.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-		_renderTargets.denoiseTextureB.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-		vkCmdBeginRendering(commandBuffer, &renderingInfo);
-		cmd_SetViewportSize(commandBuffer, _renderTargets.denoiseTextureB);
-		cmd_BindPipeline(commandBuffer, _pipelines.denoisePassC);
-		cmd_BindDescriptorSet(commandBuffer, _pipelines.denoisePassC, 0, _samplerDescriptorSet);
-		mesh->draw(commandBuffer, 0);
-		vkCmdEndRendering(commandBuffer);
-	}
-
 
 	/*
 	////////////////////
@@ -2351,119 +2231,6 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 		vkCmdEndRendering(commandBuffer);
 	}*/
 
-	//////////////////////
-	// Denoise Pass(es) //
-	/*if (false)
-	{
-		
-		// begin by blitting the noisy image into denoiseB texture
-		_renderTargets.rt_indirect_noise.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-		_renderTargetDenoiseB.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-		blit_render_target(commandBuffer, _renderTargets.rt_indirect_noise, _renderTargetDenoiseB, VkFilter::VK_FILTER_LINEAR);
-		
-		// return this to general so it can be written by the main RT pass
-		_renderTargets.rt_indirect_noise.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-
-	
-		// now denoise that image, and output into texture A
-		VkRenderingAttachmentInfoKHR colorAttachment{};
-		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-		colorAttachment.imageView = _renderTargetDenoiseA._view;
-		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		VkRenderingInfoKHR renderingInfo{};
-		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-		renderingInfo.renderArea = { 0, 0, _renderTargetDenoiseA._extent.width, _renderTargetDenoiseA._extent.height };
-		renderingInfo.layerCount = 1;
-		renderingInfo.colorAttachmentCount = 1;
-		renderingInfo.pColorAttachments = &colorAttachment;
-		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
-		renderingInfo.pStencilAttachment = nullptr;
-		_renderTargetDenoiseB.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-		_renderTargetDenoiseA.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-		vkCmdBeginRendering(commandBuffer, &renderingInfo);
-		cmd_SetViewportSize(commandBuffer, _renderTargetDenoiseA);
-		cmd_BindPipeline(commandBuffer, _denoisePipeline);
-		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 0, _dynamicDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 1, _staticDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 2, _samplerDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 3, _denoiseBTextureDescriptorSet);
-		int quadMeshIndex = AssetManager::GetModel("fullscreen_quad")->_meshIndices[0];
-		Mesh* mesh = AssetManager::GetMesh(quadMeshIndex);
-		mesh->draw(commandBuffer, 0);
-		vkCmdEndRendering(commandBuffer);
-
-		// now setup the ping pong
-		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-		colorAttachment.imageView = _renderTargetDenoiseB._view;
-		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-		renderingInfo.renderArea = { 0, 0, _renderTargetDenoiseB._extent.width, _renderTargetDenoiseB._extent.height };
-		renderingInfo.layerCount = 1;
-		renderingInfo.colorAttachmentCount = 1;
-		renderingInfo.pColorAttachments = &colorAttachment;
-		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
-		renderingInfo.pStencilAttachment = nullptr;
-		vkCmdBeginRendering(commandBuffer, &renderingInfo);
-		cmd_SetViewportSize(commandBuffer, _renderTargetDenoiseB);
-		cmd_BindPipeline(commandBuffer, _denoisePipeline);
-		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 0, _dynamicDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 1, _staticDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 2, _samplerDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 3, _denoiseATextureDescriptorSet);
-		mesh->draw(commandBuffer, 0);
-		vkCmdEndRendering(commandBuffer);
-
-		// now setup the ping pong
-		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-		colorAttachment.imageView = _renderTargetDenoiseA._view;
-		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-		renderingInfo.renderArea = { 0, 0, _renderTargetDenoiseA._extent.width, _renderTargetDenoiseA._extent.height };
-		renderingInfo.layerCount = 1;
-		renderingInfo.colorAttachmentCount = 1;
-		renderingInfo.pColorAttachments = &colorAttachment;
-		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
-		renderingInfo.pStencilAttachment = nullptr;
-		vkCmdBeginRendering(commandBuffer, &renderingInfo);
-		cmd_SetViewportSize(commandBuffer, _renderTargetDenoiseA);
-		cmd_BindPipeline(commandBuffer, _denoisePipeline);
-		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 0, _dynamicDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 1, _staticDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 2, _samplerDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 3, _denoiseBTextureDescriptorSet);
-		mesh->draw(commandBuffer, 0);
-		vkCmdEndRendering(commandBuffer);
-
-		// now setup the ping pong
-		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-		colorAttachment.imageView = _renderTargetDenoiseB._view;
-		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-		renderingInfo.renderArea = { 0, 0, _renderTargetDenoiseB._extent.width, _renderTargetDenoiseB._extent.height };
-		renderingInfo.layerCount = 1;
-		renderingInfo.colorAttachmentCount = 1;
-		renderingInfo.pColorAttachments = &colorAttachment;
-		renderingInfo.pDepthAttachment = VK_NULL_HANDLE;
-		renderingInfo.pStencilAttachment = nullptr;
-		vkCmdBeginRendering(commandBuffer, &renderingInfo);
-		cmd_SetViewportSize(commandBuffer, _renderTargetDenoiseB);
-		cmd_BindPipeline(commandBuffer, _denoisePipeline);
-		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 0, _dynamicDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 1, _staticDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 2, _samplerDescriptorSet);
-		cmd_BindDescriptorSet(commandBuffer, _denoisePipeline, 3, _denoiseATextureDescriptorSet);
-		mesh->draw(commandBuffer, 0);
-		vkCmdEndRendering(commandBuffer);
-	}*/
-
 
 	////////////////////
 	// Composite Pass //
@@ -2487,16 +2254,13 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 		renderingInfo.pStencilAttachment = nullptr;
 		
 		_renderTargets.composite.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-		//_renderTargetDenoiseA.insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-
+		
 		vkCmdBeginRendering(commandBuffer, &renderingInfo);
 		cmd_SetViewportSize(commandBuffer, _renderTargets.composite);
 		cmd_BindPipeline(commandBuffer, _pipelines.composite);
-		cmd_BindDescriptorSet(commandBuffer, _pipelines.composite, 0, _dynamicDescriptorSet);
+		cmd_BindDescriptorSet(commandBuffer, _pipelines.composite, 0, frame.m_dynamicDescriptorSet);
 		cmd_BindDescriptorSet(commandBuffer, _pipelines.composite, 1, _staticDescriptorSet);
 		cmd_BindDescriptorSet(commandBuffer, _pipelines.composite, 2, _samplerDescriptorSet);
-		//cmd_BindDescriptorSet(commandBuffer, _pipelines.composite, 3, _denoiseATextureDescriptorSet);
-		//cmd_BindDescriptorSet(commandBuffer, _pipelines.composite, 4, _denoiseBTextureDescriptorSet);
 
 		int quadMeshIndex = AssetManager::GetModel("fullscreen_quad")->_meshIndices[0];
 		Mesh* mesh = AssetManager::GetMesh(quadMeshIndex);
@@ -2539,7 +2303,7 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 		vkCmdBeginRendering(commandBuffer, &renderingInfo);
 		cmd_SetViewportSize(commandBuffer, _renderTargets.present);
 		cmd_BindPipeline(commandBuffer, _pipelines.textBlitter);
-		cmd_BindDescriptorSet(commandBuffer, _pipelines.textBlitter, 0, _dynamicDescriptorSet);
+		cmd_BindDescriptorSet(commandBuffer, _pipelines.textBlitter, 0, frame.m_dynamicDescriptorSet);
 		cmd_BindDescriptorSet(commandBuffer, _pipelines.textBlitter, 1, _staticDescriptorSet);
 
 		// Draw Text plus maybe crosshair

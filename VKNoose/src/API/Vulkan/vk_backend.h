@@ -69,11 +69,16 @@ struct RenderObject {
 #define MAX_LIGHTS 16
 
 struct FrameData {
-	VkSemaphore _presentSemaphore, _renderSemaphore;
-	VkFence _renderFence;
+	VkSemaphore m_presentSemaphore;
+	std::vector<VkSemaphore> m_renderSemaphores;
 
-	VkCommandPool _commandPool;
-	VkCommandBuffer _commandBuffer;
+	VkFence m_renderFence;
+	VkCommandPool m_commandPool;
+	VkCommandBuffer m_commandBuffer;
+
+	// Per-frame descriptor sets
+	HellDescriptorSet m_dynamicDescriptorSet;
+	HellDescriptorSet m_dynamicDescriptorSetInventory;
 		
 	HellBuffer _sceneCamDataBuffer;
 	HellBuffer _inventoryCamDataBuffer;
@@ -156,41 +161,11 @@ namespace VulkanBackEnd {
 		RenderTarget gBufferRMA;
 		RenderTarget laptopDisplay;
 		RenderTarget composite;
-		RenderTarget denoiseTextureA;
-		RenderTarget denoiseTextureB;
-		RenderTarget denoiseTextureC;
 	} _renderTargets;
 
-	inline struct Pipelines {
-		Pipeline composite;
-		Pipeline textBlitter;
-		Pipeline lines;
-		Pipeline denoisePassA;
-		Pipeline denoisePassB;
-		Pipeline denoisePassC;
-		Pipeline denoiseBlurHorizontal;
-		Pipeline denoiseBlurVertical;
-	} _pipelines;
 
-	// Shaders
-	inline VkShaderModule _gbuffer_vertex_shader = nullptr;
-	inline VkShaderModule _gbuffer_fragment_shader = nullptr;
-	inline VkShaderModule _solid_color_vertex_shader = nullptr;
-	inline VkShaderModule _solid_color_fragment_shader = nullptr;
-	inline VkShaderModule _text_blitter_vertex_shader = nullptr;
-	inline VkShaderModule _text_blitter_fragment_shader = nullptr;
-	inline VkShaderModule _denoise_pass_A_vertex_shader = nullptr;
-	inline VkShaderModule _denoise_pass_A_fragment_shader = nullptr;
-	inline VkShaderModule _denoise_pass_B_vertex_shader = nullptr;
-	inline VkShaderModule _denoise_pass_B_fragment_shader = nullptr;
-	inline VkShaderModule _denoise_pass_C_vertex_shader = nullptr;
-	inline VkShaderModule _denoise_pass_C_fragment_shader = nullptr;
-	inline VkShaderModule _blur_vertical_vertex_shader = nullptr;
-	inline VkShaderModule _blur_vertical_fragment_shader = nullptr;
-	inline VkShaderModule _blur_horizontal_vertex_shader = nullptr;
-	inline VkShaderModule _blur_horizontal_fragment_shader = nullptr;
-	inline VkShaderModule _composite_vertex_shader = nullptr;
-	inline VkShaderModule _composite_fragment_shader = nullptr;
+
+
 
 
 
@@ -210,8 +185,8 @@ namespace VulkanBackEnd {
 	inline uint32_t _frameIndex;
 
 	inline HellDescriptorSet _staticDescriptorSet;
-	inline HellDescriptorSet _dynamicDescriptorSet;
-	inline HellDescriptorSet _dynamicDescriptorSetInventory;
+	//inline HellDescriptorSet _dynamicDescriptorSet;
+	//inline HellDescriptorSet _dynamicDescriptorSetInventory;
 	inline HellDescriptorSet _samplerDescriptorSet;
 	
 	inline VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeaturesKHR{};
