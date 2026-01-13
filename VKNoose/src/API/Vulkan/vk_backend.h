@@ -25,8 +25,6 @@
 #include "Renderer/Pipeline.hpp"
 
 
-#include "VkBootstrap.h"
-
 constexpr unsigned int FRAME_OVERLAP = 2;
 
 struct CameraData {
@@ -116,10 +114,6 @@ namespace VulkanBackEnd {
 	bool ProgramIsMinimized();
 	void LoadNextItem();
 	void AddLoadingText(std::string text);
-
-
-	inline vkb::Instance g_bootstrapInstance;
-    inline vkb::Instance& GetBootstrapInstance() { return g_bootstrapInstance; }
 }
 
 

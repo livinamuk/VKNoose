@@ -13,27 +13,34 @@ struct VulkanShaderModule {
     VulkanShaderModule& operator=(VulkanShaderModule&& other) noexcept;
 
     void Cleanup(VkDevice device);
+    void Hotload(VkDevice device);
 
-    VkShaderModule GetModule() const { return m_module; }
-    VkShaderStageFlagBits GetStage() const { return m_stage; }
+    VkShaderModule GetModule() const        { return m_module; }
+    VkShaderStageFlagBits GetStage() const  { return m_stage; }
+    const std::string& GetPath() const      { return m_path; }
 
 private:
     VkShaderModule m_module = VK_NULL_HANDLE;
     VkShaderStageFlagBits m_stage = VK_SHADER_STAGE_ALL;
+    std::string m_path;
 };
 
 struct VulkanShader {
     VulkanShader() = default;
+    VulkanShader(VkDevice device, const std::vector<std::string>& filenames);
     VulkanShader(const VulkanShader&) = delete;
     VulkanShader& operator=(const VulkanShader&) = delete;
     VulkanShader(VulkanShader&& other) noexcept;
     VulkanShader& operator=(VulkanShader&& other) noexcept;
 
-    //void AddStage(const std::string& path, VkShaderStageFlagBits stage);
-
-    void AddStage(VulkanShaderModule&& module);
     std::vector<VkPipelineShaderStageCreateInfo> GetStageInfos() const;
     void Cleanup(VkDevice device);
+    void Hotload(VkDevice device);
+    VkShaderModule GetVertexShader();
+    VkShaderModule GetFragmentShader();
+    VkShaderModule GetComputeShader();
+    VkShaderModule GetTesselationControlShader();
+    VkShaderModule GetTesselationEvaluationShader();
 
 private:
     std::vector<VulkanShaderModule> m_modules;

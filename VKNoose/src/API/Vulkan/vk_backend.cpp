@@ -48,8 +48,8 @@ namespace VulkanBackEnd {
 	VkShaderModule _gbuffer_fragment_shader = nullptr;
 	VkShaderModule _solid_color_vertex_shader = nullptr;
 	VkShaderModule _solid_color_fragment_shader = nullptr;
-	VkShaderModule _text_blitter_vertex_shader = nullptr;
-	VkShaderModule _text_blitter_fragment_shader = nullptr;
+	//VkShaderModule _text_blitter_vertex_shader = nullptr;
+	//VkShaderModule _text_blitter_fragment_shader = nullptr;
 	VkShaderModule _composite_vertex_shader = nullptr;
 	VkShaderModule _composite_fragment_shader = nullptr;
 	
@@ -67,13 +67,13 @@ namespace VulkanBackEnd {
 	std::unordered_map<std::string, AllocatedImage> g_allocatedImages;
 	std::unordered_map<std::string, VulkanShader> g_shaders;
 
-	AllocatedImage& CreateAllocatedImage(const std::string& name, VkFormat imageFormat, VkExtent3D imageExtent, VkImageUsageFlags usage) {
-		g_allocatedImages[name] = AllocatedImage(GetDevice(), GetAllocator(), imageFormat, imageExtent, usage, name);
+	AllocatedImage& CreateAllocatedImage(const std::string& name, uint32_t width, uint32_t height, VkFormat imageFormat, VkImageUsageFlags usage) {
+		g_allocatedImages[name] = AllocatedImage(GetDevice(), GetAllocator(), imageFormat, VkExtent3D(width, height, 1), usage, name);
 		return g_allocatedImages[name];
 	}
 
-	VulkanShader& CreateShader(const std::string& name) {
-		g_shaders[name] = VulkanShader();
+	VulkanShader& CreateShader(const std::string& name, const std::vector<std::string> paths) {
+		g_shaders[name] = VulkanShader(GetDevice(), paths);
 		return g_shaders[name];
 	}
 
@@ -106,21 +106,19 @@ namespace VulkanBackEnd {
 		if (!VulkanMemoryManager::Init()) return false;
 		if (!VulkanSwapchainManager::Init()) return false;
 
-        load_shader(GetDevice(), "text_blitter.vert", VK_SHADER_STAGE_VERTEX_BIT, &_text_blitter_vertex_shader);
-        load_shader(GetDevice(), "text_blitter.frag", VK_SHADER_STAGE_FRAGMENT_BIT, &_text_blitter_fragment_shader);
-
-		VulkanShader& textBlitter = CreateShader("TextBlitter");
-
-        VkFormat imageFormat = VK_FORMAT_R8G8B8A8_UNORM;
-        VkExtent3D imageExtent = { 512 * 2, 288 * 2, 1 };
 		VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 		
-		AllocatedImage& loadingScreen = CreateAllocatedImage("LoadingScreen", imageFormat, imageExtent, usage);
+		CreateAllocatedImage("LoadingScreen", 1024, 576, VK_FORMAT_R8G8B8A8_UNORM, usage);
+
+		CreateShader("TextBlitter", { "vk_text_blitter.vert", "vk_text_blitter.frag" });
 
         create_command_buffers();
         create_sync_structures();
         create_sampler();
         create_descriptors();
+
+        VulkanShader* textBlittingShader = GetShader("TextBlitter");
+		if (!textBlittingShader) return false;
 
         // Create text blitter pipeline and pipeline layout
         _pipelines.textBlitter.PushDescriptorSetLayout(_frames[0].m_dynamicDescriptorSet.layout);
@@ -133,7 +131,7 @@ namespace VulkanBackEnd {
         _pipelines.textBlitter.SetColorBlending(true);
         _pipelines.textBlitter.SetDepthTest(false);
         _pipelines.textBlitter.SetDepthWrite(false);
-        _pipelines.textBlitter.Build(GetDevice(), _text_blitter_vertex_shader, _text_blitter_fragment_shader, 1);
+        _pipelines.textBlitter.Build(GetDevice(), textBlittingShader->GetVertexShader(), textBlittingShader->GetFragmentShader(), 1);
 
         AssetManager::Init();
         AssetManager::LoadFont();
@@ -261,9 +259,7 @@ void VulkanBackEnd::LoadNextItem() {
 }
 
 
-void VulkanBackEnd::cleanup_shaders() {
-	vkDestroyShaderModule(GetDevice(), _text_blitter_vertex_shader, nullptr);
-	vkDestroyShaderModule(GetDevice(), _text_blitter_fragment_shader, nullptr);
+void VulkanBackEnd::cleanup_shaders() {	
 	vkDestroyShaderModule(GetDevice(), _solid_color_vertex_shader, nullptr);
 	vkDestroyShaderModule(GetDevice(), _solid_color_fragment_shader, nullptr);
 	vkDestroyShaderModule(GetDevice(), _gbuffer_vertex_shader, nullptr);
@@ -363,7 +359,6 @@ void VulkanBackEnd::Cleanup()
 	vkDestroySampler(GetDevice(), _sampler, nullptr);
 	vmaDestroyAllocator(GetAllocator());
 	vkDestroySurfaceKHR(instance, surface, nullptr);
-	vkb::destroy_debug_utils_messenger(instance, debugMessenger);
 	vkDestroyDevice(GetDevice(), nullptr);
 	vkDestroyInstance(instance, nullptr);
 	glfwDestroyWindow(_window);
