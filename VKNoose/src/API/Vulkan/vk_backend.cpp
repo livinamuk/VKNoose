@@ -43,13 +43,11 @@ namespace VulkanBackEnd {
 	std::vector<VkImageView>& GetSwapchainImageViews() { return VulkanSwapchainManager::GetSwapchainImageViews(); }
 	VkFormat GetSwapchainImageFormat() { return VulkanSwapchainManager::GetSwapchainImageFormat(); }
 
-	// Shaders
+	// Old Shaders
 	VkShaderModule _gbuffer_vertex_shader = nullptr;
 	VkShaderModule _gbuffer_fragment_shader = nullptr;
 	VkShaderModule _solid_color_vertex_shader = nullptr;
 	VkShaderModule _solid_color_fragment_shader = nullptr;
-	//VkShaderModule _text_blitter_vertex_shader = nullptr;
-	//VkShaderModule _text_blitter_fragment_shader = nullptr;
 	VkShaderModule _composite_vertex_shader = nullptr;
 	VkShaderModule _composite_fragment_shader = nullptr;
 	
