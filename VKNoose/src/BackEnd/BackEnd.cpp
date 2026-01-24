@@ -23,7 +23,7 @@ namespace BackEnd {
     }
 
     void LazyKeypresses() {
-        if (Input::KeyPressed(HELL_KEY_BACKSPACE)) {
+        if (Input::KeyPressed(HELL_KEY_BACKSPACE) || Input::KeyPressed(HELL_KEY_ESCAPE)) {
             GLFWIntegration::ForceCloseWindow();
         }
     }

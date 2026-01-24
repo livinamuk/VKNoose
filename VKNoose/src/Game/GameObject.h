@@ -1,6 +1,6 @@
 #pragma once
 #include "API/Vulkan//vk_mesh.h"
-#include "AssetManager.h"
+#include "AssetManagement/AssetManager.h"
 
 struct BoundingBox {
 	float xLow = 0;
@@ -14,7 +14,7 @@ enum class MaterialType { DEFAULT = 0, MIRROR = 1, GLASS = 2, LAPTOP_DISPLAY = 3
 
 struct GameObject {
 public:
-	Model* _model = nullptr;
+	ModelOLD* _model = nullptr;
 	std::vector<int> _meshMaterialIndices;
 	std::vector<MaterialType> _meshMaterialTypes;
 	std::vector<Transform> _meshTransforms;

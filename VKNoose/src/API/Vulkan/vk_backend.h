@@ -5,6 +5,9 @@
 #include "vk_mesh.h"
 #include "vk_raytracing.h"
 
+
+#include "Types/vk_acceleration_structure.h" // remove me soon
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <string>
@@ -39,13 +42,6 @@ struct CameraData {
 	int32_t wallPaperALBIndex;
 };
 
-
-struct UploadContext {
-	VkFence _uploadFence;
-	VkCommandPool _commandPool;
-	VkCommandBuffer _commandBuffer;
-};
-
 struct MeshPushConstants {
 	glm::vec4 data;
 	glm::mat4 render_matrix;
@@ -56,7 +52,7 @@ struct LineShaderPushConstants {
 };
 
 struct RenderObject {
-	Mesh* mesh;
+	MeshOLD* mesh;
 	Transform transform;
 	bool spin = false;
 };
@@ -67,17 +63,9 @@ struct RenderObject {
 #define MAX_LIGHTS 16
 
 struct FrameData {
-	VkSemaphore m_presentSemaphore;
-	std::vector<VkSemaphore> m_renderSemaphores;
+	VkCommandPool m_commandPool = VK_NULL_HANDLE;
+	VkCommandBuffer m_commandBuffer = VK_NULL_HANDLE;
 
-	VkFence m_renderFence;
-	VkCommandPool m_commandPool;
-	VkCommandBuffer m_commandBuffer;
-
-	// Per-frame descriptor sets
-	HellDescriptorSet m_dynamicDescriptorSet;
-	HellDescriptorSet m_dynamicDescriptorSetInventory;
-		
 	HellBuffer _sceneCamDataBuffer;
 	HellBuffer _inventoryCamDataBuffer;
 	HellBuffer _meshInstances2DBuffer;
@@ -86,15 +74,14 @@ struct FrameData {
 	HellBuffer _lightRenderInfoBuffer;
 	HellBuffer _lightRenderInfoBufferInventory;
 
-	AccelerationStructure _sceneTLAS{};
-	AccelerationStructure _inventoryTLAS{};
+	VulkanAccelerationStructure _sceneTLAS{};
+	VulkanAccelerationStructure _inventoryTLAS{};
 };
 
 
-struct RayTracingScratchBuffer
-{
+struct RayTracingScratchBufferOLD {
 	uint64_t deviceAddress = 0;
-	AllocatedBuffer handle;// VkBuffer handle = VK_NULL_HANDLE;
+	AllocatedBufferOLD handle;// VkBuffer handle = VK_NULL_HANDLE;
 	VkDeviceMemory memory = VK_NULL_HANDLE;
 };
 
@@ -120,21 +107,15 @@ namespace VulkanBackEnd {
 namespace VulkanBackEnd {
 
 
-
 	inline bool _loaded = false;
 
 	
-	void SelectPhysicalDevice(); 
-	void LoadShaders();
-	void CreateSwapchain();
+	void LoadLegacyShaders();
 	
-	void cleanup_shaders();
 	void hotload_shaders();
 
 	void RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuffer);
-	void BlitRenderTargetIntoSwapChain(VkCommandBuffer commandBuffer, RenderTarget& renderTarget, uint32_t swapchainImageIndex);
 	void PrepareSwapchainForPresent(VkCommandBuffer commandBuffer, uint32_t swapchainImageIndex);
-
 
 
 	void UpdateBuffers2D();
@@ -144,24 +125,6 @@ namespace VulkanBackEnd {
 
 	inline bool _forceCloseWindow { false };
 
-	inline struct RenderTargets {
-		RenderTarget present;
-		RenderTarget rt_first_hit_color;
-		RenderTarget rt_first_hit_normals;
-		RenderTarget rt_first_hit_base_color;
-		RenderTarget rt_second_hit_color;
-		RenderTarget gBufferBasecolor;
-		RenderTarget gBufferNormal;
-		RenderTarget gBufferRMA;
-		RenderTarget laptopDisplay;
-		RenderTarget composite;
-	} _renderTargets;
-
-
-
-
-
-
 
 	void create_buffers();
 	void UpdateBuffers();
@@ -170,7 +133,6 @@ namespace VulkanBackEnd {
 	
 	// Commands
 	void cmd_SetViewportSize(VkCommandBuffer commandBuffer, int width, int height);
-	void cmd_SetViewportSize(VkCommandBuffer commandBuffer, RenderTarget renderTarget);
 	void cmd_BindPipeline(VkCommandBuffer commandBuffer, Pipeline& pipeline);
 	void cmd_BindDescriptorSet(VkCommandBuffer commandBuffer, Pipeline& pipeline, uint32_t setIndex, HellDescriptorSet& descriptorSet);
 	void cmd_BindRayTracingPipeline(VkCommandBuffer commandBuffer, VkPipeline pipeline);
@@ -178,26 +140,15 @@ namespace VulkanBackEnd {
 
 	inline uint32_t _frameIndex;
 
-	inline HellDescriptorSet _staticDescriptorSet;
-	//inline HellDescriptorSet _dynamicDescriptorSet;
-	//inline HellDescriptorSet _dynamicDescriptorSetInventory;
-	inline HellDescriptorSet _samplerDescriptorSet;
-	
 	inline VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeaturesKHR{};
 
 	inline VkSampler _sampler;
 		 
-	// Render target shit
-	//inline VkExtent2D _currentWindowExtent{ 512 , 288  };
-	//VkExtent2D _fullscreenModeExtent{ 512 , 288  };
 	inline const VkExtent2D _windowedModeExtent{ 512 * 4, 288 * 4 };
 	inline const VkExtent3D _renderTargetPresentExtent = { 512 , 288  , 1 };
 	
 
-
-
 	inline int _frameNumber{ 0 };
-	//int _selectedShader{ 0 };
 	inline DebugMode _debugMode = DebugMode::NONE;
 
 
@@ -206,34 +157,16 @@ namespace VulkanBackEnd {
 
 	inline std::vector<VkFramebuffer> _framebuffers;
 
-	inline HellDepthTarget _presentDepthTarget;
-	inline HellDepthTarget _gbufferDepthTarget;
-
 	inline VkFormat _depthFormat;
 
-	inline VkDescriptorPool _descriptorPool;
-
-	inline UploadContext _uploadContext;
-
-
-	//initializes everything in the engine
 	
 	void init_raytracing();
 	
-
-	// Pipelines
-
-
-	//inline VkPipeline _linelistPipeline;
-	//inline VkPipelineLayout _linelistPipelineLayout;
-
 	inline FrameData& get_current_frame();
 	inline FrameData& get_last_frame();
 
-	inline Mesh _lineListMesh;
+	inline MeshOLD _lineListMesh;
 
-
-	inline HellRaytracer _raytracer;
 	inline HellRaytracer _raytracerPath;
 	inline HellRaytracer _raytracerMousePick;
 
@@ -244,83 +177,27 @@ namespace VulkanBackEnd {
 
 		// Ray tracing
 
-		RayTracingScratchBuffer createScratchBuffer(VkDeviceSize size);
 		uint32_t getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32* memTypeFound = nullptr);
-		//inline VkPhysicalDeviceMemoryProperties g_memoryProperties;
-
-		//inline PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR;
-		//inline PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR;
-		//inline PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR;
-		//inline PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR;
-		//inline PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR;
-		//inline PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR;
-		//inline PFN_vkBuildAccelerationStructuresKHR vkBuildAccelerationStructuresKHR;
-		//inline PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR;
-		//inline PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR;
-		//inline PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR;
-		//inline PFN_vkDebugMarkerSetObjectTagEXT pfnDebugMarkerSetObjectTag;
-		//inline PFN_vkDebugMarkerSetObjectNameEXT pfnDebugMarkerSetObjectName;
-		//inline PFN_vkCmdDebugMarkerBeginEXT pfnCmdDebugMarkerBegin;
-		//inline PFN_vkCmdDebugMarkerEndEXT pfnCmdDebugMarkerEnd;
-		//inline PFN_vkCmdDebugMarkerInsertEXT pfnCmdDebugMarkerInsert;
-		//inline PFN_vkSetDebugUtilsObjectNameEXT vkSetDebugUtilsObjectNameEXT;
-
-		//inline VkPhysicalDeviceRayTracingPipelinePropertiesKHR  _rayTracingPipelineProperties{};
-		//inline VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{};
 
 			void create_rt_buffers();
-			inline AccelerationStructure createBottomLevelAccelerationStructure(Mesh* mesh);
-			void create_top_level_acceleration_structure(std::vector<VkAccelerationStructureInstanceKHR> instances, AccelerationStructure& outTLAS);
-			
 			void build_rt_command_buffers(int swapchainIndex);
-			inline AllocatedBuffer _rtVertexBuffer;
-			inline AllocatedBuffer _rtIndexBuffer;
-			inline AllocatedBuffer _mousePickResultBuffer;
-			inline AllocatedBuffer _mousePickResultCPUBuffer; // for mouse picking
 			inline uint32_t _rtIndexCount;
 
-			inline VkDeviceOrHostAddressConstKHR _vertexBufferDeviceAddress{};
-			inline VkDeviceOrHostAddressConstKHR _indexBufferDeviceAddress{};
-			inline VkDeviceOrHostAddressConstKHR _transformBufferDeviceAddress{};
-
-			inline AllocatedBuffer _rtInstancesBuffer;
 
 
+			inline AllocatedBufferOLD _rtInstancesBuffer;
 
-	
 
-
-	void blit_render_target(VkCommandBuffer commandBuffer, RenderTarget& source, RenderTarget& destination, VkFilter filter);
-
-	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags requiredFlags = 0);
+	AllocatedBufferOLD create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags requiredFlags = 0);
 
 	size_t pad_uniform_buffer_size(size_t originalSize);
 
-	void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
 
-	void submit_barrier_command_swapchain_to_transfer_dst_optimal();
-	void submit_barrier_command_swapchain_to_present_src_khr();
-
-	//void generate_mipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
-	//VkCommandBuffer beginSingleTimeCommands();
-	//void endSingleTimeCommands(VkCommandBuffer commandBuffer);
-
-	//void init_commands();
-	void create_sync_structures();
-	void create_descriptors();
 	void create_sampler();
 	void upload_meshes();
-	void upload_mesh(Mesh& mesh);
-
-
-	void create_command_buffers();
-	void create_pipelines();
-	void create_render_targets();
-	void draw_quad(Transform transform, Texture* texture);
+	void upload_mesh(MeshOLD& mesh);
 
 	void cleanup_raytracing();
-	uint64_t get_buffer_device_address(VkBuffer buffer);
-	void createAccelerationStructureBuffer(AccelerationStructure& accelerationStructure, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo);
 	void AddDebugText();
 	void add_debug_name(VkBuffer buffer, const char* name);
 	void add_debug_name(VkDescriptorSetLayout descriptorSetLayout, const char* name);

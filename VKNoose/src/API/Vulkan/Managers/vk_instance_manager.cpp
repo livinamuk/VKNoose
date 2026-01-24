@@ -114,20 +114,21 @@ namespace VulkanInstanceManager {
         return true;
     }
 
-    void CleanUp() {
-        if (g_debugMessenger != VK_NULL_HANDLE) {
-            auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(g_instance, "vkDestroyDebugUtilsMessengerEXT");
-            if (func) {
-                func(g_instance, g_debugMessenger, nullptr);
-            }
-        }
-
+    void Cleanup() {
         if (g_surface != VK_NULL_HANDLE) {
             vkDestroySurfaceKHR(g_instance, g_surface, nullptr);
+            g_surface = VK_NULL_HANDLE;
+        }
+
+        if (g_debugMessenger != VK_NULL_HANDLE) {
+            auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(g_instance, "vkDestroyDebugUtilsMessengerEXT");
+            if (func) func(g_instance, g_debugMessenger, nullptr);
+            g_debugMessenger = VK_NULL_HANDLE;
         }
 
         if (g_instance != VK_NULL_HANDLE) {
             vkDestroyInstance(g_instance, nullptr);
+            g_instance = VK_NULL_HANDLE;
         }
     }
 

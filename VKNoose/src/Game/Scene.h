@@ -12,7 +12,7 @@ struct RenderItem {
 	int _rma;
 	int _vertexOffset;
 	int _indexOffset;
-	Mesh* _mesh;
+	MeshOLD* _mesh;
 	//int _parentIndex;
 	//std::string _parentType;
 	void* _parent;
@@ -43,7 +43,7 @@ namespace Scene {
 	void UpdateInventoryScene(float deltaTime);
 	std::vector<VkAccelerationStructureInstanceKHR> GetMeshInstancesForSceneAccelerationStructure();
 	std::vector<VkAccelerationStructureInstanceKHR> GetMeshInstancesForInventoryAccelerationStructure();
-	std::vector<Mesh*> GetSceneMeshes(bool debugScene);
+	std::vector<MeshOLD*> GetSceneMeshes(bool debugScene);
 
 	void StoreMousePickResult(int instanceIndex, int primitiveIndex);
 	GameObject* GetGameObjectByName(std::string);

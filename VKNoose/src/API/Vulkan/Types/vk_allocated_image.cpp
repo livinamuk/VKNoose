@@ -1,4 +1,5 @@
 #include "vk_allocated_image.h"
+#include "API/Vulkan/vk_utils.h"
 
 AllocatedImage::AllocatedImage(VkDevice device, VmaAllocator allocator, VkFormat imageFormat, VkExtent3D imageExtent, VkImageUsageFlags usage, std::string debugName) {
     m_format = imageFormat;
@@ -28,7 +29,7 @@ AllocatedImage::AllocatedImage(VkDevice device, VmaAllocator allocator, VkFormat
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     viewInfo.image = m_image;
     viewInfo.format = m_format;
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.aspectMask = VulkanUtils::GetImageAspectFlagsFromFormat(m_format);
     viewInfo.subresourceRange.baseMipLevel = 0;
     viewInfo.subresourceRange.levelCount = 1;
     viewInfo.subresourceRange.baseArrayLayer = 0;
@@ -94,7 +95,7 @@ void AllocatedImage::TransitionLayout(VkCommandBuffer cmd, VkImageLayout newLayo
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.image = m_image;
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.aspectMask = VulkanUtils::GetImageAspectFlagsFromFormat(m_format);
     barrier.subresourceRange.baseMipLevel = 0;
     barrier.subresourceRange.levelCount = 1;
     barrier.subresourceRange.baseArrayLayer = 0;

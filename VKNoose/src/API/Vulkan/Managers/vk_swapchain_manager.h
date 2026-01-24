@@ -4,7 +4,7 @@
 
 namespace VulkanSwapchainManager {
     bool Init();
-    void CleanUp();
+    void Cleanup();
 
     void CreateSwapchain();
     void RecreateSwapchain();

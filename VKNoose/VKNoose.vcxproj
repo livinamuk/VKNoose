@@ -93,15 +93,27 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\API\Vulkan\Managers\vk_command_manager.cpp" />
+    <ClCompile Include="src\API\Vulkan\Managers\vk_descriptor_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_device_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_instance_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_memory_manager.cpp" />
+    <ClCompile Include="src\API\Vulkan\Managers\vk_pipeline_manager.cpp" />
+    <ClCompile Include="src\API\Vulkan\Managers\vk_raytracing_manager.cpp" />
+    <ClCompile Include="src\API\Vulkan\Managers\vk_resource_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_swapchain_manager.cpp" />
+    <ClCompile Include="src\API\Vulkan\Managers\vk_sync_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Types\vk_allocated_image.cpp" />
+    <ClCompile Include="src\API\Vulkan\Types\vk_buffer.cpp" />
+    <ClCompile Include="src\API\Vulkan\Types\vk_descriptor_set.cpp" />
+    <ClCompile Include="src\API\Vulkan\Types\vk_pipeline.cpp" />
     <ClCompile Include="src\API\Vulkan\Types\vk_shader.cpp" />
+    <ClCompile Include="src\API\Vulkan\Renderer\vk_renderer.cpp" />
+    <ClCompile Include="src\AssetManagement\AssetManager_mesh.cpp" />
+    <ClCompile Include="src\AssetManagement\AssetManager_model.cpp" />
     <ClCompile Include="src\Audio\Audio.cpp" />
     <ClCompile Include="src\BackEnd\BackEnd.cpp" />
-    <ClCompile Include="src\Game\AssetManager.cpp" />
+    <ClCompile Include="src\AssetManagement\AssetManager.cpp" />
     <ClCompile Include="src\Game\Camera.cpp" />
     <ClCompile Include="src\Game\GameData.cpp" />
     <ClCompile Include="src\Game\GameObject.cpp" />
@@ -115,6 +127,8 @@
     <ClCompile Include="src\Main.cpp" />
     <ClCompile Include="src\Profiler.cpp" />
     <ClCompile Include="src\Renderer\Shader.cpp" />
+    <ClCompile Include="src\Types\Mesh.cpp" />
+    <ClCompile Include="src\Types\Model.cpp" />
     <ClCompile Include="src\UI\TextBlitting.cpp" />
     <ClCompile Include="src\API\Vulkan\vk_backend.cpp" />
     <ClCompile Include="src\API\Vulkan\vk_initializers.cpp" />
@@ -123,6 +137,7 @@
     <ClCompile Include="src\API\Vulkan\vk_textures.cpp" />
     <ClCompile Include="src\API\Vulkan\vk_tools.cpp" />
     <ClCompile Include="src\API\Vulkan\vk_types.cpp" />
+    <ClCompile Include="src\Util.cpp" />
     <ClCompile Include="vendor\lz4\include\lz4.c" />
     <ClCompile Include="vendor\lz4\include\lz4file.c" />
     <ClCompile Include="vendor\lz4\include\lz4frame.c" />
@@ -132,20 +147,36 @@
     <ClCompile Include="vendor\volk\include\volk\volk.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\API\Vulkan\Types\vk_descriptor_set.h" />
+    <ClInclude Include="src\API\Vulkan\Types\vk_vertex_descriptions.h" />
+    <ClInclude Include="src\Noose\Constants.h" />
+    <ClInclude Include="src\Noose\Types.h" />
+    <ClInclude Include="src\API\Vulkan\Managers\vk_command_manager.h" />
+    <ClInclude Include="src\API\Vulkan\Managers\vk_descriptor_manager.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_device_manager.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_instance_manager.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_memory_manager.h" />
+    <ClInclude Include="src\API\Vulkan\Managers\vk_pipeline_manager.h" />
+    <ClInclude Include="src\API\Vulkan\Managers\vk_raytracing_manager.h" />
+    <ClInclude Include="src\API\Vulkan\Managers\vk_resource_manager.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_swapchain_manager.h" />
-    <ClInclude Include="src\API\Vulkan\plan.h" />
+    <ClInclude Include="src\API\Vulkan\Managers\vk_sync_manager.h" />
+    <ClInclude Include="src\API\Vulkan\Types\vk_acceleration_structure.h" />
+    <ClInclude Include="src\API\Vulkan\Types\vk_allocated_buffer.h" />
     <ClInclude Include="src\API\Vulkan\Types\vk_allocated_image.h" />
+    <ClInclude Include="src\API\Vulkan\Types\vk_buffer.h" />
+    <ClInclude Include="src\API\Vulkan\Types\vk_pipeline.h" />
     <ClInclude Include="src\API\Vulkan\Types\vk_shader.h" />
     <ClInclude Include="src\API\Vulkan\vk_common.h" />
+    <ClInclude Include="src\API\Vulkan\Renderer\vk_renderer.h" />
+    <ClInclude Include="src\API\Vulkan\vk_utils.h" />
     <ClInclude Include="src\Audio\Audio.h" />
     <ClInclude Include="src\BackEnd\BackEnd.h" />
     <ClInclude Include="src\Common.h" />
+    <ClInclude Include="src\common\LoadingState.h" />
     <ClInclude Include="src\common\NooseEnums.h" />
     <ClInclude Include="src\common\NooseTypes.h" />
-    <ClInclude Include="src\Game\AssetManager.h" />
+    <ClInclude Include="src\AssetManagement\AssetManager.h" />
     <ClInclude Include="src\Game\Callbacks.hpp" />
     <ClInclude Include="src\Game\Camera.h" />
     <ClInclude Include="src\Game\GameData.h" />
@@ -161,6 +192,8 @@
     <ClInclude Include="src\Renderer\Pipeline.hpp" />
     <ClInclude Include="src\Renderer\RasterRenderer.h" />
     <ClInclude Include="src\Renderer\Shader.h" />
+    <ClInclude Include="src\Types\Mesh.h" />
+    <ClInclude Include="src\Types\Model.h" />
     <ClInclude Include="src\UI\TextBlitter.h" />
     <ClInclude Include="src\Util.h" />
     <ClInclude Include="src\API\Vulkan\vk_backend.h" />

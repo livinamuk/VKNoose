@@ -1,6 +1,6 @@
 #pragma once
 #include "../common.h"
-#include "../Game/AssetManager.h"
+#include "AssetManagement/AssetManager.h"
 #include "Material.hpp"
 
 namespace RasterRenderer {
@@ -35,7 +35,7 @@ namespace RasterRenderer {
 	}
 
 	inline void DrawMesh(VkCommandBuffer commandbuffer, int index) {
-		Mesh* mesh = AssetManager::GetMesh(_UIToRender[index].meshIndex);
+		MeshOLD* mesh = AssetManager::GetMesh(_UIToRender[index].meshIndex);
 		mesh->draw(commandbuffer, index);
 	}
 
@@ -83,7 +83,7 @@ namespace RasterRenderer {
 		transform.position.x = ndcX;
 		transform.position.y = ndcY * -1;
 		transform.scale = glm::vec3(width, height * -1, 1);
-		int meshIndex = AssetManager::GetModel("blitter_quad")->_meshIndices[0];
+		int meshIndex = AssetManager::GetModel("blitter_quad")->m_meshIndices[0];
 		int textureIndex = AssetManager::GetTextureIndex(textureName);
 		SubmitUI(meshIndex, textureIndex, 0, transform.to_mat4(), destination, xClipMin, xClipMax, yClipMin, yClipMax);
 	}

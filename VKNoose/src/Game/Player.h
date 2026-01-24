@@ -1,6 +1,7 @@
 #pragma once
 #include "../Common.h"
 #include "Camera.h"
+#include "Noose/Types.h"
 
 class Player
 {

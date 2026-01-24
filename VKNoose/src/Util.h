@@ -1,5 +1,6 @@
 #pragma once
-//#include <glad/glad.h>
+#include "Noose/Types.h"
+
 #include <GLFW/glfw3.h>
 #include <vector>
 #include <algorithm>
@@ -9,6 +10,12 @@
 #include <filesystem>
 
 namespace Util {
+	// File
+	std::vector<FileInfo> IterateDirectory(const std::string& directory, std::vector<std::string> extensions);
+	std::string GetFileName(const std::filesystem::directory_entry& entry);
+	std::string GetFullPath(const std::filesystem::directory_entry& entry);
+	std::string GetFileNameWithoutExtension(const std::filesystem::directory_entry& entry);
+	std::string GetFileExtension(const std::filesystem::directory_entry& entry);
 
 	#define SMALL_NUMBER		(float)9.99999993922529e-9
 	#define KINDA_SMALL_NUMBER	(float)0.00001
@@ -61,7 +68,7 @@ namespace Util {
 		return glm::normalize(glm::cross(pos1 - pos0, pos2 - pos0));
 	}
 
-	inline FileInfo GetFileInfo(const std::filesystem::directory_entry filepath)
+	inline FileInfoOLD GetFileInfo(const std::filesystem::directory_entry filepath)
 	{
 		std::stringstream ss;
 		ss << filepath.path();
@@ -84,7 +91,7 @@ namespace Util {
 				materialType = query;
 		}
 		// RETURN IT
-		FileInfo info;
+		FileInfoOLD info;
 		info.fullpath = fullpath;
 		info.filename = filename;
 		info.filetype = filetype;
@@ -93,7 +100,7 @@ namespace Util {
 		return info;
 	}
 
-	inline FileInfo GetFileInfo(std::string filepath)
+	inline FileInfoOLD GetFileInfo(std::string filepath)
 	{
 		// isolate name
 		std::string filename = filepath.substr(filepath.rfind("/") + 1);
@@ -110,7 +117,7 @@ namespace Util {
 				materialType = query;
 		}
 		// RETURN IT
-		FileInfo info;
+		FileInfoOLD info;
 		info.fullpath = filepath;
 		info.filename = filename;
 		info.filetype = filetype;
@@ -163,9 +170,9 @@ namespace Util {
 		}
 	}
 
-	inline VertexInputDescription get_vertex_description()
+	inline VertexInputDescriptionOLD get_vertex_description()
 	{
-		VertexInputDescription description;
+		VertexInputDescriptionOLD description;
 
 		//we will have just 1 vertex buffer binding, with a per-vertex rate
 		VkVertexInputBindingDescription mainBinding = {};
@@ -207,9 +214,9 @@ namespace Util {
 	}
 
 
-	inline VertexInputDescription get_vertex_description_position_and_texcoords_only()
+	inline VertexInputDescriptionOLD get_vertex_description_position_and_texcoords_only()
 	{
-		VertexInputDescription description;
+		VertexInputDescriptionOLD description;
 
 		VkVertexInputBindingDescription mainBinding = {};
 		mainBinding.binding = 0;
@@ -235,8 +242,8 @@ namespace Util {
 		return description;
 	}
 
-	inline VertexInputDescription get_vertex_description_position_only() {
-		VertexInputDescription description;
+	inline VertexInputDescriptionOLD get_vertex_description_position_only() {
+		VertexInputDescriptionOLD description;
 		VkVertexInputBindingDescription mainBinding = {};
 		mainBinding.binding = 0;
 		mainBinding.stride = sizeof(Vertex);

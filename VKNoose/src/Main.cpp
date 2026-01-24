@@ -3,13 +3,14 @@
 #include <iostream>
 #define NOMINMAX
 #include "Windows.h"
-#include "Game/AssetManager.h"
+#include "AssetManagement/AssetManager.h"
 
 void LazyKeyPresses();
 
 int main() {
     // Init
     BackEnd::Init(WindowedMode::WINDOWED);
+    AssetManager::Init();
     GameData::Init();
 
     // Main loop
@@ -18,10 +19,20 @@ int main() {
 
         LazyKeyPresses();
 
-        if (!VulkanBackEnd::_loaded) {
+        if (!AssetManager::LoadingComplete()) {
+            AssetManager::UpdateLoading();
+            VulkanBackEnd::RenderLoadingFrame();
+        }
+        //else {
+        //    continue;
+        //}
+
+        //if (!VulkanBackEnd::_loaded && !AssetManager::LoadingComplete()) {
+        else if (!VulkanBackEnd::_loaded) {
             VulkanBackEnd::LoadNextItem();
             VulkanBackEnd::RenderLoadingFrame();
         }
+
         else {
             GameData::Update();
             Audio::Update();

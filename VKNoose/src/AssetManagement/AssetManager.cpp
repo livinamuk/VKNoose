@@ -7,6 +7,12 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
+#include <unordered_map>
+#include <future>
+#include <mutex>
+#include <thread>
+#include <vector>
+
 #include <cmath>
 #include <fstream>
 #include "lz4.h"
@@ -16,21 +22,120 @@
 #include <sys/stat.h>
 //#include <unistd.h>
 #include <string>
-#include <fstream>
+
+#include "API/Vulkan/Managers/vk_command_manager.h"
+#include "API/Vulkan/Renderer/vk_renderer.h"
 
 
 namespace AssetManager {
-	std::unordered_map<std::string, Model> _models;
+	std::vector<Mesh> g_meshes;
+	std::vector<Model> g_models;
+	std::vector<Vertex> g_vertices;
+	std::vector<uint32_t> g_indices;
+
+	std::vector<std::string> g_loadLog;
+	bool g_loadingComplete = false;
+
+	std::unordered_map<std::string, ModelOLD> _models;
 	//std::unordered_map<std::string, Material> _materials;
-	std::vector<Mesh> _meshes;
+	std::vector<MeshOLD> _meshes;
 	std::vector<Material> _materials;
 	std::vector<Texture> _textures;
-	std::vector<Vertex> _vertices;		// ALL of em
-	std::vector<uint32_t> _indices;		// ALL of em
+	std::vector<Vertex> _verticesOLD;		// ALL of em
+	std::vector<uint32_t> _indicesOLD;		// ALL of em
 	uint32_t _vertexOffset = 0;			// insert index for next mesh
 	uint32_t _indexOffset = 0;			// insert index for next mesh
 	std::string _loadLog;
+
+	void BakeModels();
+	void FindAssetPaths();
+
+	void AssetManager::Init() {
+		FindAssetPaths();
+	}
+
+	bool LoadingComplete() {
+		return g_loadingComplete;
+	}
+
+	void FindAssetPaths() {
+		for (FileInfo fileInfo : Util::IterateDirectory("res/models", {"obj"})) {
+			Model& model = g_models.emplace_back();
+			model.SetFileInfo(fileInfo);
+		}
+	}
+
+	void UpdateLoading() {
+		std::cout << ".";
+
+		LoadPendingModelsAsync();
+
+		// Loading complete?
+		g_loadingComplete = true;
+
+		for (Model& model : g_models) {
+			if (model.GetLoadingState() != LoadingState::Value::LOADING_COMPLETE) {
+				g_loadingComplete = false;
+				return;
+			}
+		}
+
+		if (LoadingComplete()) {
+			BakeModels();
+
+			VulkanRenderer::UploadGlobalGeometry();
+			VulkanRenderer::BuildAllBLAS();
+		}
+	}
+
+	std::vector<Mesh>& GetMeshes() {
+		return g_meshes;
+	}
+
+	std::vector<Model>& GetModels() {
+		return g_models;
+	}
+
+	std::vector<Vertex>& GetVertices() {
+		return g_vertices;
+	}
+
+	std::vector<uint32_t>& GetIndices() {
+		return g_indices;
+	}
+
+	void AddItemToLoadLog(std::string text) {
+		std::replace(text.begin(), text.end(), '\\', '/');
+		g_loadLog.push_back(text);
+		if (false) {
+			static std::mutex mutex;
+			std::lock_guard<std::mutex> lock(mutex);
+			std::cout << text << "\n";
+		}
+	}
+
+	void BlitLoadLog() {
+		// Calculate load log text
+		std::string text = "";
+		int maxLinesDisplayed = 36;
+		int endIndex = g_loadLog.size();
+		int beginIndex = std::max(0, endIndex - maxLinesDisplayed);
+
+		for (int i = beginIndex; i < endIndex; i++) {
+			text += g_loadLog[i] + "\n";
+		}
+
+		//UIBackEnd::BlitText(text, "StandardFont", 0, 0, Alignment::TOP_LEFT, 2.0f);
+	}
+
+	std::vector<std::string>& GetLoadLog() {
+		return g_loadLog;
+	}
 }
+
+
+
+
 
 void ImageData::free() {
 	stbi_image_free(data);
@@ -133,7 +238,7 @@ AssetFile AssetManager::pack_texture(TextureInfo* info, void* pixelData)
 void AssetManager::unpack_texture(TextureInfo* info, const char* sourcebuffer, size_t sourceSize, char* destination)
 {
 	if (info->compressionMode == CompressionMode::LZ4) {
-		LZ4_decompress_safe(sourcebuffer, destination, sourceSize, info->textureSize);
+		LZ4_decompress_safe(sourcebuffer, destination, (int)sourceSize, info->textureSize);
 	}
 	else {
 		memcpy(destination, sourcebuffer, sourceSize);
@@ -258,51 +363,46 @@ AssetFile AssetManager::pack_mesh(MeshInfo* info, char* vertexData, char* indexD
 	return file;
 }
 
-void AssetManager::Init() {
-	//_vertices.reserve(10000);
-	//_indices.reserve(10000);
-}
-
 void* AssetManager::GetVertexPointer(int offset) {
-	return &_vertices[offset];
+	return &_verticesOLD[offset];
 }
 
 Vertex AssetManager::GetVertex(int offset) {
-	return _vertices[offset];
+	return _verticesOLD[offset];
 }
 
 void* AssetManager::GetIndexPointer(int offset) {
-	return &_indices[offset];
+	return &_indicesOLD[offset];
 }
 
 uint32_t AssetManager::GetIndex(int offset) {
-	return _indices[offset];
+	return _indicesOLD[offset];
 }
 
 std::vector<Vertex>& AssetManager::GetVertices_TEMPORARY() {
-	return _vertices;
+	return _verticesOLD;
 }
 
 std::vector<uint32_t>& AssetManager::GetIndices_TEMPORARY() {
-	return _indices;
+	return _indicesOLD;
 }
 
-std::vector<Mesh>& AssetManager::GetMeshList() {
+std::vector<MeshOLD>& AssetManager::GetMeshList() {
 	return _meshes;
 }
 
-int AssetManager::CreateMesh(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
+int AssetManager::CreateMeshOLD(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
 
-	Mesh& mesh = _meshes.emplace_back(Mesh());
-	mesh._vertexCount = (uint32_t)vertices.size();
-	mesh._indexCount = (uint32_t)indices.size();
-	mesh._vertexOffset = _vertexOffset;
-	mesh._indexOffset = _indexOffset;
+	MeshOLD& mesh = _meshes.emplace_back(MeshOLD());
+	mesh.m_vertexCount = (uint32_t)vertices.size();
+	mesh.m_indexCount = (uint32_t)indices.size();
+	mesh.m_vertexOffset = _vertexOffset;
+	mesh.m_indexOffset = _indexOffset;
 
 	for (int i = 0; i < vertices.size(); i++)
-		_vertices.push_back(vertices[i]);
+		_verticesOLD.push_back(vertices[i]);
 	for (int i = 0; i < indices.size(); i++)
-		_indices.push_back(indices[i]);
+		_indicesOLD.push_back(indices[i]);
 
 	/*for (int i = 0; i < vertices.size(); i++)
 		_vertices[_vertexOffset + i] = vertices[i];
@@ -311,7 +411,7 @@ int AssetManager::CreateMesh(std::vector<Vertex>& vertices, std::vector<uint32_t
 
 	_vertexOffset += (uint32_t)vertices.size();
 	_indexOffset += (uint32_t)indices.size();
-	return _meshes.size() - 1;
+	return (int)_meshes.size() - 1;
 }
 
 
@@ -320,7 +420,7 @@ int AssetManager::CreateModel(std::vector<int> meshIndices) {
 
 }*/
 
-Mesh* AssetManager::GetMesh(int index) {
+MeshOLD* AssetManager::GetMesh(int index) {
 	if (index >= 0 && index < _meshes.size())
 		return &_meshes[index];
 	else
@@ -329,7 +429,7 @@ Mesh* AssetManager::GetMesh(int index) {
 
 bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, VkFormat imageFormat, bool generateMips)
 {
-	FileInfo info = Util::GetFileInfo(file);
+	FileInfoOLD info = Util::GetFileInfo(file);
 	std::string assetPath = "res/assets/" + info.filename + ".tex";
 
 	if (std::filesystem::exists(assetPath)) {
@@ -366,12 +466,12 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 			textureInfo.pixelsize[1] = jsonData["height"];
 			textureInfo.originalFile = jsonData["original_file"];
 
-			AllocatedBuffer stagingBuffer = VulkanBackEnd::create_buffer(textureInfo.textureSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
+			AllocatedBufferOLD stagingBuffer = VulkanBackEnd::create_buffer(textureInfo.textureSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
 
 			void* data;
-			vmaMapMemory(VulkanBackEnd::GetAllocator(), stagingBuffer._allocation, &data);
+			vmaMapMemory(VulkanBackEnd::GetAllocator(), stagingBuffer.m_allocation, &data);
 			AssetManager::unpack_texture(&textureInfo, assetFile.binaryBlob.data(), assetFile.binaryBlob.size(), (char*)data);
-			vmaUnmapMemory(VulkanBackEnd::GetAllocator(), stagingBuffer._allocation);
+			vmaUnmapMemory(VulkanBackEnd::GetAllocator(), stagingBuffer.m_allocation);
 
 			outTexture._width = jsonData["width"];
 			outTexture._height = jsonData["height"];
@@ -410,7 +510,7 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 			vmaCreateImage(VulkanBackEnd::GetAllocator(), &createInfo, &dimg_allocinfo, &newImage._image, &newImage._allocation, nullptr);
 
 			//transition image to transfer-receiver	
-			VulkanBackEnd::immediate_submit([&](VkCommandBuffer cmd)
+			VulkanCommandManager::SubmitImmediate([&](VkCommandBuffer cmd)
 				{
 					VkImageSubresourceRange range;
 					range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -439,7 +539,7 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 					copyRegion.imageExtent = imageExtent;
 
 					// First 1:1 copy for mip level 1
-					vkCmdCopyBufferToImage(cmd, stagingBuffer._buffer, newImage._image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+					vkCmdCopyBufferToImage(cmd, stagingBuffer.m_buffer, newImage._image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
 					// Prepare that image to be read from
 					VkImageMemoryBarrier imageBarrier_toReadable = imageBarrier_toTransfer;
@@ -517,7 +617,7 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 					vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 				});
 
-			vmaDestroyBuffer(VulkanBackEnd::GetAllocator(), stagingBuffer._buffer, stagingBuffer._allocation);
+			vmaDestroyBuffer(VulkanBackEnd::GetAllocator(), stagingBuffer.m_buffer, stagingBuffer.m_allocation);
 
 			outTexture.image = newImage;
 
@@ -547,12 +647,12 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 		}
 
 		VkDeviceSize imageSize = outTexture._width * outTexture._height * 4;
-		AllocatedBuffer stagingBuffer = VulkanBackEnd::create_buffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+		AllocatedBufferOLD stagingBuffer = VulkanBackEnd::create_buffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
 
 		void* data;
-		vmaMapMemory(VulkanBackEnd::GetAllocator(), stagingBuffer._allocation, &data);
+		vmaMapMemory(VulkanBackEnd::GetAllocator(), stagingBuffer.m_allocation, &data);
 		memcpy(data, (void*)pixels, static_cast<size_t>(imageSize));
-		vmaUnmapMemory(VulkanBackEnd::GetAllocator(), stagingBuffer._allocation);
+		vmaUnmapMemory(VulkanBackEnd::GetAllocator(), stagingBuffer.m_allocation);
 		stbi_image_free(pixels);
 
 		VkExtent3D imageExtent;
@@ -589,7 +689,7 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 		vmaCreateImage(VulkanBackEnd::GetAllocator(), &createInfo, &dimg_allocinfo, &newImage._image, &newImage._allocation, nullptr);
 
 		//transition image to transfer-receiver	
-		VulkanBackEnd::immediate_submit([&](VkCommandBuffer cmd)
+		VulkanCommandManager::SubmitImmediate([&](VkCommandBuffer cmd)
 			{
 				VkImageSubresourceRange range;
 				range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -618,7 +718,7 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 				copyRegion.imageExtent = imageExtent;
 
 				// First 1:1 copy for mip level 1
-				vkCmdCopyBufferToImage(cmd, stagingBuffer._buffer, newImage._image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+				vkCmdCopyBufferToImage(cmd, stagingBuffer.m_buffer, newImage._image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
 				// Prepare that image to be read from
 				VkImageMemoryBarrier imageBarrier_toReadable = imageBarrier_toTransfer;
@@ -696,7 +796,7 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 				vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 			});
 
-		vmaDestroyBuffer(VulkanBackEnd::GetAllocator(), stagingBuffer._buffer, stagingBuffer._allocation);
+		vmaDestroyBuffer(VulkanBackEnd::GetAllocator(), stagingBuffer.m_buffer, stagingBuffer.m_allocation);
 
 		outTexture.image = newImage;
 
@@ -752,7 +852,7 @@ int AssetManager::GetMaterialIndex(const std::string& _name) {
 }
 
 int AssetManager::GetNumberOfTextures() {
-	return _textures.size();
+	return (int)_textures.size();
 }
 
 void AssetManager::AddTexture(Texture& texture) {
@@ -766,7 +866,7 @@ void AssetManager::AddTexture(Texture& texture) {
 void AssetManager::LoadFont() {
 	// Get the width and height of each character, used for text blitting. Probably move this into TextBlitter::Init()
 	TextBlitter::_charExtents.clear();
-	for (size_t i = 1; i <= 90; i++) {
+	for (int i = 1; i <= 90; i++) {
 		std::string filepath = "res/textures/char_" + std::to_string(i) + ".png";
 		Texture texture;
 		AssetManager::load_image_from_file(filepath.c_str(), texture, VkFormat::VK_FORMAT_R8G8B8A8_UNORM, true); // NO MIPS = false
@@ -808,7 +908,7 @@ bool AssetManager::LoadNextTexture() {
 	static auto allFiles = std::filesystem::directory_iterator("res/textures/");
 
 	for (const auto& entry : allFiles) {
-		FileInfo info = Util::GetFileInfo(entry);
+		FileInfoOLD info = Util::GetFileInfo(entry);
 		if (info.filetype == "png" || info.filetype == "tga" || info.filetype == "jpg") {
 			if (!TextureExists(info.filename)) {
 				Texture texture;
@@ -858,9 +958,19 @@ void AssetManager::LoadHardcodedMesh() {
 		vertices.push_back(vertC);
 		vertices.push_back(vertD);
 		std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
-		Model model;
-		model._meshIndices.push_back(CreateMesh(vertices, indices));
+		ModelOLD model;
+		model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices));
 		_models["blitter_quad"] = model;
+
+		Model& model2 = AssetManager::CreateModel("blitter_quad");
+		//std::vector<Vertex> vertices;
+		//vertices.push_back(Vertex(glm::vec3(-1.0f, -1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec2(0.0f, 1.0f)));
+		//vertices.push_back(Vertex(glm::vec3(-1.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec2(0.0f, 0.0f)));
+		//vertices.push_back(Vertex(glm::vec3(1.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec2(1.0f, 0.0f)));
+		//vertices.push_back(Vertex(glm::vec3(1.0f, -1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec2(1.0f, 1.0f)));
+		//std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
+		model2.AddMeshIndex(AssetManager::CreateMesh("blitter_quad_mesh", vertices, indices));
+		model2.SetLoadingState(LoadingState::Value::LOADING_COMPLETE);
 	}
 
 	// Fullscreen quad 
@@ -880,9 +990,13 @@ void AssetManager::LoadHardcodedMesh() {
 		vertices.push_back(vertC);
 		vertices.push_back(vertD);
 		std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
-		Model model;
-		model._meshIndices.push_back(CreateMesh(vertices, indices));
+		ModelOLD model;
+		model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices));
 		_models["fullscreen_quad"] = model;
+
+		Model& model2 = AssetManager::CreateModel("fullscreen_quad");
+		model2.AddMeshIndex(AssetManager::CreateMesh("fullscreen_quad_mesh", vertices, indices));
+		model2.SetLoadingState(LoadingState::Value::LOADING_COMPLETE);
 	}
 
 	{
@@ -911,10 +1025,14 @@ void AssetManager::LoadHardcodedMesh() {
 		//std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
 		std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
 		Util::SetTangentsFromVertices(vertices, indices);
-		Model model;
-		model._meshIndices.push_back(CreateMesh(vertices, indices));
-		model._filename = "Floor";
+		ModelOLD model;
+		model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices));
+		model.m_filename = "Floor";
 		_models["floor"] = model;
+
+		Model& model2 = AssetManager::CreateModel("floor");
+		model2.AddMeshIndex(AssetManager::CreateMesh("floor_mesh", vertices, indices));
+		model2.SetLoadingState(LoadingState::Value::LOADING_COMPLETE);
 	}
 
 	{
@@ -948,10 +1066,14 @@ void AssetManager::LoadHardcodedMesh() {
 		//std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
 		std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
 		Util::SetTangentsFromVertices(vertices, indices);
-		Model model;
-		model._meshIndices.push_back(CreateMesh(vertices, indices));
-		model._filename = "bathroom_floor";
+		ModelOLD model;
+		model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices));
+		model.m_filename = "bathroom_floor";
 		_models["bathroom_floor"] = model;
+
+		Model& model2 = AssetManager::CreateModel("bathroom_floor");
+		model2.AddMeshIndex(AssetManager::CreateMesh("bathroom_floor_mesh", vertices, indices));
+		model2.SetLoadingState(LoadingState::Value::LOADING_COMPLETE);
 	}
 
 	{
@@ -985,10 +1107,14 @@ void AssetManager::LoadHardcodedMesh() {
 		//std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
 		std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
 		Util::SetTangentsFromVertices(vertices, indices);
-		Model model;
-		model._meshIndices.push_back(CreateMesh(vertices, indices));
-		model._filename = "bathroom_ceiling";
+		ModelOLD model;
+		model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices));
+		model.m_filename = "bathroom_ceiling";
 		_models["bathroom_ceiling"] = model;
+
+		Model& model2 = AssetManager::CreateModel("bathroom_ceiling");
+		model2.AddMeshIndex(AssetManager::CreateMesh("bathroom_ceiling_mesh", vertices, indices));
+		model2.SetLoadingState(LoadingState::Value::LOADING_COMPLETE);
 	}
 
 
@@ -1024,10 +1150,16 @@ void AssetManager::LoadHardcodedMesh() {
 		vertices.push_back(vert3);
 		std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
 		Util::SetTangentsFromVertices(vertices, indices);
-		Model model;
-		model._meshIndices.push_back(CreateMesh(vertices, indices));
+		ModelOLD model;
+		model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices));
 		_models["ceiling"] = model;
+
+		Model& model2 = AssetManager::CreateModel("ceiling");
+		model2.AddMeshIndex(AssetManager::CreateMesh("ceiling_mesh", vertices, indices));
+		model2.SetLoadingState(LoadingState::Value::LOADING_COMPLETE);
 	}
+
+	std::cout << "AssetManager::LoadHardcodedMesh()\n";
 }
 
 bool AssetManager::LoadNextModel() {
@@ -1035,14 +1167,14 @@ bool AssetManager::LoadNextModel() {
 	static auto allFiles = std::filesystem::directory_iterator("res/models/");
 
 	for (const auto& entry : allFiles) {
-		FileInfo info = Util::GetFileInfo(entry);
+		FileInfoOLD info = Util::GetFileInfo(entry);
 		if (info.filetype == "obj") {
 
 			// If model doesn't exist, then create it
 			if (_models.find(info.filename) != _models.end()) {
 			}
 			else {
-				_models[info.filename] = Model(info.fullpath.c_str());
+				_models[info.filename] = ModelOLD(info.fullpath.c_str());
 				VulkanBackEnd::AddLoadingText(info.fullpath);
 				return true;
 			}
@@ -1053,7 +1185,7 @@ bool AssetManager::LoadNextModel() {
 }
 
 
-Model* AssetManager::GetModel(const std::string & name) {
+ModelOLD* AssetManager::GetModel(const std::string & name) {
 	auto it = _models.find(name);
 	if (it == _models.end()) {
 		std::cout << "GetModel() failed coz " << name << " was not found\n";

@@ -15,35 +15,39 @@
 #include <glm/gtx/euler_angles.hpp>
 #include "glm/gtx/hash.hpp"
 
-struct Mesh {
-	uint32_t _vertexOffset;
-	uint32_t _indexOffset;
-	uint32_t _vertexCount;
-	uint32_t _indexCount;
+#include "API/Vulkan/Types/vk_acceleration_structure.h" // suss having this here
 
-	AllocatedBuffer _vertexBuffer;
-	AllocatedBuffer _indexBuffer;
-	AllocatedBuffer _transformBuffer;
-	//Transform _transform;
-	AccelerationStructure _accelerationStructure;
-	std::string _name = "undefined";
-	bool _uploadedToGPU = false;
+struct MeshOLD {
+	uint32_t m_vertexOffset = 0;
+	uint32_t m_indexOffset = 0;
+	uint32_t m_vertexCount = 0;
+	uint32_t m_indexCount = 0;
+
+	AllocatedBufferOLD m_vertexBuffer;
+	AllocatedBufferOLD m_indexBuffer;
+	AllocatedBufferOLD m_transformBuffer;
+	VulkanAccelerationStructure m_accelerationStructure;
+	std::string m_name = "undefined";
+	bool m_uploadedToGPU = false;
 
 	void draw(VkCommandBuffer commandBuffer, uint32_t firstInstance);
+
+	int32_t GetBaseVertex() const  { return m_vertexOffset; }
+	int32_t GetBaseIndex() const   { return m_indexOffset; }
+	int32_t GetVertexCount() const { return m_vertexCount; }
+	int32_t GetIndexCount() const  { return m_indexCount; }
 };
 
-struct Model {
+struct ModelOLD {
 public:
 	// methods
-	Model();
-	Model(const char* filename);
+	ModelOLD();
+	ModelOLD(const char* filename);
 	void draw(VkCommandBuffer commandBuffer, uint32_t firstInstance);
-	std::string _filename = "undefined";
-	std::vector<int> _meshIndices;
-	std::vector<std::string> _meshNames;
+	std::string m_filename = "undefined";
+	std::vector<int> m_meshIndices;
+	std::vector<std::string> m_meshNames;
 	
 private:
-	// methods
-	//bool load_from_obj(const char* filename);
-	//bool load_from_raw_data(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
+
 };

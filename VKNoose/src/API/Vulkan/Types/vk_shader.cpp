@@ -1,10 +1,41 @@
 #include "vk_shader.h"
 #include "shaderc/shaderc.hpp"
+#include "API/Vulkan/vk_backend.h"
 #include <fstream>
 #include <iostream>
 #include <filesystem>
 #include <unordered_map>
 #include <sstream>
+
+static std::string ReadShaderFileWithIncludes(std::string filepath) {
+    std::string line;
+    std::ifstream stream(filepath);
+    std::stringstream ss;
+
+    if (!stream.is_open()) {
+        std::cerr << "Could not open shader file: " << filepath << "\n";
+        return "";
+    }
+
+    while (getline(stream, line)) {
+        if (line.length() >= 8 && line.substr(0, 8) == "#include") {
+            size_t firstQuote = line.find('"');
+            size_t lastQuote = line.rfind('"');
+
+            if (firstQuote != std::string::npos && lastQuote != std::string::npos && firstQuote != lastQuote) {
+                std::string filename = line.substr(firstQuote + 1, lastQuote - firstQuote - 1);
+
+                std::string includePath = "res/shaders/Vulkan/" + filename;
+                std::string includeContent = ReadShaderFileWithIncludes(includePath);
+                ss << includeContent << "\n";
+            }
+        }
+        else {
+            ss << line << "\n";
+        }
+    }
+    return ss.str();
+}
 
 static shaderc_shader_kind GetShadercKind(VkShaderStageFlagBits stage) {
     switch (stage) {
@@ -14,25 +45,24 @@ static shaderc_shader_kind GetShadercKind(VkShaderStageFlagBits stage) {
     case VK_SHADER_STAGE_GEOMETRY_BIT:                return shaderc_geometry_shader;
     case VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT:    return shaderc_tess_control_shader;
     case VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT: return shaderc_tess_evaluation_shader;
+    case VK_SHADER_STAGE_RAYGEN_BIT_KHR:              return shaderc_raygen_shader;
+    case VK_SHADER_STAGE_MISS_BIT_KHR:                return shaderc_miss_shader;
+    case VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR:         return shaderc_closesthit_shader;
     default: return shaderc_glsl_infer_from_source;
     }
 }
 
 static std::vector<uint32_t> CompileGLSL(const std::string& path, VkShaderStageFlagBits stage) {
-    std::ifstream file(path);
-    if (!file.is_open()) {
-        std::cerr << "Failed to open shader source: " << path << "\n";
-        return {};
-    }
-
-    std::stringstream stream;
-    stream << file.rdbuf();
-    std::string source = stream.str();
+    // Use the manual include resolver instead of direct ifstream
+    std::string source = ReadShaderFileWithIncludes(path);
+    if (source.empty()) return {};
 
     static shaderc::Compiler compiler;
     shaderc::CompileOptions options;
+
     options.SetTargetSpirv(shaderc_spirv_version_1_6);
     options.SetTargetEnvironment(shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_3);
+    options.SetOptimizationLevel(shaderc_optimization_level_performance);
 
     shaderc::SpvCompilationResult result = compiler.CompileGlslToSpv(source, GetShadercKind(stage), path.c_str(), options);
 
@@ -86,6 +116,12 @@ void VulkanShaderModule::Hotload(VkDevice device) {
     if (vkCreateShaderModule(device, &createInfo, nullptr, &newModule) == VK_SUCCESS) {
         Cleanup(device);
         m_module = newModule;
+
+        VkDebugUtilsObjectNameInfoEXT nameInfo = { VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
+        nameInfo.objectType = VK_OBJECT_TYPE_SHADER_MODULE;
+        nameInfo.objectHandle = (uint64_t)m_module;
+        nameInfo.pObjectName = m_path.c_str();
+        vkSetDebugUtilsObjectNameEXT(device, &nameInfo);
     }
 }
 
@@ -93,10 +129,10 @@ VulkanShader::VulkanShader(VkDevice device, const std::vector<std::string>& file
     static const std::unordered_map<std::string, VkShaderStageFlagBits> shaderTypeMap = {
         {".vert", VK_SHADER_STAGE_VERTEX_BIT},
         {".frag", VK_SHADER_STAGE_FRAGMENT_BIT},
-        {".geom", VK_SHADER_STAGE_GEOMETRY_BIT},
-        {".tesc", VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT},
-        {".tese", VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT},
-        {".comp", VK_SHADER_STAGE_COMPUTE_BIT}
+        {".comp", VK_SHADER_STAGE_COMPUTE_BIT},
+        {".rgen", VK_SHADER_STAGE_RAYGEN_BIT_KHR},
+        {".rmiss", VK_SHADER_STAGE_MISS_BIT_KHR},
+        {".rchit", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR}
     };
 
     for (const std::string& filename : filenames) {
@@ -112,9 +148,6 @@ VulkanShader::VulkanShader(VkDevice device, const std::vector<std::string>& file
                 std::cerr << "SHADER FILE NOT FOUND: " << fullPath << "\n";
             }
         }
-        else {
-            std::cerr << "UNKNOWN SHADER EXTENSION: " << extension << " for file: " << filename << "\n";
-        }
     }
 }
 
@@ -129,16 +162,29 @@ VulkanShader& VulkanShader::operator=(VulkanShader&& other) noexcept {
     return *this;
 }
 
-std::vector<VkPipelineShaderStageCreateInfo> VulkanShader::GetStageInfos() const {
-    std::vector<VkPipelineShaderStageCreateInfo> infos;
+//std::vector<VkPipelineShaderStageCreateInfo> VulkanShader::GetStageInfos() const {
+//    std::vector<VkPipelineShaderStageCreateInfo> infos;
+//    for (const auto& module : m_modules) {
+//        VkPipelineShaderStageCreateInfo info = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+//        info.stage = module.GetStage();
+//        info.module = module.GetModule();
+//        info.pName = m_entryPoint;
+//        infos.push_back(info);
+//    }
+//    return infos;
+//}
+
+VkPipelineShaderStageCreateInfo VulkanShader::GetStageCreateInfo(VkShaderStageFlagBits stage) const {
     for (const auto& module : m_modules) {
-        VkPipelineShaderStageCreateInfo info = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
-        info.stage = module.GetStage();
-        info.module = module.GetModule();
-        info.pName = m_entryPoint;
-        infos.push_back(info);
+        if (module.GetStage() == stage) {
+            VkPipelineShaderStageCreateInfo info = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+            info.stage = module.GetStage();
+            info.module = module.GetModule();
+            info.pName = m_entryPoint;
+            return info;
+        }
     }
-    return infos;
+    return {}; // Returns empty/null if stage not found
 }
 
 void VulkanShader::Cleanup(VkDevice device) {

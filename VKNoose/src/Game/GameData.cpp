@@ -1,6 +1,6 @@
 #include "GameData.h"
 #include "../Util.h"
-#include "AssetManager.h"
+#include "AssetManagement/AssetManager.h"
 #include "Scene.h"
 #include "Laptop.h"
 
@@ -243,14 +243,14 @@ void GameData::InitInventoryItemData()
 	phone.model = AssetManager::GetModel("YourPhone");
 	phone.transform.rotation.x = -NOOSE_HALF_PI;
 	phone.transform.rotation.y = NOOSE_PI;
-	phone.transform.scale = glm::vec3(3.1);
+	phone.transform.scale = glm::vec3(3.1f);
 	phone.transform.rotation.x -= 0.1f;
 
 	InventoryItemData diary;
 	diary.name = "Wife's Diary";
 	diary.menu.push_back("Read");
 	diary.menu.push_back("Examine");
-	diary.transform.scale = glm::vec3(1.9);
+	diary.transform.scale = glm::vec3(1.9f);
 	diary.material = AssetManager::GetMaterial("Diary");
 	diary.model = AssetManager::GetModel("Diary");
 	diary.transform.rotation.x = 1.41f;
@@ -263,11 +263,11 @@ void GameData::InitInventoryItemData()
 	blackSkull.name = "Black Skull";
 	blackSkull.menu.push_back("Use");
 	blackSkull.menu.push_back("Examine");
-	blackSkull.transform.scale = glm::vec3(0.25);
+	blackSkull.transform.scale = glm::vec3(0.25f);
 	blackSkull.material = AssetManager::GetMaterial("BlackSkull");
 	blackSkull.model = AssetManager::GetModel("BlackSkull2");
-	blackSkull.transform.rotation.x = 0;
-	blackSkull.transform.rotation.y = 0;
+	blackSkull.transform.rotation.x = 0.0f;
+	blackSkull.transform.rotation.y = 0.0f;
 	blackSkull.transform.rotation.x += 0.25f;
 	_inventoryItemDataContainer.push_back(blackSkull);
 
@@ -275,11 +275,11 @@ void GameData::InitInventoryItemData()
 	flowers.name = "Flowers";
 	flowers.menu.push_back("Use");
 	flowers.menu.push_back("Examine");
-	flowers.transform.scale = glm::vec3(1.7);
+	flowers.transform.scale = glm::vec3(1.7f);
 	flowers.material = AssetManager::GetMaterial("Flowers");
 	flowers.model = AssetManager::GetModel("Flowers");
-	flowers.transform.rotation.x = 0.40;
-	flowers.transform.rotation.y = 0.45;
+	flowers.transform.rotation.x = 0.40f;
+	flowers.transform.rotation.y = 0.45f;
 	flowers.transform.rotation.x += 0.15f;
 	_inventoryItemDataContainer.push_back(flowers);
 
@@ -287,11 +287,11 @@ void GameData::InitInventoryItemData()
 	smallKey.name = "Small Key";
 	smallKey.menu.push_back("Use");
 	smallKey.menu.push_back("Examine");
-	smallKey.transform.scale = glm::vec3(1.0);
+	smallKey.transform.scale = glm::vec3(1.0f);
 	smallKey.material = AssetManager::GetMaterial("SmallKey");
 	smallKey.model = AssetManager::GetModel("SmallKey");
-	smallKey.transform.rotation.z = -0.64;
-	smallKey.transform.rotation.y = 3.0;
+	smallKey.transform.rotation.z = -0.64f;
+	smallKey.transform.rotation.y = 3.0f;
 	smallKey.transform.rotation.x += 0.15f;
 	smallKey.transform.position.y -= 0.02f;
 	_inventoryItemDataContainer.push_back(smallKey);

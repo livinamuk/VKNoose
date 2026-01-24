@@ -111,7 +111,7 @@ void RecreateSwapchain() {
         }
     }
 
-    void CleanUp() {
+    void Cleanup() {
         for (auto imageView : g_swapchainImageViews) {
             vkDestroyImageView(VulkanDeviceManager::GetDevice(), imageView, nullptr);
         }

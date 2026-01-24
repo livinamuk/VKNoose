@@ -214,8 +214,20 @@ namespace VulkanDeviceManager {
         vkGetPhysicalDeviceFeatures2(g_physicalDevice, &g_features2);
     }
 
-    void CleanUp() {
+    void Cleanup() {
+        if (g_device != VK_NULL_HANDLE) {
+            vkDestroyDevice(g_device, nullptr);
+            g_device = VK_NULL_HANDLE;
+            g_physicalDevice = VK_NULL_HANDLE;
 
+            // Reset queue handles and families
+            g_graphicsQueue = VK_NULL_HANDLE;
+            g_presentQueue = VK_NULL_HANDLE;
+            g_graphicsQueueFamily = UINT32_MAX;
+            g_presentQueueFamily = UINT32_MAX;
+
+            std::cout << "VulkanDeviceManager::Cleanup()\n";
+        }
     }
 
     VkPhysicalDevice GetPhysicalDevice() { return g_physicalDevice; }

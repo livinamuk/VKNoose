@@ -1,14 +1,15 @@
 #include "API/Vulkan/vk_types.h"
+#include "Noose/Types.h"
 #include <string>
 
-enum VertexDescriptionType { POSITION_NORMAL_TEXCOORD, POSITION_TEXCOORD, POSITION };
+enum VertexDescriptionTypeOLD { POSITION_NORMAL_TEXCOORD, POSITION_TEXCOORD, POSITION };
 
 struct Pipeline {
 
 	VkPipeline _handle;
 	VkPipelineLayout _layout = VK_NULL_HANDLE;
 	std::vector<VkDescriptorSetLayout> _descriptorSetLayouts;
-	VertexInputDescription _vertexDescription;
+	VertexInputDescriptionOLD _vertexDescription;
 	VkPrimitiveTopology _topology;
 	VkPolygonMode _polygonMode;
 	VkCullModeFlags _cullModeFlags;
@@ -53,7 +54,7 @@ struct Pipeline {
 		vkDestroyPipelineLayout(device, _layout, nullptr);
 	}
 
-	void SetVertexDescription(VertexDescriptionType type) {
+	void SetVertexDescription(VertexDescriptionTypeOLD type) {
 		// Main binding
 		_vertexDescription.Reset();
 		VkVertexInputBindingDescription mainBinding = {};

@@ -1,9 +1,10 @@
 #pragma once
+
+#include <Noose/Constants.h>
+
 #include <vector>
 #include <string>
 
-#define LAPTOP_DISPLAY_WIDTH 640
-#define LAPTOP_DISPLAY_HEIGHT 430
 #define MINIMUM_WINDOW_WIDTH 100
 #define MINIMUM_WINDOW_HEIGHT 50
 #define RESIZE_GRACE_DISTANCE 2

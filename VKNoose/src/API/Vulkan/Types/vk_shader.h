@@ -15,9 +15,9 @@ struct VulkanShaderModule {
     void Cleanup(VkDevice device);
     void Hotload(VkDevice device);
 
-    VkShaderModule GetModule() const        { return m_module; }
-    VkShaderStageFlagBits GetStage() const  { return m_stage; }
-    const std::string& GetPath() const      { return m_path; }
+    VkShaderModule GetModule() const { return m_module; }
+    VkShaderStageFlagBits GetStage() const { return m_stage; }
+    const std::string& GetPath() const { return m_path; }
 
 private:
     VkShaderModule m_module = VK_NULL_HANDLE;
@@ -33,7 +33,8 @@ struct VulkanShader {
     VulkanShader(VulkanShader&& other) noexcept;
     VulkanShader& operator=(VulkanShader&& other) noexcept;
 
-    std::vector<VkPipelineShaderStageCreateInfo> GetStageInfos() const;
+    //std::vector<VkPipelineShaderStageCreateInfo> GetStageInfos() const;
+    VkPipelineShaderStageCreateInfo GetStageCreateInfo(VkShaderStageFlagBits stage) const;
     void Cleanup(VkDevice device);
     void Hotload(VkDevice device);
     VkShaderModule GetVertexShader();

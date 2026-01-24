@@ -1,5 +1,5 @@
 #include "Wall.h"
-#include "../AssetManager.h"
+#include "AssetManagement/AssetManager.h"
 
 Wall::Wall(glm::vec3 begin, glm::vec3 end, std::string materialName) {
 
@@ -49,7 +49,7 @@ Wall::Wall(glm::vec3 begin, glm::vec3 end, std::string materialName) {
 
 	Util::SetTangentsFromVertices(vertices, indices);
 
-	_meshIndex = AssetManager::CreateMesh(vertices, indices);
+	_meshIndex = AssetManager::CreateMeshOLD(vertices, indices);
 
 	/*std::cout << "\nnew wall\n";
 	for (auto index : indices) {

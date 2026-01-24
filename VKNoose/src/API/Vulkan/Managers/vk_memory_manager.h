@@ -5,5 +5,6 @@ namespace VulkanMemoryManager {
     bool Init();
     void Cleanup();
 
+    VkDescriptorPool GetDescriptorPool();
     VmaAllocator GetAllocator();
 }
