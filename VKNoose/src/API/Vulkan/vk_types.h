@@ -30,16 +30,6 @@ struct HellDescriptorSet {
 	void Destroy(VkDevice device);
 };
 
-struct HellBuffer {
-	VkBuffer buffer = VK_NULL_HANDLE;
-	VmaAllocation allocation = VK_NULL_HANDLE;
-	unsigned int size = 0;
-	void Create(VmaAllocator allocator, unsigned int srcSize, VkBufferUsageFlags bufferUsageFlags, VkMemoryPropertyFlags memoryUsageFlags);
-	void Map(VmaAllocator allocator, void* srcData);
-	void MapRange(VmaAllocator allocator, void* srcData, size_t size);
-	void Destroy(VmaAllocator allocator);
-};
-
 struct AllocatedImageOLD {
 	VkImage _image;
 	VmaAllocation _allocation;

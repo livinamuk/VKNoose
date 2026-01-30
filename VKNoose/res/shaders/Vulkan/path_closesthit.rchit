@@ -1,11 +1,14 @@
 #version 460
 #extension GL_EXT_ray_tracing : require
 #extension GL_EXT_nonuniform_qualifier : enable
-#extension GL_EXT_scalar_block_layout : enable
+#extension GL_EXT_buffer_reference2 : require
+#extension GL_EXT_scalar_block_layout : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
 #include "raycommon.glsl"
 #include "pbr_functions.glsl"
+#include "types.glsl"
+#include "constants.glsl"
 
 layout(location = 0) rayPayloadInEXT RayPayload rayPayload;
 layout(location = 1) rayPayloadEXT bool isShadowed;
@@ -22,6 +25,30 @@ struct Vertex {
 	float pad4;
 };
 
+//TODO:
+struct SceneData {
+	int lightCount;
+};
+
+struct SceneDeviceAddresses {
+    uint64_t vertices;
+    uint64_t indices;
+    uint64_t instances;
+    uint64_t lights;
+    uint64_t tlas;
+    uint64_t sceneData;
+};
+// 
+
+
+
+
+
+struct Light {
+	vec4 position;
+	vec4 color;
+};
+
 struct MeshInstance {
 	mat4 worldMatrix;
 	int vertexOffset;
@@ -34,10 +61,20 @@ struct MeshInstance {
 	int dummy2;
 };
 
-struct Light {
-	vec4 position;
-	vec4 color;
+layout(buffer_reference, scalar) readonly buffer LightBuffer { Light arr[]; };
+layout(buffer_reference, scalar) readonly buffer SceneInstancesBuffer { MeshInstance arr[]; };
+
+struct DeviceAddresses {
+    uint64_t sceneCameraData;
+    uint64_t sceneInstances;
+    uint64_t sceneLights;
+    uint64_t inventoryCameraData;
+    uint64_t inventoryInstances;
+    uint64_t inventoryLights;
+    uint64_t uiInstances;
 };
+
+
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
 layout(set = 0, binding = 1) uniform CameraData_ { CameraData data; } cam;
@@ -45,14 +82,39 @@ layout(set = 0, binding = 1) uniform CameraData_ { CameraData data; } cam;
 layout(set = 0, binding = 2) buffer MeshInstances { MeshInstance i[]; } meshInstances;
 layout(set = 0, binding = 4) buffer Lights_ { Light i[]; } lights;
 
-// Static
-layout(set = 1, binding = 0) uniform sampler samp;
-layout(set = 1, binding = 1) uniform texture2D textures[256];
-layout(set = 1, binding = 2) readonly buffer Vertices { Vertex v[]; } vertices;
-layout(set = 1, binding = 3) readonly buffer Indices { uint i[]; } indices;
-//layout(set = 1, binding = 4, rgba8) uniform image2D laptopImage; // rt output image
+// Old Static
+//layout(set = 1, binding = 2) readonly buffer Vertices { Vertex v[]; } vertices;
+//layout(set = 1, binding = 3) readonly buffer Indices { uint i[]; } indices;
 
 layout(set = 2, binding = 7) uniform sampler2D laptop_render_texture;
+
+
+// Global Device addresses (TODO: split these into SceneDeviceAddresses)
+layout(set = 4, binding = 0) readonly buffer GlobalAddressTable { DeviceAddresses addresses; } g_table;
+
+
+
+// Static Descriptor set
+layout(set = 3, binding = DESC_IDX_SAMLPLERS)               uniform sampler g_samplers[];
+layout(set = 3, binding = DESC_IDX_TEXTURES)                uniform texture2D g_textures[];
+layout(set = 3, binding = DESC_IDX_SSBOS)                   readonly buffer GlobalSSBO { uint data[]; } g_ssbos[];
+layout(set = 3, binding = DESC_IDX_STORAGE_IMAGES_RGBA32F,  rgba32f) uniform image2D g_storage_images_rgba32f[];
+layout(set = 3, binding = DESC_IDX_STORAGE_IMAGES_RGBA16F,  rgba16f) uniform image2D g_storage_images_rgba16f[];
+layout(set = 3, binding = DESC_IDX_STORAGE_IMAGES_RGBA8,    rgba8)   uniform image2D g_storage_images_rgba8[];
+						  
+layout(set = 3, binding = DESC_IDX_VERTICES) readonly buffer Vertices { Vertex v[]; } g_vertices; // Geometry Data (remove me when you can)
+layout(set = 3, binding = DESC_IDX_INDICES)  readonly buffer Indices { uint i[]; } g_indices;     // Geometry Data (remove me when you can)
+
+
+
+
+
+// Storage Images
+//layout(set = 3, binding = 4) uniform image2D g_rtOutput;
+//layout(set = 3, binding = 5) readonly buffer MousePick { uint instance; uint primitive; } g_mousePick; // MOVE ME!
+//layout(set = 3, binding = 6) uniform image2D g_rtNormals;
+//layout(set = 3, binding = 7) uniform image2D g_rtBaseColor;
+//layout(set = 3, binding = 8) uniform image2D g_rtSecondHit;
 
 hitAttributeEXT vec2 attribs;
 
@@ -171,12 +233,19 @@ vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic,
 
 
 
+void main() {
 
+	
+	uint64_t lightsAddress = g_table.addresses.sceneLights;
+	uint64_t sceneInstancesAddress = g_table.addresses.sceneInstances;
+	
+    LightBuffer lights = LightBuffer(lightsAddress);
+    SceneInstancesBuffer sceneInstances = SceneInstancesBuffer(sceneInstancesAddress);
 
-void main()
-{
 	// Retreive the index of the mesh hit
-    MeshInstance meshInstance = meshInstances.i[gl_InstanceCustomIndexEXT];
+    MeshInstance meshInstance = sceneInstances.arr[gl_InstanceCustomIndexEXT];
+    
+	//MeshInstance meshInstance = meshInstances.i[gl_InstanceCustomIndexEXT];
 	rayPayload.meshIndex = gl_InstanceCustomIndexEXT;
 
 	int vertexOffset = meshInstance.vertexOffset;
@@ -186,13 +255,13 @@ void main()
          
     const vec3 barycentrics = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
 
-    uint index0 = indices.i[3 * gl_PrimitiveID + indexOffset];
-    uint index1 = indices.i[3 * gl_PrimitiveID + 1 + indexOffset];
-    uint index2 = indices.i[3 * gl_PrimitiveID + 2 + indexOffset];
+    uint index0 = g_indices.i[3 * gl_PrimitiveID + indexOffset];
+    uint index1 = g_indices.i[3 * gl_PrimitiveID + 1 + indexOffset];
+    uint index2 = g_indices.i[3 * gl_PrimitiveID + 2 + indexOffset];
 
-    Vertex v0 = vertices.v[index0 + vertexOffset];
-    Vertex v1 = vertices.v[index1 + vertexOffset];
-    Vertex v2 = vertices.v[index2 + vertexOffset];
+    Vertex v0 = g_vertices.v[index0 + vertexOffset];
+    Vertex v1 = g_vertices.v[index1 + vertexOffset];
+    Vertex v2 = g_vertices.v[index2 + vertexOffset];
 	
 	const vec3 pos0 = v0.position.xyz;
 	const vec3 pos1 = v1.position.xyz;
@@ -208,14 +277,14 @@ void main()
 	const vec4 tng2 = vec4(v2.tangent, 0);
 		
     vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y + v2.texCoord * barycentrics.z;
-    vec4 baseColor = texture(sampler2D(textures[meshInstance.basecolorIndex], samp), texCoord).rgba;
+    vec4 baseColor = texture(sampler2D(g_textures[meshInstance.basecolorIndex], g_samplers[0]), texCoord).rgba;
 
 	if (materialType == 3) {
 		baseColor = texture(laptop_render_texture,vec2(texCoord.x, texCoord.y)).rgba; // makes no fucking difference
 	}
 
-    vec3 rma = texture(sampler2D(textures[meshInstance.rmaIndex], samp), texCoord).rgb;	
-	vec3 normalMap = texture(sampler2D(textures[meshInstance.normalIndex], samp), texCoord).rgb;
+    vec3 rma = texture(sampler2D(g_textures[meshInstance.rmaIndex], g_samplers[0]), texCoord).rgb;	
+	vec3 normalMap = texture(sampler2D(g_textures[meshInstance.normalIndex], g_samplers[0]), texCoord).rgb;
 
 	// Normal
 	vec3 vnormal = normalize(mixBary(nrm0, nrm1, nrm2, barycentrics));
@@ -271,13 +340,13 @@ void main()
 
 
 	// Bedroom light
-	Light light0 =  lights.i[0];
+	Light light0 =  lights.arr[0];
 	light0.color *= vec4(1,0.95,0.95,1);
 	light0.color *= 0.75 * 0.5;
 	vec3 directLighting = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light0, materialType);
 
 	// Bathroom light
-	Light light1 =  lights.i[1];
+	Light light1 =  lights.arr[1];
 	light1.color *= vec4(1,0.8,0.8,1);
 	light1.color *= vec4(1,0.0,0.0,1);
 	light1.color *= 0.5 * 0.5;

@@ -15,7 +15,7 @@
 #include <glm/gtx/euler_angles.hpp>
 #include "glm/gtx/hash.hpp"
 
-#include "API/Vulkan/Types/vk_acceleration_structure.h" // suss having this here
+//#include "API/Vulkan/Types/vk_acceleration_structure.h" // suss having this here
 
 struct MeshOLD {
 	uint32_t m_vertexOffset = 0;
@@ -23,14 +23,20 @@ struct MeshOLD {
 	uint32_t m_vertexCount = 0;
 	uint32_t m_indexCount = 0;
 
-	AllocatedBufferOLD m_vertexBuffer;
-	AllocatedBufferOLD m_indexBuffer;
-	AllocatedBufferOLD m_transformBuffer;
-	VulkanAccelerationStructure m_accelerationStructure;
+	//uint64_t m_vertexBuffer = 0;
+	//uint64_t m_indexBuffer = 0;
+	//uint64_t m_transformBuffer = 0;
+
+	AllocatedBufferOLD m_vertexBufferOLD;
+	AllocatedBufferOLD m_indexBufferOLD;
+	AllocatedBufferOLD m_transformBufferOLD;
+	//VulkanAccelerationStructure m_accelerationStructure;
+	uint64_t m_vulkanAccelerationStructure = 0;
 	std::string m_name = "undefined";
 	bool m_uploadedToGPU = false;
 
 	void draw(VkCommandBuffer commandBuffer, uint32_t firstInstance);
+	uint64_t GetVulkanAccelerationStructureDeviceAddress();
 
 	int32_t GetBaseVertex() const  { return m_vertexOffset; }
 	int32_t GetBaseIndex() const   { return m_indexOffset; }

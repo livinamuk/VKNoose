@@ -5,9 +5,20 @@
 #include "Windows.h"
 #include "AssetManagement/AssetManager.h"
 
+#include "Hell/Core/Logging.h"
+
 void LazyKeyPresses();
 
 int main() {
+
+    Logging::EnableLevel(Logging::Level::INIT);
+    Logging::EnableLevel(Logging::Level::DEBUG);
+    Logging::EnableLevel(Logging::Level::ERROR);
+    Logging::EnableLevel(Logging::Level::FATAL);
+    Logging::EnableLevel(Logging::Level::TODO);
+    Logging::EnableLevel(Logging::Level::WARNING);
+    Logging::EnableLevel(Logging::Level::FUNCTION);
+
     // Init
     BackEnd::Init(WindowedMode::WINDOWED);
     AssetManager::Init();
@@ -23,9 +34,6 @@ int main() {
             AssetManager::UpdateLoading();
             VulkanBackEnd::RenderLoadingFrame();
         }
-        //else {
-        //    continue;
-        //}
 
         //if (!VulkanBackEnd::_loaded && !AssetManager::LoadingComplete()) {
         else if (!VulkanBackEnd::_loaded) {
@@ -81,10 +89,6 @@ void LazyKeyPresses() {
     }
     if (Input::KeyPressed(HELL_KEY_U)) {
         VulkanBackEnd::_renderGBuffer = !VulkanBackEnd::_renderGBuffer;
-        Audio::PlayAudio("RE_bleep.wav", 0.5f);
-    }
-    if (Input::KeyPressed(HELL_KEY_T)) {
-        VulkanBackEnd::_usePathRayTracer = !VulkanBackEnd::_usePathRayTracer;
         Audio::PlayAudio("RE_bleep.wav", 0.5f);
     }
 

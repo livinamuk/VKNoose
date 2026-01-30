@@ -108,6 +108,7 @@ namespace VulkanDeviceManager {
             features12.descriptorBindingPartiallyBound = VK_TRUE;
             features12.descriptorIndexing = VK_TRUE;
             features12.bufferDeviceAddress = VK_TRUE;
+            features12.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
 
             VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipeline{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR };
             rtPipeline.rayTracingPipeline = VK_TRUE;

@@ -1,5 +1,5 @@
 #pragma once
-#include "Noose/Types.h"
+#include "Hell/Types.h"
 
 #include <GLFW/glfw3.h>
 #include <vector>

@@ -3,16 +3,28 @@
 #include "API/Vulkan/Types/vk_buffer.h"
 
 struct VulkanAccelerationStructure {
-	VkAccelerationStructureKHR handle = VK_NULL_HANDLE;
-	uint64_t deviceAddress = 0;
-	VulkanBuffer buffer;
+	VulkanAccelerationStructure() = default;
+	VulkanAccelerationStructure(const VulkanAccelerationStructure&) = delete;
+	VulkanAccelerationStructure& operator=(const VulkanAccelerationStructure&) = delete;
+	VulkanAccelerationStructure(VulkanAccelerationStructure&&) noexcept = default;
+	VulkanAccelerationStructure& operator=(VulkanAccelerationStructure&&) noexcept = default;
+	~VulkanAccelerationStructure() = default;
 
-	void Cleanup(VkDevice device) {
-		if (handle != VK_NULL_HANDLE) {
-			vkDestroyAccelerationStructureKHR(device, handle, nullptr);
-			handle = VK_NULL_HANDLE;
-		}
-		buffer.Cleanup();
-		deviceAddress = 0;
-	}
+	void CreateBuffer(VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo);
+	void CreateBLAS(VulkanBuffer& vertexBuffer, VulkanBuffer& indexBuffer, VulkanBuffer transformBuffer, uint32_t vertexCount, uint32_t indexCount);
+	void Cleanup();
+
+	VkAccelerationStructureKHR GetHandle() const	{ return m_handle; }
+	VkBuffer GetBuffer() const						{ return m_buffer.GetBuffer(); }
+	uint64_t GetDeviceAddress() const				{ return m_deviceAddress; }
+
+//private:
+	VkAccelerationStructureKHR m_handle = VK_NULL_HANDLE;
+	uint64_t m_deviceAddress = 0;
+	VulkanBuffer m_buffer;
+
+private:
+	VulkanBuffer m_scratchBuffer;
+
+	void CreateScratchBuffer(VkDeviceSize size);
 };

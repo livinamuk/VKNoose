@@ -7,6 +7,7 @@
 
 
 #include "Types/vk_acceleration_structure.h" // remove me soon
+#include "Renderer/vk_frame_data.h" // remove me soon
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -28,7 +29,6 @@
 #include "Renderer/Pipeline.hpp"
 
 
-constexpr unsigned int FRAME_OVERLAP = 2;
 
 struct CameraData {
 	glm::mat4 proj;
@@ -62,21 +62,6 @@ struct RenderObject {
 #define MAX_RENDER_OBJECTS_2D 5000
 #define MAX_LIGHTS 16
 
-struct FrameData {
-	VkCommandPool m_commandPool = VK_NULL_HANDLE;
-	VkCommandBuffer m_commandBuffer = VK_NULL_HANDLE;
-
-	HellBuffer _sceneCamDataBuffer;
-	HellBuffer _inventoryCamDataBuffer;
-	HellBuffer _meshInstances2DBuffer;
-	HellBuffer _meshInstancesSceneBuffer;
-	HellBuffer _meshInstancesInventoryBuffer;
-	HellBuffer _lightRenderInfoBuffer;
-	HellBuffer _lightRenderInfoBufferInventory;
-
-	VulkanAccelerationStructure _sceneTLAS{};
-	VulkanAccelerationStructure _inventoryTLAS{};
-};
 
 
 struct RayTracingScratchBufferOLD {
@@ -126,9 +111,9 @@ namespace VulkanBackEnd {
 	inline bool _forceCloseWindow { false };
 
 
-	void create_buffers();
 	void UpdateBuffers();
-	void update_static_descriptor_set();
+	void update_static_descriptor_set_old();
+	void UpdateStaticDescriptorSet(); // MOVE ME TO VULKANRENDERER when you can!
 	void UpdateDynamicDescriptorSet();
 	
 	// Commands
@@ -142,17 +127,16 @@ namespace VulkanBackEnd {
 
 	inline VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeaturesKHR{};
 
-	inline VkSampler _sampler;
 		 
 	inline const VkExtent2D _windowedModeExtent{ 512 * 4, 288 * 4 };
 	inline const VkExtent3D _renderTargetPresentExtent = { 512 , 288  , 1 };
 	
 
-	inline int _frameNumber{ 0 };
+
 	inline DebugMode _debugMode = DebugMode::NONE;
 
 
-	inline FrameData _frames[FRAME_OVERLAP];
+	
 
 
 	inline std::vector<VkFramebuffer> _framebuffers;
@@ -162,8 +146,6 @@ namespace VulkanBackEnd {
 	
 	void init_raytracing();
 	
-	inline FrameData& get_current_frame();
-	inline FrameData& get_last_frame();
 
 	inline MeshOLD _lineListMesh;
 
@@ -173,12 +155,8 @@ namespace VulkanBackEnd {
 	inline bool _collisionEnabled = true;
 	inline bool _debugScene = false;
 	inline bool _renderGBuffer = false;// true;
-	inline bool _usePathRayTracer = true;// true;
 
-		// Ray tracing
-
-		uint32_t getMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties, VkBool32* memTypeFound = nullptr);
-
+	
 			void create_rt_buffers();
 			void build_rt_command_buffers(int swapchainIndex);
 			inline uint32_t _rtIndexCount;
@@ -190,10 +168,7 @@ namespace VulkanBackEnd {
 
 	AllocatedBufferOLD create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags requiredFlags = 0);
 
-	size_t pad_uniform_buffer_size(size_t originalSize);
 
-
-	void create_sampler();
 	void upload_meshes();
 	void upload_mesh(MeshOLD& mesh);
 

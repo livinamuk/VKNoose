@@ -1,6 +1,7 @@
 #pragma once
 
 #include "API/Vulkan/vk_common.h"
+#include "Hell/Constants.h"
 
 struct VulkanBuffer {
     VulkanBuffer() = default;
@@ -14,6 +15,7 @@ struct VulkanBuffer {
 
     void Cleanup();
 
+    void UpdateData(const void* data, VkDeviceSize size);
     void UploadData(const void* data, VkDeviceSize size);
     void Map(void** data);
     void Unmap();

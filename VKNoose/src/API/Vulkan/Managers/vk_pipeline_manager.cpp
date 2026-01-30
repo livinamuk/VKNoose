@@ -2,7 +2,8 @@
 #include "API/Vulkan/Managers/vk_resource_manager.h"
 #include "API/Vulkan/Managers/vk_descriptor_manager.h"
 #include "API/Vulkan/Managers/vk_device_manager.h"
-#include "Noose/Types.h"
+#include "API/Vulkan/Renderer/vk_renderer.h"
+#include "Hell/Types.h"
 
 #include <iostream>
 
@@ -74,6 +75,9 @@ namespace VulkanPipelineManager {
         pipeline.PushDescriptorSetLayout(VulkanDescriptorManager::GetDynamicSetLayout());
         pipeline.PushDescriptorSetLayout(VulkanDescriptorManager::GetStaticSetLayout());
         pipeline.PushDescriptorSetLayout(VulkanDescriptorManager::GetSamplerSetLayout());
+
+        VulkanDescriptorSet& staticDescriptorSet = VulkanRenderer::GetStaticDescriptorSet();
+        pipeline.PushDescriptorSetLayout(staticDescriptorSet.GetLayout());
 
         pipeline.SetVertexDescription<Vertex>();
         pipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);

@@ -1236,9 +1236,10 @@ std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForInvent
 			instance.mask = 0xFF;
 			instance.instanceShaderBindingTableRecordOffset = 0;
 			instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FRONT_COUNTERCLOCKWISE_BIT_KHR;
-			instance.accelerationStructureReference = mesh->m_accelerationStructure.deviceAddress;
+			instance.accelerationStructureReference = mesh->GetVulkanAccelerationStructureDeviceAddress();
 		}
 	}
+
 	for (Wall& wall : _inventoryWalls) {
 		MeshOLD* mesh = AssetManager::GetMesh(wall._meshIndex);
 		VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
@@ -1247,7 +1248,7 @@ std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForInvent
 		instance.mask = 0xFF;
 		instance.instanceShaderBindingTableRecordOffset = 0;
 		instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FRONT_COUNTERCLOCKWISE_BIT_KHR;
-		instance.accelerationStructureReference = mesh->m_accelerationStructure.deviceAddress;
+		instance.accelerationStructureReference = mesh->GetVulkanAccelerationStructureDeviceAddress();
 	}
 	return instances;
 }
@@ -1265,7 +1266,7 @@ std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForSceneA
 			instance.mask = 0xFF;
 			instance.instanceShaderBindingTableRecordOffset = 0;
 			instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FRONT_COUNTERCLOCKWISE_BIT_KHR;
-			instance.accelerationStructureReference = mesh->m_accelerationStructure.deviceAddress;
+			instance.accelerationStructureReference = mesh->GetVulkanAccelerationStructureDeviceAddress();
 		}
 	}
 	for (Wall& wall : _walls) {
@@ -1276,7 +1277,7 @@ std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForSceneA
 		instance.mask = 0xFF;
 		instance.instanceShaderBindingTableRecordOffset = 0;
 		instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FRONT_COUNTERCLOCKWISE_BIT_KHR;
-		instance.accelerationStructureReference = mesh->m_accelerationStructure.deviceAddress;
+		instance.accelerationStructureReference = mesh->GetVulkanAccelerationStructureDeviceAddress();
 	}
 	return instances;
 }

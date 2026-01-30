@@ -103,10 +103,13 @@
     <ClCompile Include="src\API\Vulkan\Managers\vk_resource_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_swapchain_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_sync_manager.cpp" />
+    <ClCompile Include="src\API\Vulkan\Types\vk_acceleration_structure.cpp" />
     <ClCompile Include="src\API\Vulkan\Types\vk_allocated_image.cpp" />
     <ClCompile Include="src\API\Vulkan\Types\vk_buffer.cpp" />
     <ClCompile Include="src\API\Vulkan\Types\vk_descriptor_set.cpp" />
+    <ClCompile Include="src\API\Vulkan\Types\vk_mesh_buffer.cpp" />
     <ClCompile Include="src\API\Vulkan\Types\vk_pipeline.cpp" />
+    <ClCompile Include="src\API\Vulkan\Types\vk_sampler.cpp" />
     <ClCompile Include="src\API\Vulkan\Types\vk_shader.cpp" />
     <ClCompile Include="src\API\Vulkan\Renderer\vk_renderer.cpp" />
     <ClCompile Include="src\AssetManagement\AssetManager_mesh.cpp" />
@@ -123,6 +126,8 @@
     <ClCompile Include="src\Game\Player.cpp" />
     <ClCompile Include="src\Game\Scene.cpp" />
     <ClCompile Include="src\BackEnd\GLFWIntegration.cpp" />
+    <ClCompile Include="src\Hell\Core\Logging.cpp" />
+    <ClCompile Include="src\Hell\Core\UniqueID.cpp" />
     <ClCompile Include="src\Input\Input.cpp" />
     <ClCompile Include="src\Main.cpp" />
     <ClCompile Include="src\Profiler.cpp" />
@@ -147,10 +152,19 @@
     <ClCompile Include="vendor\volk\include\volk\volk.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\API\Vulkan\Renderer\vk_descriptor_indices.h" />
+    <ClInclude Include="src\API\Vulkan\Renderer\vk_device_addresses.h" />
+    <ClInclude Include="src\API\Vulkan\Renderer\vk_frame_data.h" />
     <ClInclude Include="src\API\Vulkan\Types\vk_descriptor_set.h" />
+    <ClInclude Include="src\API\Vulkan\Types\vk_mesh_buffer.h" />
+    <ClInclude Include="src\API\Vulkan\Types\vk_sampler.h" />
     <ClInclude Include="src\API\Vulkan\Types\vk_vertex_descriptions.h" />
-    <ClInclude Include="src\Noose\Constants.h" />
-    <ClInclude Include="src\Noose\Types.h" />
+    <ClInclude Include="src\Hell\Constants.h" />
+    <ClInclude Include="src\Hell\Containers\SlotMap.h" />
+    <ClInclude Include="src\Hell\Core\Logging.h" />
+    <ClInclude Include="src\Hell\Core\UniqueID.h" />
+    <ClInclude Include="src\Hell\Enums.h" />
+    <ClInclude Include="src\Hell\Types.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_command_manager.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_descriptor_manager.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_device_manager.h" />
@@ -229,6 +243,7 @@
     <None Include="res\shaders\path_miss.rmiss" />
     <None Include="res\shaders\path_raygen.rgen" />
     <None Include="res\shaders\path_shadow.rmiss" />
+    <None Include="res\shaders\Vulkan\constants.glsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

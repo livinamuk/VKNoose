@@ -171,6 +171,21 @@
     <ClCompile Include="src\API\Vulkan\Types\vk_descriptor_set.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\API\Vulkan\Types\vk_sampler.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\API\Vulkan\Types\vk_mesh_buffer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Hell\Core\UniqueID.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Hell\Core\Logging.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\API\Vulkan\Types\vk_acceleration_structure.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="vendor\VkBootstrap\VkBootstrapDispatch.h">
@@ -353,7 +368,7 @@
     <ClInclude Include="src\Types\Mesh.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\Noose\Types.h">
+    <ClInclude Include="src\Hell\Types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\API\Vulkan\Managers\vk_pipeline_manager.h">
@@ -362,13 +377,40 @@
     <ClInclude Include="src\API\Vulkan\Types\vk_pipeline.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\Noose\Constants.h">
+    <ClInclude Include="src\Hell\Constants.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\API\Vulkan\Types\vk_descriptor_set.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\API\Vulkan\Types\vk_vertex_descriptions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\API\Vulkan\Renderer\vk_frame_data.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\API\Vulkan\Types\vk_sampler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\API\Vulkan\Types\vk_mesh_buffer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Hell\Core\UniqueID.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Hell\Containers\SlotMap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Hell\Enums.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Hell\Core\Logging.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\API\Vulkan\Renderer\vk_device_addresses.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\API\Vulkan\Renderer\vk_descriptor_indices.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -387,5 +429,6 @@
     <None Include="res\shaders\denoise.comp" />
     <None Include="res\shaders\composite.vert" />
     <None Include="res\shaders\composite.frag" />
+    <None Include="res\shaders\Vulkan\constants.glsl" />
   </ItemGroup>
 </Project>

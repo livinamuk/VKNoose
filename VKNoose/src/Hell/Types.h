@@ -41,3 +41,8 @@ struct Vertex2D {
 struct VertexDebug {
     glm::vec3 position;
 };
+
+struct LightRenderInfo {
+	glm::vec4 position;
+	glm::vec4 color;
+};

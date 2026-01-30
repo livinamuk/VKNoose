@@ -47,20 +47,46 @@ namespace VulkanMemoryManager {
     bool CreateDescriptorPool() {
         VkDevice device = VulkanDeviceManager::GetDevice();
 
-        // Create Pool
+        // Define pool sizes
+        //std::vector<VkDescriptorPoolSize> sizes = {
+        //    { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 100 },
+        //    { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 100 },
+        //    { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 100 },
+        //    { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 100 },
+        //    { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+        //    { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+        //    { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 10000 },
+        //    { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 100 }
+        //};
+
+        uint32_t sets = 4; // Buffer for a few versions/overlays
+
         std::vector<VkDescriptorPoolSize> sizes = {
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10 },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 8 },
-            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 64 },
-            { VK_DESCRIPTOR_TYPE_SAMPLER, 64 },
-            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 256 },
-            { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 4 }
+            // From Binding 0
+            { VK_DESCRIPTOR_TYPE_SAMPLER, 16 * sets + 100 },
+
+            // From Binding 1
+            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 10000 * sets },
+
+            // From Binding 2
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 128 * sets + 100 },
+
+            // From Binding 3 + (Old 5/6 legacy)
+            // Note: You have a typo in your bindings 5/6, they should be STORAGE_BUFFER type
+            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, (1024 * sets) + 200 },
+
+            // From Binding 4
+            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 100 * sets + 100 },
+
+            // Misc/Legacy/Raytracing
+            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 100 },
+            { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 100 }
         };
 
         VkDescriptorPoolCreateInfo poolInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-        poolInfo.maxSets = 20; // Increased slightly for safety
+        poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+        poolInfo.maxSets = 1000;
         poolInfo.poolSizeCount = (uint32_t)sizes.size();
         poolInfo.pPoolSizes = sizes.data();
 

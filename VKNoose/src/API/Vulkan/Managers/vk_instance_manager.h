@@ -5,7 +5,7 @@ struct GLFWwindow;
 
 namespace VulkanInstanceManager {
     bool Init();
-    void Cleanup(); // TODO: Currently cleaned up in vk_backend.cpp
+    void Cleanup();
 
     VkDebugUtilsMessengerEXT GetDebugMessenger();
     VkInstance GetInstance();

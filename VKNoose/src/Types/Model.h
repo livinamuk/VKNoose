@@ -4,7 +4,7 @@
 //#include "HellTypes.h"
 //#include "LoadingState.h"
 //#include "Mesh.h"
-#include "Noose/Types.h"
+#include "Hell/Types.h"
 
 #include <limits>
 #include <string>

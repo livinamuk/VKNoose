@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include "Util.h"
 #include "AssetManagement/AssetManager.h"
+#include "API/Vulkan/Managers/vk_resource_manager.h"
 
 
 void MeshOLD::draw(VkCommandBuffer commandBuffer, uint32_t firstInstance)
@@ -14,13 +15,23 @@ void MeshOLD::draw(VkCommandBuffer commandBuffer, uint32_t firstInstance)
 
 	VkDeviceSize offset = 0;
 	if (m_indexCount > 0) {
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_vertexBuffer.m_buffer, &offset);
-		vkCmdBindIndexBuffer(commandBuffer, m_indexBuffer.m_buffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_vertexBufferOLD.m_buffer, &offset);
+		vkCmdBindIndexBuffer(commandBuffer, m_indexBufferOLD.m_buffer, 0, VK_INDEX_TYPE_UINT32);
 		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_indexCount), 1, 0, 0, firstInstance);
 	}
 	else {
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_vertexBuffer.m_buffer, &offset);
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_vertexBufferOLD.m_buffer, &offset);
 		vkCmdDraw(commandBuffer, m_vertexCount, 1, 0, firstInstance);
+	}
+}
+
+
+uint64_t MeshOLD::GetVulkanAccelerationStructureDeviceAddress() {
+	if (VulkanAccelerationStructure* accelerationStructure = VulkanResourceManager::GetAccelerationStructure(m_vulkanAccelerationStructure)) {
+		return accelerationStructure->GetDeviceAddress();
+	}
+	else {
+		return 0;
 	}
 }
 

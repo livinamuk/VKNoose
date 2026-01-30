@@ -27,10 +27,6 @@ struct Light {
 	void Update(float delatTime);
 };
 
-struct LightRenderInfo {
-	glm::vec4 position;
-	glm::vec4 color;
-};
 
 namespace Scene {
 	void Init();
