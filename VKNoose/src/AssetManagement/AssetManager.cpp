@@ -85,10 +85,11 @@ namespace AssetManager {
 		}
 
 		if (LoadingComplete()) {
-			BakeModels();
+            CreateHouseGeometry();
+            BakeModels();
 
-			VulkanRenderer::UploadGlobalGeometry();
-			VulkanRenderer::BuildAllBLAS();
+            VulkanRenderer::UploadGlobalGeometry();
+			VulkanRenderer::BuildAllBLAS();	
 		}
 	}
 
@@ -387,13 +388,14 @@ std::vector<MeshOLD>& AssetManager::GetMeshList() {
 	return _meshes;
 }
 
-int AssetManager::CreateMeshOLD(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
+int AssetManager::CreateMeshOLD(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, const std::string meshName) {
 
 	MeshOLD& mesh = _meshes.emplace_back(MeshOLD());
 	mesh.m_vertexCount = (uint32_t)vertices.size();
 	mesh.m_indexCount = (uint32_t)indices.size();
 	mesh.m_vertexOffset = _vertexOffset;
 	mesh.m_indexOffset = _indexOffset;
+	mesh.m_name = meshName;
 
 	for (int i = 0; i < vertices.size(); i++)
 		_verticesOLD.push_back(vertices[i]);

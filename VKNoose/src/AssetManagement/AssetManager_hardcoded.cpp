@@ -4,45 +4,12 @@
 
 namespace AssetManager {
 
-    void CreateBlitterQuad();
     void CreateFullscreenQuad();
-    void CreateHouse();
 
     void LoadHardcodedMesh() {
-        CreateBlitterQuad();
         CreateFullscreenQuad();
-        CreateHouse();
 
         std::cout << "AssetManager::LoadHardcodedMesh()\n";
-    }
-
-    void CreateBlitterQuad() {
-        Vertex vertA, vertB, vertC, vertD;
-        vertA.position = { -1.0f, -1.0f, 0.0f };
-        vertB.position = { -1.0f, 1.0f, 0.0f };
-        vertC.position = { 1.0f,  1.0f, 0.0f };
-        vertD.position = { 1.0f,  -1.0f, 0.0f };
-        vertA.uv = { 0.0f, 1.0f };
-        vertB.uv = { 0.0f, 0.0f };
-        vertC.uv = { 1.0f, 0.0f };
-        vertD.uv = { 1.0f, 1.0f };
-
-        std::vector<Vertex> vertices;
-        vertices.push_back(vertA);
-        vertices.push_back(vertB);
-        vertices.push_back(vertC);
-        vertices.push_back(vertD);
-
-        std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
-
-        ModelOLD model;
-        model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices));
-        std::unordered_map<std::string, ModelOLD>& _models = GetModelsOLD();
-        _models["blitter_quad"] = model;
-
-        Model& model2 = AssetManager::CreateModel("blitter_quad");
-        model2.AddMeshIndex(AssetManager::CreateMesh("blitter_quad_mesh", vertices, indices));
-        model2.SetLoadingState(LoadingState::Value::LOADING_COMPLETE);
     }
 
     void CreateFullscreenQuad() {
@@ -65,7 +32,7 @@ namespace AssetManager {
         std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
 
         ModelOLD model;
-        model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices));
+        model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices, "fullscreen_quad_mesh"));
         std::unordered_map<std::string, ModelOLD>& _models = GetModelsOLD();
         _models["fullscreen_quad"] = model;
 
@@ -74,7 +41,7 @@ namespace AssetManager {
         model2.SetLoadingState(LoadingState::Value::LOADING_COMPLETE);
     }
 
-    void CreateHouse() {
+    void CreateHouseGeometry() {
         std::unordered_map<std::string, ModelOLD>& _models = GetModelsOLD();
 
         {
@@ -104,7 +71,7 @@ namespace AssetManager {
             std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
             Util::SetTangentsFromVertices(vertices, indices);
             ModelOLD model;
-            model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices));
+            model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices, "floor_mesh"));
             model.m_filename = "Floor";
             _models["floor"] = model;
 
@@ -145,7 +112,7 @@ namespace AssetManager {
             std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
             Util::SetTangentsFromVertices(vertices, indices);
             ModelOLD model;
-            model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices));
+            model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices, "bathroom_floor_mesh"));
             model.m_filename = "bathroom_floor";
             _models["bathroom_floor"] = model;
 
@@ -186,7 +153,7 @@ namespace AssetManager {
             std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
             Util::SetTangentsFromVertices(vertices, indices);
             ModelOLD model;
-            model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices));
+            model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices, "bathroom_ceiling_mesh"));
             model.m_filename = "bathroom_ceiling";
             _models["bathroom_ceiling"] = model;
 
@@ -229,7 +196,7 @@ namespace AssetManager {
             std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
             Util::SetTangentsFromVertices(vertices, indices);
             ModelOLD model;
-            model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices));
+            model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices, "ceiling_mesh"));
             _models["ceiling"] = model;
 
             Model& model2 = AssetManager::CreateModel("ceiling");

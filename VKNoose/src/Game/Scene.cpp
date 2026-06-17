@@ -4,6 +4,9 @@
 #include "House/wall.h"
 #include "Callbacks.hpp"
 
+#include "API/Vulkan/Managers/vk_resource_manager.h"
+#include "Hell/Core/Logging.h"
+
 namespace Scene {
 	std::vector<GameObject> _gameObjects;
 	std::vector<GameObject> _inventoryGameObjects;
@@ -23,6 +26,8 @@ struct CollsionLine {
 namespace Scene {
 
     void Init() {
+		Logging::Init() << "Scene::Init()\n";
+
         CreateWalls();
         CreateGameObjects();
     }
@@ -78,7 +83,7 @@ namespace Scene {
         Model& model = AssetManager::CreateModel("Walls");
 		for (Wall& wall : _walls) {
 			// Old
-			wall._meshIndex = AssetManager::CreateMeshOLD(wall.m_vertices, wall.m_indices);
+			wall._meshIndex = AssetManager::CreateMeshOLD(wall.m_vertices, wall.m_indices, "Wall");
 
 			// New
             model.AddMeshIndex(AssetManager::CreateMesh("Wall", wall.m_vertices, wall.m_indices));
@@ -1255,18 +1260,47 @@ std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForSceneA
 	int instanceCustomIndex = 0;
 	std::vector<VkAccelerationStructureInstanceKHR> instances;
 
-	for (GameObject& gameObject : _gameObjects) {
-		for (auto meshIndex : gameObject._modelOLD->m_meshIndices) {
-			MeshOLD* mesh = AssetManager::GetMeshByIndexOLD(meshIndex);
-			VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
-			instance.transform = gameObject.GetVkTransformMatrixKHR();
-			instance.instanceCustomIndex = instanceCustomIndex++;
-			instance.mask = 0xFF;
-			instance.instanceShaderBindingTableRecordOffset = 0;
-			instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FRONT_COUNTERCLOCKWISE_BIT_KHR;
-			instance.accelerationStructureReference = mesh->GetVulkanAccelerationStructureDeviceAddress();
-		}
-	}
+    for (GameObject& gameObject : _gameObjects) {
+        for (auto meshIndex : gameObject.m_model->GetMeshIndices()) {
+            Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
+            VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
+            instance.transform = gameObject.GetVkTransformMatrixKHR();
+            instance.instanceCustomIndex = instanceCustomIndex++;
+            instance.mask = 0xFF;
+            instance.instanceShaderBindingTableRecordOffset = 0;
+            instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FRONT_COUNTERCLOCKWISE_BIT_KHR;
+
+            VulkanAccelerationStructure* accelerationStructure = VulkanResourceManager::GetAccelerationStructure(mesh->m_vulkanAccelerationStructureId);
+            instance.accelerationStructureReference = accelerationStructure->GetDeviceAddress();
+        }
+    }
+
+    //for (Wall& wall : _walls) {
+    //    Mesh* mesh = AssetManager::GetMeshByIndex(wall._meshIndex);
+    //    VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
+    //    instance.transform = Util::GetIdentiyVkTransformMatrixKHR();
+    //    instance.instanceCustomIndex = instanceCustomIndex++;
+    //    instance.mask = 0xFF;
+    //    instance.instanceShaderBindingTableRecordOffset = 0;
+    //    instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FRONT_COUNTERCLOCKWISE_BIT_KHR;
+	//
+    //    VulkanAccelerationStructure* accelerationStructure = VulkanResourceManager::GetAccelerationStructure(mesh->m_vulkanAccelerationStructureId);
+    //    instance.accelerationStructureReference = accelerationStructure->GetDeviceAddress();
+    //}
+
+	//for (GameObject& gameObject : _gameObjects) {
+	//	for (auto meshIndex : gameObject._modelOLD->m_meshIndices) {
+	//		MeshOLD* mesh = AssetManager::GetMeshByIndexOLD(meshIndex);
+	//		VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
+	//		instance.transform = gameObject.GetVkTransformMatrixKHR();
+	//		instance.instanceCustomIndex = instanceCustomIndex++;
+	//		instance.mask = 0xFF;
+	//		instance.instanceShaderBindingTableRecordOffset = 0;
+	//		instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FRONT_COUNTERCLOCKWISE_BIT_KHR;
+	//		instance.accelerationStructureReference = mesh->GetVulkanAccelerationStructureDeviceAddress();
+	//	}
+	//}
+
 	for (Wall& wall : _walls) {
 		MeshOLD* mesh = AssetManager::GetMeshByIndexOLD(wall._meshIndex);
 		VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
@@ -1277,6 +1311,7 @@ std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForSceneA
 		instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FRONT_COUNTERCLOCKWISE_BIT_KHR;
 		instance.accelerationStructureReference = mesh->GetVulkanAccelerationStructureDeviceAddress();
 	}
+
 	return instances;
 }
 

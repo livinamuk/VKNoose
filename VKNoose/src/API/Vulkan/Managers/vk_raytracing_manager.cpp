@@ -8,6 +8,7 @@
 #include "API/Vulkan/vk_utils.h"
 #include "API/Vulkan/vk_mesh.h"
 
+#include "Hell/Core/Logging.h"
 #include "Hell/Types.h"
 
 namespace VulkanRaytracingManager {
@@ -23,6 +24,8 @@ namespace VulkanRaytracingManager {
     }
 
     void CreateTopLevelAS(uint64_t id, const std::vector<VkAccelerationStructureInstanceKHR>& instances) {
+        //Logging::Debug() << "CreateTopLevelAS() " << id << " " << instances.size() << " instances\n";
+
         VulkanAccelerationStructure* accelerationStructure = VulkanResourceManager::GetAccelerationStructure(id);
         if (!accelerationStructure) return;
 
@@ -88,7 +91,9 @@ namespace VulkanRaytracingManager {
         scratchBuffer.Cleanup();
     }
 
-    void CreateBottomLevelAS(uint64_t id, MeshOLD* mesh) {
+    void CreateBottomLevelASOLD(uint64_t id, MeshOLD* mesh) {
+        //Logging::Debug() << "CreateBottomLevelAS() " << mesh->m_name << "\n";
+
         VulkanAccelerationStructure* accelerationStructure = VulkanResourceManager::GetAccelerationStructure(id);
         if (!accelerationStructure) return;
 
@@ -101,7 +106,7 @@ namespace VulkanRaytracingManager {
         // Using your VulkanUtils helper to get addresses from the raw VkBuffer handles
         vertexBufferDeviceAddress.deviceAddress = VulkanUtils::GetBufferDeviceAddress(device, mesh->m_vertexBufferOLD.m_buffer);
         indexBufferDeviceAddress.deviceAddress = VulkanUtils::GetBufferDeviceAddress(device, mesh->m_indexBufferOLD.m_buffer);
-        transformBufferDeviceAddress.deviceAddress = VulkanUtils::GetBufferDeviceAddress(device, mesh->m_transformBufferOLD.m_buffer);
+        transformBufferDeviceAddress.deviceAddress = {};//VulkanUtils::GetBufferDeviceAddress(device, mesh->m_transformBufferOLD.m_buffer);
     
         //vertexBufferDeviceAddress.deviceAddress = VulkanRenderer::GetVertexBuffer()->GetDeviceAddress() + mesh->m_vertexOffset * sizeof(Vertex);
         //indexBufferDeviceAddress.deviceAddress = VulkanRenderer::GetIndexBuffer()->GetDeviceAddress() + mesh->m_indexOffset * sizeof(uint32_t);
@@ -161,6 +166,86 @@ namespace VulkanRaytracingManager {
     
         // Cleanup
         scratchBuffer.Cleanup();
+    }
+
+    uint64_t CreateBottomLevelAS(Mesh* mesh) {
+        Logging::Debug() << "CreateBottomLevelAS() " << mesh->GetName() << "\n";
+
+        uint64_t accelerationStructureId = VulkanResourceManager::CreateAccelerationStructure();
+
+        VulkanAccelerationStructure* accelerationStructure = VulkanResourceManager::GetAccelerationStructure(accelerationStructureId);
+        if (!accelerationStructure) return 0;
+
+        VkDevice device = VulkanDeviceManager::GetDevice();
+
+        VkDeviceOrHostAddressConstKHR vertexBufferDeviceAddress{};
+        VkDeviceOrHostAddressConstKHR indexBufferDeviceAddress{};
+        VkDeviceOrHostAddressConstKHR transformBufferDeviceAddress{};
+
+        // Using your VulkanUtils helper to get addresses from the raw VkBuffer handles
+        //vertexBufferDeviceAddress.deviceAddress = VulkanUtils::GetBufferDeviceAddress(device, mesh->m_vertexBufferOLD.m_buffer);
+        //indexBufferDeviceAddress.deviceAddress = VulkanUtils::GetBufferDeviceAddress(device, mesh->m_indexBufferOLD.m_buffer);
+        //transformBufferDeviceAddress.deviceAddress = VulkanUtils::GetBufferDeviceAddress(device, mesh->m_transformBufferOLD.m_buffer);
+
+        vertexBufferDeviceAddress.deviceAddress = VulkanRenderer::GetVertexBuffer()->GetDeviceAddress() + mesh->GetBaseVertex() * sizeof(Vertex);
+        indexBufferDeviceAddress.deviceAddress = VulkanRenderer::GetIndexBuffer()->GetDeviceAddress() + mesh->GetBaseIndex() * sizeof(uint32_t);
+        transformBufferDeviceAddress.deviceAddress = {};//VulkanUtils::GetBufferDeviceAddress(device, mesh->m_transformBufferOLD.m_buffer);
+
+        // Standard geometry setup for triangles
+        VkAccelerationStructureGeometryKHR geometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
+        geometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+        geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+        geometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+        geometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+        geometry.geometry.triangles.vertexData = vertexBufferDeviceAddress;
+        geometry.geometry.triangles.maxVertex = mesh->GetVertexCount();
+        geometry.geometry.triangles.vertexStride = sizeof(Vertex);
+        geometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
+        geometry.geometry.triangles.indexData = indexBufferDeviceAddress;
+        geometry.geometry.triangles.transformData = transformBufferDeviceAddress;
+
+        VkAccelerationStructureBuildGeometryInfoKHR buildInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
+        buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+        buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+        buildInfo.geometryCount = 1;
+        buildInfo.pGeometries = &geometry;
+
+        const uint32_t numTriangles = mesh->GetIndexCount() / 3;
+        VkAccelerationStructureBuildSizesInfoKHR sizeInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
+        vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo, &numTriangles, &sizeInfo);
+
+        // Create the BLAS container and its internal VulkanBuffer
+        accelerationStructure->CreateBuffer(sizeInfo);
+
+        VkAccelerationStructureCreateInfoKHR createInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR };
+        createInfo.buffer = accelerationStructure->GetBuffer();
+        createInfo.size = sizeInfo.accelerationStructureSize;
+        createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+        vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &accelerationStructure->m_handle);
+
+        // Managed scratch buffer (VulkanBuffer) still used for the build process
+        VulkanBuffer scratchBuffer = CreateScratchBuffer(sizeInfo.buildScratchSize);
+
+        buildInfo.dstAccelerationStructure = accelerationStructure->m_handle;
+        buildInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+        buildInfo.scratchData.deviceAddress = scratchBuffer.GetDeviceAddress();
+
+        VkAccelerationStructureBuildRangeInfoKHR rangeInfo{ numTriangles, 0, 0, 0 };
+        std::vector<VkAccelerationStructureBuildRangeInfoKHR*> pRangeInfos = { &rangeInfo };
+
+        VulkanCommandManager::SubmitImmediate([&](VkCommandBuffer cmd) {
+            vkCmdBuildAccelerationStructuresKHR(cmd, 1, &buildInfo, pRangeInfos.data());
+            });
+
+        // Get final address for the BLAS handle itself
+        VkAccelerationStructureDeviceAddressInfoKHR addressInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
+        addressInfo.accelerationStructure = accelerationStructure->m_handle;
+        accelerationStructure->m_deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device, &addressInfo);
+
+        // Cleanup
+        scratchBuffer.Cleanup();
+
+        return accelerationStructureId;
     }
 
 }

@@ -76,9 +76,8 @@ ModelOLD::ModelOLD(const char* filepath) {
 			indices = { 0,0,0 };
 		}
 
-		int meshIndex = AssetManager::CreateMeshOLD(vertices, indices);
+		int meshIndex = AssetManager::CreateMeshOLD(vertices, indices, shape.name);
 		m_meshIndices.push_back(meshIndex);
-		AssetManager::GetMeshByIndexOLD(meshIndex)->m_name = shape.name;
 		m_meshNames.push_back(shape.name);
 		//std::cout << shape.name << "\n";
 	}

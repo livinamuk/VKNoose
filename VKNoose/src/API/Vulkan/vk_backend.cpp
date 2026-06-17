@@ -29,6 +29,8 @@
 
 #include "BackEnd/GLFWIntegration.h"
 
+#include "Hell/Core/Logging.h"
+
 #define NOOSE_PI 3.14159265359f
 const bool _printAvaliableExtensions = false;
 float _deltaTime;
@@ -77,7 +79,18 @@ namespace VulkanBackEnd {
 		AssetManager::LoadFont();
 		AssetManager::LoadHardcodedMesh();
 
-		upload_meshes();
+		//upload_meshes();
+
+		// Upload but don't create a BLAS
+        std::vector<MeshOLD>& meshes = AssetManager::GetMeshList();
+        for (int i = 0; i < meshes.size(); i++) {
+            MeshOLD& mesh = meshes[i];
+            if (!mesh.m_uploadedToGPU) {
+                upload_mesh(mesh);
+                //mesh.m_vulkanAccelerationStructure = VulkanResourceManager::CreateAccelerationStructure();
+                //VulkanRaytracingManager::CreateBottomLevelAS(mesh.m_vulkanAccelerationStructure, &mesh);
+            }
+        }
 
 		VulkanSampler* linearSampler = VulkanResourceManager::GetSampler("Linear");
 		if (!linearSampler) return false;
@@ -132,8 +145,6 @@ void VulkanBackEnd::LoadNextItem() {
 
 	if (AssetManager::LoadNextModel()) 
 		return;
-	else
-		upload_meshes();
 
 	static bool shadersLoaded = false;
 	static bool shadersLoadedMessageSeen = false;
@@ -582,6 +593,8 @@ void VulkanBackEnd::LoadLegacyShaders() {
 
 
 void VulkanBackEnd::upload_meshes() {
+	Logging::Init() << "upload_meshes\n";
+
 	std::vector<MeshOLD>& meshes = AssetManager::GetMeshList();
 
 	for (int i = 0; i < meshes.size(); i++) {
@@ -590,14 +603,9 @@ void VulkanBackEnd::upload_meshes() {
 		if (!mesh.m_uploadedToGPU) {
 			upload_mesh(mesh);
 			mesh.m_vulkanAccelerationStructure = VulkanResourceManager::CreateAccelerationStructure();
-
-			//VulkanAccelerationStructure* accelerationStructure = VulkanResourceManager::GetAccelerationStructure(mesh.m_vulkanAccelerationStructure);
-			//accelerationStructure->CreateBLAS(mesh.m_vertexBuffer)
-
-			VulkanRaytracingManager::CreateBottomLevelAS(mesh.m_vulkanAccelerationStructure , &mesh);
+			VulkanRaytracingManager::CreateBottomLevelASOLD(mesh.m_vulkanAccelerationStructure , &mesh);
 		}
 	}
-    std::cout << "uploaded meshes\n";
 }
 
 void VulkanBackEnd::upload_mesh(MeshOLD& mesh)
@@ -783,19 +791,11 @@ void VulkanBackEnd::add_debug_name(VkDescriptorSetLayout descriptorSetLayout, co
 
 
 void VulkanBackEnd::create_rt_buffers() {
-	// Get the raw geometry data from the asset manager
-	//std::vector<Vertex>& verticesOLD = AssetManager::GetVertices_TEMPORARY();
-	//std::vector<uint32_t>& indicesOLD = AssetManager::GetIndices_TEMPORARY();
+    Logging::Init() << "create_rt_buffers\n";
 
 	const std::vector<Vertex>& vertices = AssetManager::GetVertices();
 	const std::vector<uint32_t>& indices = AssetManager::GetIndices();
 
-	//std::cout << "\nOLD / NEW \n";
-    //std::cout << "vertices: " << verticesOLD.size() << " " << vertices.size() << "\n";
-    //std::cout << "indices:  " << indicesOLD.size() << " " << indices.size() << "\n";
-
-	// Define flags for raytracing geometry buffers
-	// These allow the buffer to be used for AS builds and as a storage buffer in shaders
 	VkBufferUsageFlags rtGeometryUsage = VK_BUFFER_USAGE_TRANSFER_DST_BIT |
 		VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
@@ -819,15 +819,15 @@ void VulkanBackEnd::create_rt_buffers() {
 	// CPU buffer for the backend to read from
 	// MAPPED and HOST_ACCESS_SEQUENTIAL_WRITE to keep the pointer valid permanently
 	g_mousePickBufferCPU = VulkanResourceManager::CreateBuffer(pickBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO, VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+
 }
 
 
 void VulkanBackEnd::UpdateBuffers2D() {
 
 	// Queue all text characters for rendering
-	int quadMeshIndex = AssetManager::GetMeshIndexByName("blitter_quad_mesh");
 	for (auto& instanceInfo : TextBlitter::_objectData) {
-			RasterRenderer::SubmitUI(quadMeshIndex, instanceInfo.index_basecolor, instanceInfo.index_color, instanceInfo.modelMatrix, RasterRenderer::Destination::MAIN_UI, instanceInfo.xClipMin, instanceInfo.xClipMax, instanceInfo.yClipMin, instanceInfo.yClipMax); // Todo: You are storing color in the normals. Probably not a major deal but could be confusing at some point down the line.
+			RasterRenderer::SubmitUI(instanceInfo.index_basecolor, instanceInfo.index_color, instanceInfo.modelMatrix, RasterRenderer::Destination::MAIN_UI, instanceInfo.xClipMin, instanceInfo.xClipMax, instanceInfo.yClipMin, instanceInfo.yClipMax); // Todo: You are storing color in the normals. Probably not a major deal but could be confusing at some point down the line.
 	}
 
 	if (_loaded) {
@@ -1465,10 +1465,19 @@ void VulkanBackEnd::AddDebugText() {
 
 	TextBlitter::ResetDebugText();
 
+    std::vector<std::string> newLoadingText;
+    newLoadingText.insert(newLoadingText.end(), AssetManager::GetLoadLog().begin(), AssetManager::GetLoadLog().end());
+	newLoadingText.insert(newLoadingText.end(), _loadingText.begin(), _loadingText.end());
+
+	//for (const std::string& t : newLoadingText) {
+	//	std::cout << t << "\n";
+	//}
+	//std::cout << "\n";
+
 	if (!_loaded) {
-		int begin = std::max(0, (int)_loadingText.size() - 36);
-		for (int i = begin; i < _loadingText.size(); i++) {
-			TextBlitter::AddDebugText(_loadingText[i]);
+		int begin = std::max(0, (int)newLoadingText.size() - 36);
+		for (int i = begin; i < newLoadingText.size(); i++) {
+			TextBlitter::AddDebugText(newLoadingText[i]);
 		}
 	}
 

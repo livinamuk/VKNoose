@@ -14,7 +14,7 @@ namespace AssetManager {
         for (Model& model : GetModels()) {
             if (model.GetLoadingState() == LoadingState::Value::AWAITING_LOADING_FROM_DISK) {
                 model.SetLoadingState(LoadingState::Value::LOADING_FROM_DISK);
-                AddItemToLoadLog(model.GetFileInfo().path);
+                AddItemToLoadLog("     " + model.GetFileInfo().path);
 				LoadModel(&model); // non async for now
                 //g_modelFutures.emplace_back(std::async(std::launch::async, LoadModel, &model));
                 break;

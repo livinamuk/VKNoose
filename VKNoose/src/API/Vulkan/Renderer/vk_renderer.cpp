@@ -6,6 +6,8 @@
 #include "API/Vulkan/Renderer/vk_device_addresses.h"
 #include "API/Vulkan/Renderer/vk_descriptor_indices.h"
 
+#include "API/Vulkan/Managers/vk_raytracing_manager.h" // Needed?
+
 #include "AssetManagement/Assetmanager.h"
 
 #include "Hell/Core/Logging.h"
@@ -146,7 +148,9 @@ namespace VulkanRenderer {
 		// currently done in VulkanBackend because of some bullshit with g_vertexBuffer and g_indexBuffer
 	}
 
-	void UploadGlobalGeometry() {
+    void UploadGlobalGeometry() {
+		Logging::Init() << "UploadGlobalGeometry\n";
+
 		const std::vector<Vertex>& vertices = AssetManager::GetVertices();
 		const std::vector<uint32_t>& indices = AssetManager::GetIndices();
 
@@ -175,11 +179,19 @@ namespace VulkanRenderer {
 		VulkanResourceManager::UploadBufferData(g_transformBuffer, &identity, sizeof(glm::mat3x4));
 	}
 
-	void BuildAllBLAS() {
+    void BuildAllBLAS() {
+        Logging::Init() << "BuildAllBLAS\n";
+
 		for (Mesh& mesh : AssetManager::GetMeshes()) {
 			if (mesh.indexCount == 0) continue;
-			//mesh.m_vulkanAccelerationStructure = VulkanRaytracingManager::CreateBottomLevelAS(&mesh);
+			mesh.m_vulkanAccelerationStructureId = VulkanRaytracingManager::CreateBottomLevelAS(&mesh);
 		}
+
+        //for (int i = 0; i < AssetManager::GetMeshList().size(); i++) {
+        //    MeshOLD& mesh = AssetManager::GetMeshList()[i];
+        //    mesh.m_vulkanAccelerationStructure = VulkanResourceManager::CreateAccelerationStructure();
+        //    VulkanRaytracingManager::CreateBottomLevelAS(mesh.m_vulkanAccelerationStructure, &mesh);
+        //}
 	}
 
 	void CreateFrameData() {
@@ -240,7 +252,11 @@ namespace VulkanRenderer {
 	void Cleanup() {
 		// Manually cleanup the BLAS for each mesh because they aren't stored in the ResourceManager
 		for (Mesh& mesh : AssetManager::GetMeshes()) {
-			mesh.m_vulkanAccelerationStructure.Cleanup();
+
+			// Or are they?
+			
+			//VulkanResourceManager::
+			//mesh.m_vulkanAccelerationStructure.Cleanup();
 		}
 	}
 

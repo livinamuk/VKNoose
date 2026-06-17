@@ -10,7 +10,8 @@ struct MeshOLD;
 
 namespace VulkanRaytracingManager {
     void CreateTopLevelAS(uint64_t id, const std::vector<VkAccelerationStructureInstanceKHR>& instances);
-    void CreateBottomLevelAS(uint64_t id, MeshOLD* mesh);
+    void CreateBottomLevelASOLD(uint64_t id, MeshOLD* mesh);
+    uint64_t CreateBottomLevelAS(Mesh* mesh);
 
     // Helpers now return the new VulkanBuffer class
     VulkanBuffer CreateScratchBuffer(VkDeviceSize size);

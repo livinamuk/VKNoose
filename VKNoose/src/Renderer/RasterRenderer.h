@@ -10,7 +10,6 @@ namespace RasterRenderer {
 	enum class Destination { MAIN_UI, LAPTOP_DISPLAY };
 
 	struct UIInfo {
-		int meshIndex = -1;
 		Destination destination = Destination::MAIN_UI;
 	};
 
@@ -18,7 +17,7 @@ namespace RasterRenderer {
 	inline std::vector<UIInfo> _UIToRender;
 	inline int instanceCount = 0;
 
-	inline void SubmitUI(int meshIndex, int textureIndex, int colorIndex, glm::mat4 modelMatrix, Destination destination, int xClipMin, int xClipMax, int yClipMin, int yClipMax) {
+	inline void SubmitUI(int textureIndex, int colorIndex, glm::mat4 modelMatrix, Destination destination, int xClipMin, int xClipMax, int yClipMin, int yClipMax) {
 		int instanceIndex = instanceCount;
 		_instanceData2D[instanceIndex].modelMatrix = modelMatrix;
 		_instanceData2D[instanceIndex].index_basecolor = textureIndex;
@@ -29,31 +28,14 @@ namespace RasterRenderer {
 		_instanceData2D[instanceIndex].yClipMax = yClipMax;
 
 		UIInfo info;
-		info.meshIndex = meshIndex;
 		info.destination = destination;
 
 		_UIToRender.push_back(info);
 		instanceCount++;
 	}
 
-	inline void DrawMesh(VkCommandBuffer commandBuffer, int index) {
-        Mesh* mesh = AssetManager::GetMeshByIndex(_UIToRender[index].meshIndex);
-        if (!mesh) return;
-
-        if (mesh->GetVertexCount() == 0) return;
-		if (mesh->GetIndexCount() == 0) return;
-
-        VkDeviceSize offset = 0;
-		uint32_t firstInstance = index;
-
-        VulkanBuffer* vertexBuffer = VulkanRenderer::GetVertexBuffer();
-        VulkanBuffer* indexBuffer = VulkanRenderer::GetIndexBuffer();
-        VkBuffer vertexBufferPtr = vertexBuffer->GetBuffer();
-        VkBuffer indexBufferPtr = indexBuffer->GetBuffer();
-
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBufferPtr, &offset);
-		vkCmdBindIndexBuffer(commandBuffer, indexBufferPtr, 0, VK_INDEX_TYPE_UINT32);
-		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh->GetIndexCount()), 1, 0, 0, firstInstance);
+	inline void DrawMesh(VkCommandBuffer commandBuffer, uint32_t instanceId) {
+        vkCmdDraw(commandBuffer, 6, 1, 0, instanceId);
 	}
 
 	inline void ClearQueue() {
@@ -62,19 +44,22 @@ namespace RasterRenderer {
 	}
 
 	inline void DrawQuad(const std::string& textureName, int xPosition, int yPosition, Destination destination, bool centered = false, int xSize = -1, int ySize = -1, int xClipMin = -1, int xClipMax = -1, int yClipMin = -1, int yClipMax = -1) {
-		
 		float quadWidth = xSize;
 		float quadHeight = ySize;
+
 		if (xSize == -1) {
 			quadWidth = AssetManager::GetTexture(textureName)->_width;
 		}
+
 		if (ySize == -1) {
 			quadHeight = AssetManager::GetTexture(textureName)->_height;
 		}
+		
 		if (centered) {
 			xPosition -= quadWidth / 2;
 			yPosition -= quadHeight / 2;
 		}
+		
 		float renderTargetWidth = 512	;
 		float renderTargetHeight = 288;
 
@@ -96,12 +81,14 @@ namespace RasterRenderer {
 		float height = (1.0f / renderTargetHeight) * quadHeight;
 		float ndcX = ((xPosition + (quadWidth / 2.0f)) / renderTargetWidth) * 2 - 1;
 		float ndcY = ((yPosition + (quadHeight / 2.0f)) / renderTargetHeight) * 2 - 1;
+		
 		Transform transform;
 		transform.position.x = ndcX;
 		transform.position.y = ndcY * -1;
 		transform.scale = glm::vec3(width, height * -1, 1);
-		int meshIndex = AssetManager::GetModelByName("blitter_quad")->GetMeshIndices()[0];
+
 		int textureIndex = AssetManager::GetTextureIndex(textureName);
-		SubmitUI(meshIndex, textureIndex, 0, transform.to_mat4(), destination, xClipMin, xClipMax, yClipMin, yClipMax);
+
+		SubmitUI(textureIndex, 0, transform.to_mat4(), destination, xClipMin, xClipMax, yClipMin, yClipMax);
 	}
 }

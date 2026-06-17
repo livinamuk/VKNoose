@@ -147,11 +147,12 @@ namespace AssetManager  {
 	void LoadFont();
 	void LoadHardcodedMesh();
 	bool LoadNextModel();
-	bool LoadNextTexture();
+    bool LoadNextTexture();
+    void CreateHouseGeometry();
 	void BuildMaterials();
 
 	//int CreateMesh(); 
-	int CreateMeshOLD(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
+	int CreateMeshOLD(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, const std::string meshName);
 
 	void* GetVertexPointer(int offset);
 	void* GetIndexPointer(int offset);
