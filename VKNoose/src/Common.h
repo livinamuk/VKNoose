@@ -84,17 +84,21 @@ struct VertexInputDescriptionOLD {
 	}
 };
 
-
 struct MeshInstance {
-	glm::mat4 worldMatrix;
-	int vertexOffset;
-	int indexOffset;
-	int basecolorIndex;
-	int normalIndex;
-	int rmaIndex;
-	int materialType; // 0 standard, 1 mirror, 2 glass 
-	int dummy1;
-	int dummy2;
+    glm::mat4 worldMatrix;
+
+    uint64_t vertexBufferAddress;
+    uint64_t indexBufferAddress;
+    
+	uint32_t vertexOffset;
+    uint32_t indexOffset;
+    uint32_t basecolorIndex;
+    uint32_t normalIndex;
+    
+	uint32_t rmaIndex;
+    uint32_t materialType; // 0 standard, 1 mirror, 2 glass 
+    uint32_t dummy1;
+    uint32_t dummy2;
 };
 
 

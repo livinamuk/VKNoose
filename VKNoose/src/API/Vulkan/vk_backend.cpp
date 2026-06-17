@@ -1029,14 +1029,6 @@ void VulkanBackEnd::UpdateStaticDescriptorSet() {
 	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, laptopDisplay->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_LAPTOP);
 	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, composite->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_COMPOSITE);
 
-    VulkanBuffer* vertexBuffer = VulkanRenderer::GetVertexBuffer();
-    VulkanBuffer* indexBuffer = VulkanRenderer::GetIndexBuffer();
-
-	if (vertexBuffer && indexBuffer) {
-		staticDescriptorSet.WriteBuffer(DESC_IDX_VERTICES, vertexBuffer->GetBuffer(), vertexBuffer->GetSize(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-		staticDescriptorSet.WriteBuffer(DESC_IDX_INDICES, indexBuffer->GetBuffer(), indexBuffer->GetSize(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-	}
-
 	// Finalize all writes
 	staticDescriptorSet.Update();
 }
@@ -1076,11 +1068,6 @@ void VulkanBackEnd::UpdateDynamicDescriptorSet() {
 	dynamicSet.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, uiInstancesBuffer->GetBuffer());
 	dynamicSet.Update(GetDevice(), 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, sceneLightsBuffer->GetBuffer());
 
-
-
-
-
-
 	VulkanRenderer::UpdateDynamicDescriptorSet();
 }
 
@@ -1100,7 +1087,7 @@ void DrawMesh(VkCommandBuffer commandBuffer, uint32_t meshIndex, uint32_t firstI
 
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBufferPtr, &offset);
     vkCmdBindIndexBuffer(commandBuffer, indexBufferPtr, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh->GetIndexCount()), 1, 0, 0, firstInstance);
+    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh->GetIndexCount()), 1, mesh->GetBaseIndex(), mesh->GetBaseVertex(), firstInstance);
 }
 
 void DrawMesh(VkCommandBuffer commandBuffer, Mesh* mesh, uint32_t firstInstance) {

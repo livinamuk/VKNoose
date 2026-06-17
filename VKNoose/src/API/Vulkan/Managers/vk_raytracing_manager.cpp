@@ -92,7 +92,7 @@ namespace VulkanRaytracingManager {
     }
 
     uint64_t CreateBottomLevelAS(Mesh* mesh) {
-        Logging::Debug() << "CreateBottomLevelAS() " << mesh->GetName() << "\n";
+        if (!mesh || mesh->GetVertexCount() == 0 || mesh->GetIndexCount() == 0) return 0;
 
         uint64_t accelerationStructureId = VulkanResourceManager::CreateAccelerationStructure();
 

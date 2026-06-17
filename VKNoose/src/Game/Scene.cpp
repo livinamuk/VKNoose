@@ -4,6 +4,7 @@
 #include "House/wall.h"
 #include "Callbacks.hpp"
 
+#include "API/Vulkan/Renderer/vk_renderer.h"
 #include "API/Vulkan/Managers/vk_resource_manager.h"
 #include "Hell/Core/Logging.h"
 
@@ -1152,7 +1153,9 @@ std::vector<MeshInstance> Scene::GetSceneMeshInstances(bool debugScene) {
 		for (int i = 0; i < gameObject.m_model->GetMeshIndices().size(); i++) {
 			int meshIndex = gameObject.m_model->GetMeshIndices()[i];
 			Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
-			MeshInstance instance;
+            MeshInstance instance;
+            instance.vertexBufferAddress = VulkanRenderer::GetVertexBufferAddress();
+            instance.indexBufferAddress = VulkanRenderer::GetIndexBufferAddress();
 			instance.worldMatrix = gameObject.GetModelMatrix();
 			instance.basecolorIndex = gameObject.GetMaterial(i)->_basecolor;
 			instance.normalIndex = gameObject.GetMaterial(i)->_normal;
@@ -1174,7 +1177,9 @@ std::vector<MeshInstance> Scene::GetSceneMeshInstances(bool debugScene) {
 		}
 
 		MeshInstance instance;
-		instance.worldMatrix = glm::mat4(1);
+        instance.worldMatrix = glm::mat4(1);
+        instance.vertexBufferAddress = VulkanRenderer::GetVertexBufferAddress();
+        instance.indexBufferAddress = VulkanRenderer::GetIndexBufferAddress();
 		instance.basecolorIndex = material->_basecolor;
 		instance.normalIndex = material->_normal;
 		instance.rmaIndex = material->_rma;

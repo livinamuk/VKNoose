@@ -11,6 +11,8 @@ namespace VulkanRenderer {
 
     VulkanBuffer* GetVertexBuffer();
     VulkanBuffer* GetIndexBuffer();
+    uint64_t GetVertexBufferAddress();
+    uint64_t GetIndexBufferAddress();
 
     VulkanDescriptorSet& GetStaticDescriptorSet();
 

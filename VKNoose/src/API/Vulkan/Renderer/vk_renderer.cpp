@@ -106,7 +106,6 @@ namespace VulkanRenderer {
 
 	void CreatePipelines() {
 		VkDevice device = VulkanDeviceManager::GetDevice();
-
 	}
 
 	void CreateStaticDescriptorSet() {
@@ -121,11 +120,7 @@ namespace VulkanRenderer {
 			// Grouped Storage Images by Format
 			{ DESC_IDX_STORAGE_IMAGES_RGBA32F, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 100, VK_SHADER_STAGE_ALL },
 			{ DESC_IDX_STORAGE_IMAGES_RGBA16F, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 100, VK_SHADER_STAGE_ALL },
-			{ DESC_IDX_STORAGE_IMAGES_RGBA8,   VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 100, VK_SHADER_STAGE_ALL },
-
-			// Legacy
-			{ DESC_IDX_VERTICES, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_ALL },
-			{ DESC_IDX_INDICES,  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_ALL }
+			{ DESC_IDX_STORAGE_IMAGES_RGBA8,   VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 100, VK_SHADER_STAGE_ALL }
 		};
 
 		std::vector<VkDescriptorBindingFlags> flags(bindings.size(), 0);
@@ -158,7 +153,9 @@ namespace VulkanRenderer {
 		VkBufferUsageFlags usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT |
 			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
 			VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+			VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 
 		// Create and upload Vertex Buffer
 		g_vertexBuffer = VulkanResourceManager::CreateBuffer(vertices.size() * sizeof(Vertex), usage, VMA_MEMORY_USAGE_GPU_ONLY);
@@ -179,19 +176,12 @@ namespace VulkanRenderer {
 		VulkanResourceManager::UploadBufferData(g_transformBuffer, &identity, sizeof(glm::mat3x4));
 	}
 
-    void BuildAllBLAS() {
-        Logging::Init() << "BuildAllBLAS\n";
+	void BuildAllBLAS() {
+		Logging::Init() << "BuildAllBLAS\n";
 
 		for (Mesh& mesh : AssetManager::GetMeshes()) {
-			if (mesh.indexCount == 0) continue;
 			mesh.m_vulkanAccelerationStructureId = VulkanRaytracingManager::CreateBottomLevelAS(&mesh);
 		}
-
-        //for (int i = 0; i < AssetManager::GetMeshList().size(); i++) {
-        //    MeshOLD& mesh = AssetManager::GetMeshList()[i];
-        //    mesh.m_vulkanAccelerationStructure = VulkanResourceManager::CreateAccelerationStructure();
-        //    VulkanRaytracingManager::CreateBottomLevelAS(mesh.m_vulkanAccelerationStructure, &mesh);
-        //}
 	}
 
 	void CreateFrameData() {
@@ -266,6 +256,20 @@ namespace VulkanRenderer {
 
 	VulkanBuffer* GetIndexBuffer() {
 		return VulkanResourceManager::GetBuffer(g_indexBuffer);
+	}
+
+	uint64_t GetVertexBufferAddress() {
+        if (VulkanBuffer* buffer = GetVertexBuffer()) {
+            return buffer->GetDeviceAddress();
+        }
+        return 0;
+	}
+
+    uint64_t GetIndexBufferAddress() {
+		if (VulkanBuffer* buffer = GetIndexBuffer()) {
+			return buffer->GetDeviceAddress();
+		}
+        return 0;
 	}
 
 	VulkanFrameData& GetCurrentFrameData() {

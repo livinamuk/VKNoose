@@ -40,7 +40,6 @@ struct SceneDeviceAddresses {
 };
 // 
 
-
 struct Light {
 	vec4 position;
 	vec4 color;
@@ -48,18 +47,26 @@ struct Light {
 
 struct MeshInstance {
 	mat4 worldMatrix;
-	int vertexOffset;
-	int indexOffset;
-	int basecolorIndex;
-	int normalIndex;
-	int rmaIndex;
-	int materialType; // 0 standard, 1 mirror, 2 glass 
-	int dummy1;
-	int dummy2;
+
+	uint64_t vertexBufferAddress;
+	uint64_t indexBufferAddress;
+	
+	uint vertexOffset;
+	uint indexOffset;
+	uint basecolorIndex;
+	uint normalIndex;
+	
+	uint rmaIndex;
+	uint materialType; // 0 standard, 1 mirror, 2 glass 
+	uint dummy1;
+	uint dummy2;
 };
 
 layout(buffer_reference, scalar) readonly buffer LightBuffer { Light arr[]; };
 layout(buffer_reference, scalar) readonly buffer SceneInstancesBuffer { MeshInstance arr[]; };
+
+layout(buffer_reference, scalar) readonly buffer                             VertexBuffer { Vertex v[]; };
+layout(buffer_reference, scalar, buffer_reference_align = 4) readonly buffer IndexBuffer { uint i[]; };
 
 struct DeviceAddresses {
     uint64_t sceneCameraData;
@@ -71,25 +78,16 @@ struct DeviceAddresses {
     uint64_t uiInstances;
 };
 
-
-
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
 layout(set = 0, binding = 1) uniform CameraData_ { CameraData data; } cam;
 
 layout(set = 0, binding = 2) buffer MeshInstances { MeshInstance i[]; } meshInstances;
 layout(set = 0, binding = 4) buffer Lights_ { Light i[]; } lights;
 
-// Old Static
-//layout(set = 1, binding = 2) readonly buffer Vertices { Vertex v[]; } vertices;
-//layout(set = 1, binding = 3) readonly buffer Indices { uint i[]; } indices;
-
 layout(set = 2, binding = 7) uniform sampler2D laptop_render_texture;
-
 
 // Global Device addresses (TODO: split these into SceneDeviceAddresses)
 layout(set = 4, binding = 0) readonly buffer GlobalAddressTable { DeviceAddresses addresses; } table;
-
-
 
 // Static Descriptor set
 layout(set = 3, binding = DESC_IDX_SAMPLERS)                uniform sampler samplers[];
@@ -99,30 +97,13 @@ layout(set = 3, binding = DESC_IDX_STORAGE_IMAGES_RGBA32F,  rgba32f) uniform ima
 layout(set = 3, binding = DESC_IDX_STORAGE_IMAGES_RGBA16F,  rgba16f) uniform image2D storage_images_rgba16f[];
 layout(set = 3, binding = DESC_IDX_STORAGE_IMAGES_RGBA8,    rgba8)   uniform image2D storage_images_rgba8[];
 						  
-layout(set = 3, binding = DESC_IDX_VERTICES) readonly buffer Vertices { Vertex v[]; } g_vertices; // Geometry Data (remove me when you can)
-layout(set = 3, binding = DESC_IDX_INDICES)  readonly buffer Indices { uint i[]; } g_indices;     // Geometry Data (remove me when you can)
-
-
-
-
-
-// Storage Images
-//layout(set = 3, binding = 4) uniform image2D g_rtOutput;
-//layout(set = 3, binding = 5) readonly buffer MousePick { uint instance; uint primitive; } g_mousePick; // MOVE ME!
-//layout(set = 3, binding = 6) uniform image2D g_rtNormals;
-//layout(set = 3, binding = 7) uniform image2D g_rtBaseColor;
-//layout(set = 3, binding = 8) uniform image2D g_rtSecondHit;
-
 hitAttributeEXT vec2 attribs;
-
-
 
 float rand(float co) { return fract(sin(co*(91.3458)) * 47453.5453); }
 float rand(vec2 co){ return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453); }
 float rand(vec3 co){ return rand(co.xy+rand(co.z)); }
 
-
-vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic, float ao, vec3 worldPos, vec3 camPos, Light light, int materialType) {
+vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic, float ao, vec3 worldPos, vec3 camPos, Light light, uint materialType) {
 	
 	// compute direct light	  
 	float fresnelReflect = 0.8;											// this is what they used for box, 1.0 for demon
@@ -227,8 +208,6 @@ vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic,
 
 
 void main() {
-
-	
 	uint64_t lightsAddress = table.addresses.sceneLights;
 	uint64_t sceneInstancesAddress = table.addresses.sceneInstances;
 	
@@ -240,22 +219,25 @@ void main() {
     
 	//MeshInstance meshInstance = meshInstances.i[gl_InstanceCustomIndexEXT];
 	rayPayload.meshIndex = gl_InstanceCustomIndexEXT;
-
-	int vertexOffset = meshInstance.vertexOffset;
-	int indexOffset = meshInstance.indexOffset;
+	
 	mat4 worldMatrix = meshInstance.worldMatrix;
-	int materialType = meshInstance.materialType;
+	uint vertexOffset = meshInstance.vertexOffset;
+	uint indexOffset = meshInstance.indexOffset;
+	uint materialType = meshInstance.materialType;
          
     const vec3 barycentrics = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
 
-    uint index0 = g_indices.i[3 * gl_PrimitiveID + indexOffset];
-    uint index1 = g_indices.i[3 * gl_PrimitiveID + 1 + indexOffset];
-    uint index2 = g_indices.i[3 * gl_PrimitiveID + 2 + indexOffset];
+	VertexBuffer vertices = VertexBuffer(meshInstance.vertexBufferAddress);
+	IndexBuffer indices = IndexBuffer(meshInstance.indexBufferAddress);
 
-    Vertex v0 = g_vertices.v[index0 + vertexOffset];
-    Vertex v1 = g_vertices.v[index1 + vertexOffset];
-    Vertex v2 = g_vertices.v[index2 + vertexOffset];
-	
+	uint index0 = indices.i[meshInstance.indexOffset + gl_PrimitiveID * 3 + 0];
+	uint index1 = indices.i[meshInstance.indexOffset + gl_PrimitiveID * 3 + 1];
+	uint index2 = indices.i[meshInstance.indexOffset + gl_PrimitiveID * 3 + 2];
+
+	Vertex v0 = vertices.v[meshInstance.vertexOffset + index0];
+	Vertex v1 = vertices.v[meshInstance.vertexOffset + index1];
+	Vertex v2 = vertices.v[meshInstance.vertexOffset + index2];
+
 	const vec3 pos0 = v0.position.xyz;
 	const vec3 pos1 = v1.position.xyz;
 	const vec3 pos2 = v2.position.xyz;
