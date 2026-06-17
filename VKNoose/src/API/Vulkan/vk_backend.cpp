@@ -81,12 +81,10 @@ namespace VulkanBackEnd {
 		if (!linearSampler) return false;
 
 		VulkanDescriptorSet& bindlessSet = VulkanRenderer::GetStaticDescriptorSet();
-		HellDescriptorSet& legacySet = VulkanDescriptorManager::GetStaticDescriptorSet();
 
 		VkDescriptorImageInfo samplerImageInfo = {};
 		samplerImageInfo.sampler = linearSampler->GetSampler();
 
-		legacySet.Update(GetDevice(), 0, 1, VK_DESCRIPTOR_TYPE_SAMPLER, &samplerImageInfo);
 		bindlessSet.WriteImage(0, VK_NULL_HANDLE, linearSampler->GetSampler(), VK_IMAGE_LAYOUT_UNDEFINED, VK_DESCRIPTOR_TYPE_SAMPLER);
 
 		// All textures
@@ -102,7 +100,6 @@ namespace VulkanBackEnd {
 		}
 
 		bindlessSet.Update();
-		legacySet.Update(GetDevice(), 1, TEXTURE_ARRAY_SIZE, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, textureImageInfo);
 
 		VulkanBackEnd::ToggleFullscreen();
 
@@ -145,7 +142,6 @@ void VulkanBackEnd::LoadNextItem() {
 		Scene::Init();						// Scene::Init creates wall geometry, and thus must run before upload_meshes
 		create_rt_buffers();
 		
-		update_static_descriptor_set_old();
 		UpdateStaticDescriptorSet();
 		Input::SetMousePos(_windowedModeExtent.width / 2, _windowedModeExtent.height / 2);
 	}
@@ -221,8 +217,8 @@ void VulkanBackEnd::RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuff
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetHandle());
 
 	// Static descriptor set
-	HellDescriptorSet& staticSet = VulkanDescriptorManager::GetStaticDescriptorSet();
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 0, 1, &staticSet.handle, 0, nullptr);
+    VulkanDescriptorSet& staticSet = VulkanRenderer::GetStaticDescriptorSet();
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 0, 1, staticSet.GetHandlePtr(), 0, nullptr);
 
     // Push constant
     UIPushConstant pushConstant{};
@@ -319,12 +315,6 @@ void VulkanBackEnd::RenderLoadingFrame() {
 	// Update 2D buffers and descriptor sets
 	UpdateBuffers2D();
 
-	// Retrieve the set from the Descriptor Manager and update it
-	//VulkanBuffer* uiMeshInstancesBuffer = VulkanResourceManager::GetBuffer(frameData.buffers.uiInstances);
-	//
-	//HellDescriptorSet& dynamicSet = VulkanDescriptorManager::GetDynamicDescriptorSet(frameIndex);
-	//dynamicSet.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, uiMeshInstancesBuffer->GetBuffer());
-
 	// Acquire next image from swapchain
 	uint32_t swapchainImageIndex;
 	VkSemaphore presentSemaphore = VulkanSyncManager::GetPresentSemaphore(frameIndex);
@@ -399,15 +389,13 @@ void VulkanBackEnd::RenderGameFrame() {
 
 	VulkanSyncManager::WaitForRenderFence(frameIndex);
 
-	{
-		VulkanRaytracingManager::CreateTopLevelAS(frameData.tlas.scene, Scene::GetMeshInstancesForSceneAccelerationStructure());
-		VulkanRaytracingManager::CreateTopLevelAS(frameData.tlas.inventory, Scene::GetMeshInstancesForInventoryAccelerationStructure());
+    VulkanRaytracingManager::CreateTopLevelAS(frameData.tlas.scene, Scene::GetMeshInstancesForSceneAccelerationStructure());
+    VulkanRaytracingManager::CreateTopLevelAS(frameData.tlas.inventory, Scene::GetMeshInstancesForInventoryAccelerationStructure());
 
-		get_required_lines();
-		UpdateBuffers();
-		UpdateBuffers2D();
-		UpdateDynamicDescriptorSet();
-	}
+    get_required_lines();
+    UpdateBuffers();
+    UpdateBuffers2D();
+    UpdateRaytracingTlasDescriptors();
 
 	VulkanSyncManager::ResetRenderFence(frameIndex);
 
@@ -683,8 +671,8 @@ void VulkanBackEnd::create_rt_buffers() {
 	VkDeviceSize pickBufferSize = sizeof(uint32_t) * 2;
 
 	// GPU buffer for the raytracing shader to write into
-	g_mousePickBufferGPU = VulkanResourceManager::CreateBuffer(pickBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_AUTO);
-
+	g_mousePickBufferGPU = VulkanResourceManager::CreateBuffer(pickBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_AUTO);
+   
 	// CPU buffer for the backend to read from
 	// MAPPED and HOST_ACCESS_SEQUENTIAL_WRITE to keep the pointer valid permanently
 	g_mousePickBufferCPU = VulkanResourceManager::CreateBuffer(pickBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO, VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
@@ -794,88 +782,6 @@ void VulkanBackEnd::UpdateBuffers() {
 	}
 }
 
-void VulkanBackEnd::update_static_descriptor_set_old() {
-	AllocatedImage* rtFirstHitColorAllocatedImage = VulkanResourceManager::GetAllocatedImage("RT_FirstHit_Color");
-	AllocatedImage* rtFirstHitNormalsAllocatedImage = VulkanResourceManager::GetAllocatedImage("RT_FirstHit_Normals");
-	AllocatedImage* rtFirstHitBaseColorAllocatedImage = VulkanResourceManager::GetAllocatedImage("RT_FirstHit_BaseColor");
-	AllocatedImage* rtSecondHitColorAllocatedImage = VulkanResourceManager::GetAllocatedImage("RT_SecondHit_Color");
-	AllocatedImage* gBufferNormalAllocatedImage = VulkanResourceManager::GetAllocatedImage("GBuffer_Normal");
-	AllocatedImage* gBufferRmaAllocatedImage = VulkanResourceManager::GetAllocatedImage("GBuffer_RMA");
-	AllocatedImage* laptopDisplayAllocatedImage = VulkanResourceManager::GetAllocatedImage("LaptopDisplay");
-	AllocatedImage* presentAllocatedImage = VulkanResourceManager::GetAllocatedImage("Present");
-	AllocatedImage* depthGBufferAllocatedImage = VulkanResourceManager::GetAllocatedImage("Depth_GBuffer");
-
-	HellDescriptorSet& samplerSet = VulkanDescriptorManager::GetSamplerDescriptorSet();
-	HellDescriptorSet& legacySet = VulkanDescriptorManager::GetStaticDescriptorSet();
-
-	VulkanSampler* linearSampler = VulkanResourceManager::GetSampler("Linear");
-	if (!linearSampler) return;
-
-	// Binding 0: The Sampler
-	VkDescriptorImageInfo samplerImageInfo = linearSampler->GetDescriptorInfo();
-	legacySet.Update(GetDevice(), 0, 1, VK_DESCRIPTOR_TYPE_SAMPLER, &samplerImageInfo);
-
-	// Binding 1: All Textures
-	VkDescriptorImageInfo textureImageInfo[TEXTURE_ARRAY_SIZE];
-	for (uint32_t i = 0; i < TEXTURE_ARRAY_SIZE; ++i) {
-		VkImageView view = (i < AssetManager::GetNumberOfTextures()) ? AssetManager::GetTextureByIndexOLD(i)->imageView : AssetManager::GetTextureByIndexOLD(0)->imageView;
-		textureImageInfo[i].sampler = nullptr;
-		textureImageInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-		textureImageInfo[i].imageView = view;
-	}
-	legacySet.Update(GetDevice(), 1, TEXTURE_ARRAY_SIZE, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, textureImageInfo);
-
-    VulkanBuffer* vertexBuffer = VulkanRenderer::GetVertexBuffer();
-    VulkanBuffer* indexBuffer = VulkanRenderer::GetIndexBuffer();
-
-	legacySet.Update(GetDevice(), 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, vertexBuffer->GetBuffer());
-	legacySet.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, indexBuffer->GetBuffer());
-
-	// Raytracing storage images
-	VkDescriptorImageInfo storageImageDescriptor{};
-	storageImageDescriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-	// Binding 4: RT First Hit Color
-	storageImageDescriptor.imageView = rtFirstHitColorAllocatedImage->GetImageView();
-	legacySet.Update(GetDevice(), 4, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &storageImageDescriptor);
-
-	// Binding 5: Mouse pick buffer
-	if (VulkanBuffer* buffer = VulkanResourceManager::GetBuffer(g_mousePickBufferGPU)) {
-		legacySet.Update(GetDevice(), 5, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, buffer->GetBuffer());
-	}
-
-	// Binding 6: RT First Hit Normals
-	storageImageDescriptor.imageView = rtFirstHitNormalsAllocatedImage->GetImageView();
-	legacySet.Update(GetDevice(), 6, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &storageImageDescriptor);
-
-	// Binding 7: RT First Hit BaseColor
-	storageImageDescriptor.imageView = rtFirstHitBaseColorAllocatedImage->GetImageView();
-	legacySet.Update(GetDevice(), 7, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &storageImageDescriptor);
-
-	// Binding 8: RT Second Hit Color
-	storageImageDescriptor.imageView = rtSecondHitColorAllocatedImage->GetImageView();
-	legacySet.Update(GetDevice(), 8, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &storageImageDescriptor);
-
-	// Update Sampler Sets (Traditional Combined Samplers)
-	VkDescriptorImageInfo staticSamplerImageInfo = linearSampler->GetDescriptorInfo();
-	staticSamplerImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-	staticSamplerImageInfo.imageView = rtFirstHitColorAllocatedImage->GetImageView();
-	samplerSet.Update(GetDevice(), 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &staticSamplerImageInfo);
-
-	staticSamplerImageInfo.imageView = rtFirstHitNormalsAllocatedImage->GetImageView();
-	samplerSet.Update(GetDevice(), 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &staticSamplerImageInfo);
-
-	staticSamplerImageInfo.imageView = rtFirstHitBaseColorAllocatedImage->GetImageView();
-	samplerSet.Update(GetDevice(), 2, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &staticSamplerImageInfo);
-
-	staticSamplerImageInfo.imageView = rtSecondHitColorAllocatedImage->GetImageView();
-	samplerSet.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &staticSamplerImageInfo);
-
-	staticSamplerImageInfo.imageView = laptopDisplayAllocatedImage->GetImageView();
-	samplerSet.Update(GetDevice(), 7, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &staticSamplerImageInfo);
-}
-
 void VulkanBackEnd::UpdateStaticDescriptorSet() {
 	AllocatedImage* rtFirstHitColor = VulkanResourceManager::GetAllocatedImage("RT_FirstHit_Color");
 	AllocatedImage* rtFirstHitNormals = VulkanResourceManager::GetAllocatedImage("RT_FirstHit_Normals");
@@ -938,7 +844,7 @@ void VulkanBackEnd::UpdateStaticDescriptorSet() {
 	staticDescriptorSet.Update();
 }
 
-void VulkanBackEnd::UpdateDynamicDescriptorSet() {
+void VulkanBackEnd::UpdateRaytracingTlasDescriptors() {
 	uint32_t frameIndex = VulkanRenderer::GetCurrentFrameIndex();
 	VulkanFrameData& frameData = VulkanRenderer::GetCurrentFrameData();
 
@@ -1021,21 +927,15 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 
 	HellDescriptorSet& dynamicSet = VulkanDescriptorManager::GetDynamicDescriptorSet(frameIndex);
 	HellDescriptorSet& dynamicSetInventory = VulkanDescriptorManager::GetDynamicInventoryDescriptorSet(frameIndex);
-	HellDescriptorSet& staticSet = VulkanDescriptorManager::GetStaticDescriptorSet();
-	HellDescriptorSet& samplerSet = VulkanDescriptorManager::GetSamplerDescriptorSet();
 
+	VulkanDescriptorSet& staticSet = VulkanRenderer::GetStaticDescriptorSet();
 	VulkanDescriptorSet& bindlessStaticSet = VulkanRenderer::GetStaticDescriptorSet();
 	VulkanDescriptorSet* dynamicDescriptorSet = VulkanResourceManager::GetDescriptorSet(frameData.dynamicDescriptorSet);
 
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetHandle());
-	//vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _raytracerPath.pipeline);
 
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 0, 1, &dynamicSet.handle, 0, nullptr);
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 1, 1, &staticSet.handle, 0, nullptr);
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 2, 1, &samplerSet.handle, 0, nullptr);
-
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 3, 1, bindlessStaticSet.GetHandlePtr(), 0, nullptr);
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 4, 1, dynamicDescriptorSet->GetHandlePtr(), 0, nullptr);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 1, 1, bindlessStaticSet.GetHandlePtr(), 0, nullptr);
 
 	rtFirstHitColorAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR);
 	rtFirstHitNormalsAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR);
@@ -1077,13 +977,21 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 
 
 	// Mouse pick
-    const VulkanShaderBindingTable& mouseSbt = mousePickPipeline->GetShaderBindingTable();
+	{
+        MousePickPushConstants pushConstant{};
+        pushConstant.cameraDeviceAddress = VulkanResourceManager::GetBuffer(frameData.buffers.sceneCameraData)->GetDeviceAddress();
+        pushConstant.mousePickBufferAddress = VulkanResourceManager::GetBuffer(g_mousePickBufferGPU)->GetDeviceAddress();
+        vkCmdPushConstants(commandBuffer, mousePickPipeline->GetLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(MousePickPushConstants), &pushConstant);
 
-    cmd_BindRayTracingPipeline(commandBuffer, mousePickPipeline->GetHandle());
-    cmd_BindRayTracingDescriptorSet(commandBuffer, mousePickPipeline->GetLayout(), 0, dynamicSet);
-    cmd_BindRayTracingDescriptorSet(commandBuffer, mousePickPipeline->GetLayout(), 1, staticSet);
+        cmd_BindRayTracingPipeline(commandBuffer, mousePickPipeline->GetHandle());
+        cmd_BindRayTracingDescriptorSet(commandBuffer, mousePickPipeline->GetLayout(), 0, dynamicSet);
 
-    vkCmdTraceRaysKHR(commandBuffer, &mouseSbt.raygen, &mouseSbt.miss, &mouseSbt.hit, &mouseSbt.callable, 1, 1, 1);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 0, 1, &dynamicSet.handle, 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 1, 1, bindlessStaticSet.GetHandlePtr(), 0, nullptr);
+
+        const VulkanShaderBindingTable& mouseSbt = mousePickPipeline->GetShaderBindingTable();
+        vkCmdTraceRaysKHR(commandBuffer, &mouseSbt.raygen, &mouseSbt.miss, &mouseSbt.hit, &mouseSbt.callable, 1, 1, 1);
+	}
 
 	// Laptop display rendering
 	{
@@ -1123,7 +1031,7 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 			cmd_SetViewportSize(commandBuffer, laptopDisplayAllocatedImage->GetWidth(), laptopDisplayAllocatedImage->GetHeight());
 
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetHandle());
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 0, 1, &staticSet.handle, 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 1, 1, staticSet.GetHandlePtr(), 0, nullptr);
 
             // Push constant
             UIPushConstant pushConstant{};
@@ -1203,9 +1111,7 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 		vkCmdBeginRendering(commandBuffer, &uiRenderingInfo);
 		cmd_SetViewportSize(commandBuffer, presentAllocatedImage->GetWidth(), presentAllocatedImage->GetHeight());
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetHandle());
-        //vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 0, 1, &dynamicSet.handle, 0, nullptr);
-        //vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 1, 1, &staticSet.handle, 0, nullptr);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 0, 1, &staticSet.handle, 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 1, 1, staticSet.GetHandlePtr(), 0, nullptr);
 
 		for (int i = 0; i < RasterRenderer::instanceCount; i++) {
 			if (RasterRenderer::_UIToRender[i].destination == RasterRenderer::Destination::MAIN_UI)

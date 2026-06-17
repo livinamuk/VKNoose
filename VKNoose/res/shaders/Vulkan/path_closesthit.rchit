@@ -26,15 +26,14 @@ layout(buffer_reference, scalar) readonly buffer Vertices { Vertex data[]; };
 layout(buffer_reference, scalar, buffer_reference_align = 4) readonly buffer Indices { uint data[]; };
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
-layout(set = 2, binding = 7) uniform sampler2D laptop_render_texture;
 
 // Static Descriptor set
-layout(set = 3, binding = DESC_IDX_SAMPLERS)                uniform sampler samplers[];
-layout(set = 3, binding = DESC_IDX_TEXTURES)                uniform texture2D textures[];
-layout(set = 3, binding = DESC_IDX_SSBOS)                   readonly buffer GlobalSSBO { uint data[]; } ssbos[];
-layout(set = 3, binding = DESC_IDX_STORAGE_IMAGES_RGBA32F,  rgba32f) uniform image2D storage_images_rgba32f[];
-layout(set = 3, binding = DESC_IDX_STORAGE_IMAGES_RGBA16F,  rgba16f) uniform image2D storage_images_rgba16f[];
-layout(set = 3, binding = DESC_IDX_STORAGE_IMAGES_RGBA8,    rgba8)   uniform image2D storage_images_rgba8[];
+layout(set = 1, binding = DESC_IDX_SAMPLERS)                uniform sampler samplers[];
+layout(set = 1, binding = DESC_IDX_TEXTURES)                uniform texture2D textures[];
+layout(set = 1, binding = DESC_IDX_SSBOS)                   readonly buffer GlobalSSBO { uint data[]; } ssbos[];
+layout(set = 1, binding = DESC_IDX_STORAGE_IMAGES_RGBA32F,  rgba32f) uniform image2D storage_images_rgba32f[];
+layout(set = 1, binding = DESC_IDX_STORAGE_IMAGES_RGBA16F,  rgba16f) uniform image2D storage_images_rgba16f[];
+layout(set = 1, binding = DESC_IDX_STORAGE_IMAGES_RGBA8,    rgba8)   uniform image2D storage_images_rgba8[];
 						  
 hitAttributeEXT vec2 attribs;
 
@@ -191,7 +190,7 @@ void main() {
 
 	// Did the ray hit the laptop?
 	if (materialType == 3) {
-		baseColor = texture(laptop_render_texture,vec2(texCoord.x, texCoord.y)).rgba;
+		baseColor = texture(sampler2D(textures[RT_IDX_LAPTOP], samplers[0]), texCoord);
 	}
 
 	// Normals/tangents

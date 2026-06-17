@@ -1,6 +1,6 @@
 #pragma once
 
-// Static binding indices
+// Static descriptor binding indices
 #define DESC_IDX_SAMPLERS 0
 #define DESC_IDX_TEXTURES 1
 #define DESC_IDX_UBOS 2
@@ -8,6 +8,9 @@
 #define DESC_IDX_STORAGE_IMAGES_RGBA32F 4
 #define DESC_IDX_STORAGE_IMAGES_RGBA16F 5
 #define DESC_IDX_STORAGE_IMAGES_RGBA8   6
+
+// Raytracing descriptor binding indices
+#define DESC_IDX_TLAS 0
 
 // Render Targets
 #define RT_IDX_FIRST_HIT_COLOR    1000

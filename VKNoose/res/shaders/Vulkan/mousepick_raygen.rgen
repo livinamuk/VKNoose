@@ -4,26 +4,24 @@
 #extension GL_EXT_scalar_block_layout : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
+#include "constants.glsl"
 #include "raycommon.glsl"
 #include "push_constants.glsl"
 #include "types.glsl"
 
 layout(location = 0) rayPayloadEXT MousepickPayload mousepickPayload;
 
-layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
-
-layout(set = 1, binding = 5) writeonly buffer MousepickData { uint i[]; } mousepickData;
-
-layout(push_constant, scalar) uniform PushConstants { 
-	ScenePushConstant scene; 
-} pushConstant;
+layout(push_constant, scalar) uniform PushConstants { MousePickPushConstant data; } pushConstant;
 
 layout(buffer_reference, scalar) readonly buffer CameraDataBuffer { CameraData data; };
+layout(buffer_reference, scalar, buffer_reference_align = 4) buffer MousePickBuffer { uint data[]; };
+
+layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
 
 void main() {	
-    CameraDataBuffer cameraBuffer = CameraDataBuffer(pushConstant.scene.cameraDeviceAddress);
-    CameraData camera = cameraBuffer.data;
-    
+    CameraData camera = CameraDataBuffer(pushConstant.data.cameraDeviceAddress).data;
+    MousePickBuffer mousePick = MousePickBuffer(pushConstant.data.mousePickBufferAddress);
+
     const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
     const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
     vec2 d = inUV * 2.0 - 1.0;	
@@ -39,8 +37,8 @@ void main() {
 
     traceRayEXT(topLevelAS, rayFlags, cullMask, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
 
-    mousepickData.i[0] = mousepickPayload.instanceIndex;
-    mousepickData.i[1] = mousepickPayload.primitiveIndex;
+    mousePick.data[0] = mousepickPayload.instanceIndex;
+    mousePick.data[1] = mousepickPayload.primitiveIndex;
 }
 
 

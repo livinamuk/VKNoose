@@ -54,7 +54,7 @@ namespace VulkanPipelineManager {
 
         VulkanPipeline& pipeline = g_pipelines["TextBlitter"];
         pipeline.Cleanup(device);
-        pipeline.PushDescriptorSetLayout(VulkanDescriptorManager::GetStaticSetLayout());
+        pipeline.PushDescriptorSetLayout(VulkanRenderer::GetStaticDescriptorSet().GetLayout());
         pipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
         pipeline.SetCullMode(VK_CULL_MODE_NONE);
         pipeline.SetFrontFace(VK_FRONT_FACE_COUNTER_CLOCKWISE);
@@ -79,7 +79,7 @@ namespace VulkanPipelineManager {
         pipeline.Cleanup(device);
 
         pipeline.PushDescriptorSetLayout(VulkanDescriptorManager::GetDynamicSetLayout());
-        pipeline.PushDescriptorSetLayout(VulkanDescriptorManager::GetStaticSetLayout());
+        pipeline.PushDescriptorSetLayout(VulkanRenderer::GetStaticDescriptorSet().GetLayout());
 
         pipeline.SetPushConstant(64, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
 
@@ -99,13 +99,9 @@ namespace VulkanPipelineManager {
         VulkanShader* shader = VulkanResourceManager::GetShader("Composite");
         if (!shader) return;
 
-        VulkanDescriptorSet& staticDescriptorSet = VulkanRenderer::GetStaticDescriptorSet();
-
         VulkanPipeline& pipeline = g_pipelines["Composite"];
         pipeline.Cleanup(device);
-
-        pipeline.PushDescriptorSetLayout(staticDescriptorSet.GetLayout());
-
+        pipeline.PushDescriptorSetLayout(VulkanRenderer::GetStaticDescriptorSet().GetLayout());
         pipeline.SetVertexDescription<Vertex>();
         pipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
         pipeline.SetCullMode(VK_CULL_MODE_NONE);
@@ -116,30 +112,8 @@ namespace VulkanPipelineManager {
         pipeline.Build(device, shader->GetVertexShader(), shader->GetFragmentShader(), 1, VK_FORMAT_R8G8B8A8_UNORM);
     }
 
-    // TODO: clean me up
-    std::vector<VkDescriptorSetLayout> GetRaytracingDescriptorSetLayouts() {
-        VulkanDescriptorSet& bindlessStaticSet = VulkanRenderer::GetStaticDescriptorSet();
-
-        uint64_t id = VulkanRenderer::GetFrameDataByIndex(0).dynamicDescriptorSet;
-        VulkanDescriptorSet* bindlessDynamicSet = VulkanResourceManager::GetDescriptorSet(id);
-
-        if (!bindlessDynamicSet) {
-            std::cerr << "[Pipeline Manager] Missing bindless dynamic descriptor set\n";
-            return {};
-        }
-
-        return {
-            VulkanDescriptorManager::GetDynamicSetLayout(),
-            VulkanDescriptorManager::GetStaticSetLayout(),
-            VulkanDescriptorManager::GetSamplerSetLayout(),
-            bindlessStaticSet.GetLayout(),
-            bindlessDynamicSet->GetLayout()
-        };
-    }
-
     void CreatePathRaytracingPipeline() {
-        std::vector<VkDescriptorSetLayout> layouts = GetRaytracingDescriptorSetLayouts();
-        if (layouts.empty()) return;
+        std::vector<VkDescriptorSetLayout> layouts = { VulkanDescriptorManager::GetDynamicSetLayout(), VulkanRenderer::GetStaticDescriptorSet().GetLayout() };
 
         std::vector<VkPushConstantRange> pushConstantRanges;
         VkPushConstantRange& pushConstantRange = pushConstantRanges.emplace_back();
@@ -159,15 +133,14 @@ namespace VulkanPipelineManager {
     }
 
     void CreateMousePickRaytracingPipeline() {
-        std::vector<VkDescriptorSetLayout> layouts = GetRaytracingDescriptorSetLayouts();
-        if (layouts.empty()) return;
+        std::vector<VkDescriptorSetLayout> layouts = { VulkanDescriptorManager::GetDynamicSetLayout(), VulkanRenderer::GetStaticDescriptorSet().GetLayout() };
 
         std::vector<VkPushConstantRange> pushConstantRanges;
         VkPushConstantRange& pushConstantRange = pushConstantRanges.emplace_back();
         pushConstantRange = {};
         pushConstantRange.offset = 0;
-        pushConstantRange.size = sizeof(ScenePushConstants);
-        pushConstantRange.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+        pushConstantRange.size = sizeof(MousePickPushConstants);
+        pushConstantRange.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
 
         uint32_t maxRecursionDepth = 5;
 
@@ -219,7 +192,6 @@ namespace VulkanPipelineManager {
     }
 
     void ReloadAll() {
-        std::cout << "[Pipeline Manager] Reloading all pipelines...\n";
         Cleanup();
         Init();
     }

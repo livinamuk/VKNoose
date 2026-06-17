@@ -108,9 +108,8 @@ namespace VulkanBackEnd {
 
 
 	void UpdateBuffers();
-	void update_static_descriptor_set_old();
 	void UpdateStaticDescriptorSet(); // MOVE ME TO VULKANRENDERER when you can!
-	void UpdateDynamicDescriptorSet();
+	void UpdateRaytracingTlasDescriptors();
 	
 	// Commands
 	void cmd_SetViewportSize(VkCommandBuffer commandBuffer, int width, int height);

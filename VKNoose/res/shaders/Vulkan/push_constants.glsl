@@ -14,3 +14,8 @@ struct UIPushConstant {
     uint64_t instancesDeviceAddress;
     uint64_t padding0;
 };
+
+struct MousePickPushConstant {
+    uint64_t cameraDeviceAddress;
+    uint64_t mousePickBufferAddress;
+};
