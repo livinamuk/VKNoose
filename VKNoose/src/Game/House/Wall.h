@@ -13,4 +13,7 @@ struct Wall {
 	Material* _material = nullptr;
 	glm::vec3 _begin;
 	glm::vec3 _end;
+
+	std::vector<Vertex> m_vertices;
+	std::vector<uint32_t> m_indices;
 };

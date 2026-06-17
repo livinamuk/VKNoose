@@ -120,7 +120,7 @@ namespace AssetManager {
 	}
 
 	void BakeModels() {
-		// Prellocate the vertex/index count
+		// Preallocate the vertex/index count
 		size_t vertexCount = 0;
 		size_t indexCount = 0;
 
@@ -138,11 +138,13 @@ namespace AssetManager {
 		for (Model& model : GetModels()) {
 			model.SetName(model.m_modelData.name);
 			model.SetAABB(model.m_modelData.aabbMin, model.m_modelData.aabbMax);
+
 			for (MeshData& meshData : model.m_modelData.meshes) {
 				int meshIndex = CreateMesh(meshData.name, meshData.vertices, meshData.indices, meshData.aabbMin, meshData.aabbMax, meshData.parentIndex, meshData.localTransform, meshData.inverseBindTransform);
 				model.AddMeshIndex(meshIndex);
 			}
 		}
+
 		std::cout << "AssetManager::BakeModels()\n";
 	}
 

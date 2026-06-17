@@ -23,6 +23,13 @@ namespace VulkanInstanceManager {
     }
 
     bool Init() {
+        // Kill the OBS layer warning before doing anything else
+#ifdef _WIN32
+        _putenv_s("DISABLE_VULKAN_OBS_CAPTURE", "1");
+#else
+        setenv("DISABLE_VULKAN_OBS_CAPTURE", "1", 1);
+#endif
+
         if (volkInitialize() != VK_SUCCESS) {
             std::cerr << "Failed to initialize volk\n";
             return false;
@@ -70,7 +77,7 @@ namespace VulkanInstanceManager {
         appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.pEngineName = "Unloved";
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-        appInfo.apiVersion = VK_API_VERSION_1_3;
+        appInfo.apiVersion = VK_API_VERSION_1_4;
 
         // Configure messenger for instance creation and destruction
         VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};

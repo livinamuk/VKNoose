@@ -31,6 +31,10 @@ struct Light {
 namespace Scene {
 	void Init();
 	void Update(float deltaTime);
+
+    void CreateGameObjects();
+    void CreateWalls();
+
 	std::vector<GameObject>& GetGameObjects();
 	//std::vector<RenderItem> GetRenderItems(bool debugScene);
 	std::vector<MeshInstance> GetSceneMeshInstances(bool debugScene);

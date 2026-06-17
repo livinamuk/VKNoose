@@ -1,15 +1,18 @@
 #include "API/Vulkan/vk_backend.h"
 #include "BackEnd/BackEnd.h"
-#include <iostream>
 #define NOMINMAX
 #include "Windows.h"
 #include "AssetManagement/AssetManager.h"
 
 #include "Hell/Core/Logging.h"
 
+#include <cstdlib>
+#include <iostream>
+
 void LazyKeyPresses();
 
 int main() {
+    std::system("cls");
 
     Logging::EnableLevel(Logging::Level::INIT);
     Logging::EnableLevel(Logging::Level::DEBUG);
@@ -21,7 +24,6 @@ int main() {
 
     // Init
     BackEnd::Init(WindowedMode::WINDOWED);
-    AssetManager::Init();
     GameData::Init();
 
     // Main loop

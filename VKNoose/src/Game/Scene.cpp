@@ -20,663 +20,662 @@ struct CollsionLine {
 	glm::vec3 end;
 };
 
-void Scene::Init()
-{
-	_gameObjects.clear();
-	_gameObjects.reserve(1000);
-	_lights.clear();
-
-	Light& light = _lights.emplace_back(Light());
-	light.position = { -0.6, 2.1, -0 };
-	light.color = { 1, 0.95, 0.8 };
-	//light.color += glm::vec3(0.1);
-	light.state = Light::State::ON;
-	light.currentBrightness = 1.0f;
-
-	Light& light2 = _lights.emplace_back(Light());
-	light2.position = glm::vec3(-1.7376, 2, 2.85);
-	light2.color = glm::vec3(1, 0.95, 0.8) * glm::vec3(1, 0.95, 0.8) * glm::vec3(0.45);
-	light2.state = Light::State::ON;
-	light2.currentBrightness = 1.0f;
-
-	GameObject& chair = _gameObjects.emplace_back(GameObject());
-	chair.SetModel("FallenChairBottom");
-	chair.SetPosition(glm::vec3(0.8f, 0, 1.1f));
-	chair.SetRotationY(3.7f);
-	chair.SetMeshMaterial("FallenChair");
-	chair.EnableCollision();
-	chair.SetBoundingBoxFromMesh(0);
-
-	GameObject& chair1 = _gameObjects.emplace_back(GameObject());
-	chair1.SetModel("FallenChairTop");
-	chair1.SetPosition(glm::vec3(0.8f, 0, 1.1f));
-	chair1.SetRotationY(3.7f);
-	chair1.SetMeshMaterial("FallenChair");
-
-	GameObject& floor = _gameObjects.emplace_back(GameObject());
-	floor.SetModel("floor");
-	floor.SetMeshMaterial("FloorBoards");
-	//floor.SetScale(glm::vec3(1, -1, 1));
-
-	GameObject& bathroomfloor = _gameObjects.emplace_back(GameObject());
-	bathroomfloor.SetModel("bathroom_floor");
-	bathroomfloor.SetMeshMaterial("BathroomFloor");
-	//bathroomfloor.SetScale(glm::vec3(1, -1, 1));
-
-	GameObject& ceiling = _gameObjects.emplace_back(GameObject());
-	ceiling.SetModel("ceiling");
-	ceiling.SetMeshMaterial("Ceiling");
-
-	GameObject& bathroom_ceiling = _gameObjects.emplace_back(GameObject());
-	bathroom_ceiling.SetModel("bathroom_ceiling");
-	bathroom_ceiling.SetMeshMaterial("Ceiling");
-	//bathroom_ceiling.SetScale(glm::vec3(1, -1, 1));
-
-	GameObject& skull = _gameObjects.emplace_back(GameObject());
-	skull.SetModel("BlackSkull");
-	skull.SetRotationY(3.7f);
-	skull.SetPosition(glm::vec3(-4, 0, -4));
-	skull.SetScale(2);
-	skull.SetMeshMaterial("BlackSkull");
-
-
-	{ // Drawers	
-		GameObject& drawers = _gameObjects.emplace_back(GameObject());
-		drawers.SetModel("DrawerFrame");
-		drawers.SetPosition(glm::vec3(1.6, 0, 0));
-		drawers.SetRotationY(-NOOSE_PI / 2);
-		drawers.SetMeshMaterial("Drawers");
-		drawers.SetName("ChestOfDrawers");
-		drawers.SetBoundingBoxFromMesh(0); 
-		drawers.EnableCollision();
-
-		float drawerVolume = 1.0f;
-		GameObject& topLeftDrawer = _gameObjects.emplace_back(GameObject());
-		topLeftDrawer.SetModel("DrawerTopLeft");
-		topLeftDrawer.SetMeshMaterial("Drawers");
-		topLeftDrawer.SetScriptName("OpenableDrawer");
-		topLeftDrawer.SetParentName("ChestOfDrawers");
-		topLeftDrawer.SetName("TopLeftDrawer");
-		topLeftDrawer.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
-		topLeftDrawer.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
-		topLeftDrawer.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
-		topLeftDrawer.SetOpenAxis(OpenAxis::TRANSLATE_Z);
-
-		GameObject& topRightDrawer = _gameObjects.emplace_back(GameObject());
-		topRightDrawer.SetModel("DrawerTopRight");
-		topRightDrawer.SetMeshMaterial("Drawers");
-		topRightDrawer.SetScriptName("OpenableDrawer");
-		topRightDrawer.SetParentName("ChestOfDrawers");
-		topRightDrawer.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
-		topRightDrawer.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
-		topRightDrawer.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
-		topRightDrawer.SetOpenAxis(OpenAxis::TRANSLATE_Z);
-
-		GameObject& drawSecond = _gameObjects.emplace_back(GameObject());
-		drawSecond.SetModel("DrawerSecond");
-		drawSecond.SetMeshMaterial("Drawers");
-		drawSecond.SetScriptName("OpenableDrawer");
-		drawSecond.SetParentName("ChestOfDrawers");
-		drawSecond.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
-		drawSecond.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
-		drawSecond.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
-		drawSecond.SetOpenAxis(OpenAxis::TRANSLATE_Z);
-
-		GameObject& drawThird = _gameObjects.emplace_back(GameObject());
-		drawThird.SetModel("DrawerThird");
-		drawThird.SetMeshMaterial("Drawers");
-		drawThird.SetScriptName("OpenableDrawer");
-		drawThird.SetParentName("ChestOfDrawers");
-		drawThird.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
-		drawThird.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
-		drawThird.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
-		drawThird.SetOpenAxis(OpenAxis::TRANSLATE_Z);
-
-		GameObject& drawerFourth = _gameObjects.emplace_back(GameObject());
-		drawerFourth.SetModel("DrawerFourth");
-		drawerFourth.SetMeshMaterial("Drawers");
-		drawerFourth.SetScriptName("OpenableDrawer");
-		drawerFourth.SetParentName("ChestOfDrawers");
-		drawerFourth.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
-		drawerFourth.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
-		drawerFourth.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
-		drawerFourth.SetOpenAxis(OpenAxis::TRANSLATE_Z);
-	}
-
-	GameObject& skull2 = _gameObjects.emplace_back(GameObject());
-	skull2.SetModel("BlackSkull");
-	skull2.SetParentName("ChestOfDrawers");
-	skull2.SetRotationY(1.6f);
-	skull2.SetPosition(glm::vec3(-0.4f, 1.15f, -1.675f + 2.0f));
-	skull2.SetMeshMaterial("BlackSkull");
-	skull2.SetScale(0.1f);
-	skull2.SetParentName("ChestOfDrawers");
-	skull2.SetName("Black Skull");
-	skull2.SetInteract(InteractType::PICKUP, "Take the [g]BLACK SKULL[w]?", nullptr);
-	
-
-	GameObject& wife = _gameObjects.emplace_back(GameObject());
-	wife.SetModel("Wife");
-	wife.SetName("Wife");
-	wife.SetPosition(0.6f, 2.6f, 0.9f);
-	wife.SetRotationY(-1.75f);
-	wife.SetScale(0.01f);
-	wife.SetMeshMaterialByMeshName("Side_part_wavy", "WifeHair");
-	wife.SetMeshMaterialByMeshName("CC_Base_Eye", "WifeEye");
-	wife.SetMeshMaterialByMeshName("CC_Base_Teeth", "WifeTeeth");
-	wife.SetMeshMaterialByMeshName("CC_Game_Body", "WifeSkin");
-	wife.SetMeshMaterialByMeshName("CC_Game_Tongue", "WifeSkin");
-	wife.SetMeshMaterialByMeshName("Dress", "WifeDress");
-	wife.SetMeshMaterialByMeshName("F_BS_wDress_L", "WifeDress2");
-	wife.SetMeshMaterialByMeshName("WifeDress_low", "WifeDress2");
-	wife.SetMeshMaterialByMeshName("WifeDress_low_0", "WifeDress2");
-	wife.SetMeshMaterialByMeshName("Noose_pivot", "Noose");
-	wife.SetMeshMaterialByMeshName("Noose", "Noose");
-	wife.SetMeshMaterialByMeshName("Object001", "Noose");
-	wife.SetMeshMaterialByMeshName("Rope_Low", "Noose");
-
-	/*wife.SetMeshMaterial("WifeHair", 0);
-	wife.SetMeshMaterial("WifeSkin", 1);
-	wife.SetMeshMaterial("WifeSkin", 2);
-	wife.SetMeshMaterial("WifeBrows", 3);
-	wife.SetMeshMaterial("WifeDress", 4);
-	wife.SetMeshMaterial("WifeEye", 5);
-	wife.SetMeshMaterial("WifeTeeth", 6);
-	wife.SetMeshMaterial("Noose", 7);
-	wife.SetMeshMaterial("Noose", 8);*/
-	wife.SetInteract(InteractType::TEXT, "This can't be fucking happening.", nullptr);
-
-
-	float DOOR_WIDTH = 0.8f;
-
-	float roomZmin = -1.8f;
-	float roomZmax = 1.8f;
-	float roomXmin = -2.75f;
-	float roomXmax = 1.6f;
-
-	float bathroomXmin = -2.715f;
-	float bathroomXmax = -0.76f;
-	float bathroomZmin = 1.9f;
-	float bathroomZmax = 3.8f;
-
-	float bathroomDoorX = -1.6f;
-	float doorWidth = 0.9;
-	float hallDoorX = 0.5f;
-
-	GameObject& door0 = _gameObjects.emplace_back(GameObject());
-	door0.SetModel("Door");
-	door0.SetName("Door");
-	door0.SetMeshMaterial("Door");
-	door0.SetRotationY(NOOSE_HALF_PI);
-	door0.SetPosition(hallDoorX + 0.39550f, 0, -1.85 - 0.058520);
-	door0.SetScriptName("OpenableDoor");
-	//door0.SetOpenState(OpenState::CLOSED, 5.208f, NOOSE_HALF_PI, -NOOSE_HALF_PI - 1.9f);
-	door0.SetOpenState(OpenState::CLOSED, 5.208f, NOOSE_HALF_PI, NOOSE_HALF_PI - 1.9f);
-	door0.SetAudioOnOpen("Door_Open.wav", DOOR_VOLUME);
-	door0.SetAudioOnClose("Door_Open.wav", DOOR_VOLUME);
-	door0.SetOpenAxis(OpenAxis::ROTATION_NEG_Y);
-
-	GameObject& doorFrame0 = _gameObjects.emplace_back(GameObject());
-	doorFrame0.SetModel("DoorFrame"); 
-	doorFrame0.SetName("DoorFrame");
-	doorFrame0.SetMeshMaterial("Door");
-	doorFrame0.SetRotationY(NOOSE_HALF_PI);
-	doorFrame0.SetPosition(hallDoorX, 0, -2.05 + 0.2f);
-
-	GameObject& door1 = _gameObjects.emplace_back(GameObject());
-	door1.SetModel("Door");
-	door1.SetName("Door");
-	door1.SetMeshMaterial("Door");
-	door1.SetRotationY(NOOSE_HALF_PI);
-	door1.SetPosition(bathroomDoorX - 0.39550f, 0, bathroomZmin - 0.05f + 0.058520);
-	door1.SetScriptName("OpenableDoor");
-	door1.SetOpenState(OpenState::CLOSED, 5.208f, -NOOSE_HALF_PI, -1.9f - NOOSE_HALF_PI);
-	door1.SetAudioOnOpen("Door_Open.wav", DOOR_VOLUME);
-	door1.SetAudioOnClose("Door_Open.wav", DOOR_VOLUME);
-	door1.SetOpenAxis(OpenAxis::ROTATION_NEG_Y);
-
-
-	GameObject& doorFrame1 = _gameObjects.emplace_back(GameObject());
-	doorFrame1.SetModel("DoorFrame");
-	doorFrame1.SetName("DoorFrame");
-	doorFrame1.SetMeshMaterial("Door");
-	doorFrame1.SetRotationY(-NOOSE_HALF_PI);
-	doorFrame1.SetPosition(bathroomDoorX, 0, bathroomZmin - 0.05f);
-
-
-	GameObject& lightSwitch = _gameObjects.emplace_back(GameObject());
-	lightSwitch.SetModel("LightSwitchOn");
-	lightSwitch.SetMeshMaterial("LightSwitch");
-	lightSwitch.SetName("LightswitchBedroom");
-	lightSwitch.SetRotationY(-NOOSE_HALF_PI);
-	lightSwitch.SetScale(1.05f);
-	lightSwitch.SetPosition(-0.12f, 1.1f, -1.8f);
-	lightSwitch.SetInteract(InteractType::CALLBACK_ONLY, "", Callbacks::TurnBedroomLightOff);
-
-	GameObject& vase = _gameObjects.emplace_back(GameObject());
-	vase.SetModel("Vase");
-	vase.SetRotationY(-0.6f - NOOSE_HALF_PI);
-	vase.SetPosition(1.6f - 0.4f, 1.49f, 0.395f);
-	vase.SetMeshMaterial("Vase");
-	vase.SetName("Vase");
-	
-	GameObject& keyInVase = _gameObjects.emplace_back(GameObject());
-	keyInVase.SetModel("KeyInVase");
-	keyInVase.SetRotationY(-0.6f - NOOSE_HALF_PI);
-	keyInVase.SetPosition(1.6f - 0.4f, 1.49f, 0.395f);
-	keyInVase.SetMeshMaterial("SmallKey");
-	keyInVase.SetName("Small Key");
-	
-	GameObject& flowers = _gameObjects.emplace_back(GameObject());
-	flowers.SetModel("Flowers");
-	flowers.SetRotationY(-0.6f - NOOSE_HALF_PI);
-	flowers.SetPosition(1.6f - 0.4f, 1.49f, 0.395f);
-	flowers.SetMeshMaterial("Flowers");
-	flowers.SetName("Flowers");
-	flowers.SetInteract(InteractType::PICKUP, "Take the [g]FLOWERS[w]?", Callbacks::FlowersWereTaken);
-
-	GameObject& _toilet = _gameObjects.emplace_back(GameObject());
-	_toilet.SetModel("Toilet");
-	_toilet.SetMeshMaterial("Toilet");
-	_toilet.SetName("Toilet");
-	_toilet.SetPosition(-1.4, 0.0f, 3.8f);
-
-	GameObject& toiletLid = _gameObjects.emplace_back(GameObject());
-	toiletLid.SetModel("ToiletLid");
-	toiletLid.SetName("ToiletLid");
-	toiletLid.SetMeshMaterial("Toilet");
-	toiletLid.SetPosition(0, 0.40727, -0.2014);
-	toiletLid.SetParentName("Toilet");
-	toiletLid.SetOpenState(OpenState::OPENING, 12.0f, 0, -(NOOSE_PI / 2) - 0.12);
-	toiletLid.SetAudioOnOpen("ToiletLidUp.wav", 0.75f);
-	toiletLid.SetAudioOnClose("ToiletLidDown.wav", 0.5f);
-	toiletLid.SetOpenAxis(OpenAxis::ROTATION_NEG_X);
-
-	GameObject& toiletSeat = _gameObjects.emplace_back(GameObject());
-	toiletSeat.SetModel("ToiletSeat");
-	toiletSeat.SetName("ToiletSeat");
-	toiletSeat.SetMeshMaterial("Toilet");
-	toiletSeat.SetPosition(0, 0.40727, -0.2014);
-	toiletSeat.SetAudioOnOpen("ToiletSeatUp.wav", 0.75f);
-	toiletSeat.SetAudioOnClose("ToiletSeatDown.wav", 0.5f);
-	toiletSeat.SetParentName("Toilet");
-	toiletSeat.SetOpenState(OpenState::CLOSED, 12.0f, 0, (NOOSE_PI / 2) + 0.12);
-	toiletSeat.SetOpenAxis(OpenAxis::ROTATION_POS_X);
-
-	GameObject& bathroomHeater = _gameObjects.emplace_back(GameObject());
-	bathroomHeater.SetModel("Heater");
-	bathroomHeater.SetMeshMaterial("Heater");
-	bathroomHeater.SetPosition(-0.76f, 0.0f, 3.3f);
-
-	GameObject& toiletPaper = _gameObjects.emplace_back(GameObject());
-	toiletPaper.SetModel("ToiletPaper");
-	toiletPaper.SetMeshMaterial("Toilet");
-	toiletPaper.SetPosition(-1.8, 0.7f, 3.8f);
-
-	GameObject& basin = _gameObjects.emplace_back(GameObject());
-	basin.SetModel("Basin");
-	basin.SetMeshMaterial("Basin");
-	basin.SetPosition(-0.76f, 0.0f, 2.55f);
-
-	GameObject& towel = _gameObjects.emplace_back(GameObject());
-	towel.SetModel("Towel");
-	towel.SetMeshMaterial("Basin");
-	towel.SetPosition(-0.76f, 1.8f, 3.3f);
-
-	GameObject& bin = _gameObjects.emplace_back(GameObject());
-	bin.SetModel("BathroomBin");
-	bin.SetMeshMaterial("BathroomBin");
-	bin.SetName("BathroomBin");
-	bin.SetPosition(-0.81, 0.0f, 2.15f);
-
-	GameObject& bathroomBinPedal = _gameObjects.emplace_back(GameObject());
-	bathroomBinPedal.SetModel("BathroomBinPedal");
-	bathroomBinPedal.SetMeshMaterial("BathroomBin");
-	bathroomBinPedal.SetParentName("BathroomBin");
-
-	GameObject& bathroomBinLid = _gameObjects.emplace_back(GameObject());
-	bathroomBinLid.SetModel("BathroomBinLid");
-	bathroomBinLid.SetMeshMaterial("BathroomBin");
-	bathroomBinLid.SetParentName("BathroomBin");
-	bathroomBinLid.SetPositionY(0.22726f);
-
-	GameObject& cabinet = _gameObjects.emplace_back(GameObject());
-	cabinet.SetModel("CabinetBody");
-	cabinet.SetMeshMaterial("Cabinet");
-	cabinet.SetName("Cabinet");
-	cabinet.SetPosition(-0.76f, 1.25f, 2.55f);
-
-	GameObject& cabinetDoor = _gameObjects.emplace_back(GameObject());
-	cabinetDoor.SetModel("CabinetDoor");
-	cabinetDoor.SetMeshMaterial("Cabinet");
-	cabinetDoor.SetName("Cabinet Door");
-	cabinetDoor.SetParentName("Cabinet");
-	cabinetDoor.SetPosition(-0.10763f, 0, 0.24941);
-	cabinetDoor.SetAudioOnOpen("CabinetOpen.wav", CABINET_VOLUME);
-	cabinetDoor.SetAudioOnClose("CabinetClose.wav", CABINET_VOLUME);
-	cabinetDoor.SetOpenState(OpenState::CLOSED, 9, 0, NOOSE_HALF_PI);
-	cabinetDoor.SetOpenAxis(OpenAxis::ROTATION_POS_Y);
-
-	GameObject& cabinetMirror = _gameObjects.emplace_back(GameObject());
-	cabinetMirror.SetModel("CabinetMirror");
-	cabinetMirror.SetMeshMaterial("NumGrid");
-	cabinetMirror.SetMeshMaterial("Cabinet");
-	cabinetMirror.SetParentName("Cabinet Door");
-	cabinetMirror.SetScriptName("OpenCabinetDoor");
-	cabinetMirror.SetInteract(InteractType::TEXT, "", Callbacks::OpenCabinet);
-	cabinetMirror.SetMaterialType(MaterialType::MIRROR);
-
-	GameObject& smallChestOfDrawers = _gameObjects.emplace_back(GameObject());
-	smallChestOfDrawers.SetModel("SmallChestOfDrawersFrame");
-	smallChestOfDrawers.SetMeshMaterial("Drawers");
-	smallChestOfDrawers.SetName("SmallDrawersHis");
-	smallChestOfDrawers.SetPosition(-2.75, 0, -1.3);
-	smallChestOfDrawers.SetRotationY(NOOSE_PI / 2);
-	smallChestOfDrawers.SetBoundingBoxFromMesh(0);
-	smallChestOfDrawers.EnableCollision();
-
-	GameObject& smallChestOfDrawer_1 = _gameObjects.emplace_back(GameObject());
-	smallChestOfDrawer_1.SetModel("SmallDrawerTop");
-	smallChestOfDrawer_1.SetMeshMaterial("Drawers");
-	smallChestOfDrawer_1.SetParentName("SmallDrawersHis");
-	smallChestOfDrawer_1.SetScriptName("OpenableDrawer");
-	smallChestOfDrawer_1.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
-	smallChestOfDrawer_1.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
-	smallChestOfDrawer_1.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
-	smallChestOfDrawer_1.SetOpenAxis(OpenAxis::TRANSLATE_Z);
-
-	GameObject& smallChestOfDrawer_2 = _gameObjects.emplace_back(GameObject());
-	smallChestOfDrawer_2.SetModel("SmallDrawerSecond");
-	smallChestOfDrawer_2.SetMeshMaterial("Drawers");
-	smallChestOfDrawer_2.SetParentName("SmallDrawersHis");
-	smallChestOfDrawer_2.SetScriptName("OpenableDrawer");
-	smallChestOfDrawer_2.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
-	smallChestOfDrawer_2.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
-	smallChestOfDrawer_2.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
-	smallChestOfDrawer_2.SetOpenAxis(OpenAxis::TRANSLATE_Z);
-
-	GameObject& smallChestOfDrawer_3 = _gameObjects.emplace_back(GameObject());
-	smallChestOfDrawer_3.SetModel("SmallDrawerThird");
-	smallChestOfDrawer_3.SetMeshMaterial("Drawers");
-	smallChestOfDrawer_3.SetParentName("SmallDrawersHis");
-	smallChestOfDrawer_3.SetScriptName("OpenableDrawer");
-	smallChestOfDrawer_3.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
-	smallChestOfDrawer_3.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
-	smallChestOfDrawer_3.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
-	smallChestOfDrawer_3.SetOpenAxis(OpenAxis::TRANSLATE_Z);
-
-	GameObject& smallChestOfDrawer_4 = _gameObjects.emplace_back(GameObject());
-	smallChestOfDrawer_4.SetModel("SmallDrawerFourth");
-	smallChestOfDrawer_4.SetMeshMaterial("Drawers");
-	smallChestOfDrawer_4.SetParentName("SmallDrawersHis");
-	smallChestOfDrawer_4.SetScriptName("OpenableDrawer");
-	smallChestOfDrawer_4.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
-	smallChestOfDrawer_4.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
-	smallChestOfDrawer_4.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
-	smallChestOfDrawer_4.SetOpenAxis(OpenAxis::TRANSLATE_Z);
-
-
-	GameObject& smallChestOfDrawersB = _gameObjects.emplace_back(GameObject());
-	smallChestOfDrawersB.SetModel("SmallChestOfDrawersFrame");
-	smallChestOfDrawersB.SetMeshMaterial("Drawers");
-	smallChestOfDrawersB.SetName("SmallDrawersHers");
-	smallChestOfDrawersB.SetPosition(-2.75, 0, 1.3);
-	smallChestOfDrawersB.SetRotationY(NOOSE_PI / 2);
-	smallChestOfDrawersB.SetBoundingBoxFromMesh(0);
-	smallChestOfDrawersB.EnableCollision();
-
-	GameObject& smallChestOfDrawer_1B = _gameObjects.emplace_back(GameObject());
-	smallChestOfDrawer_1B.SetModel("SmallDrawerTop");
-	smallChestOfDrawer_1B.SetMeshMaterial("Drawers");
-	smallChestOfDrawer_1B.SetParentName("SmallDrawersHers");
-	smallChestOfDrawer_1B.SetName("LockedSmallDrawer");
-	//smallChestOfDrawer_1B.SetInteract(InteractType::TEXT, "It's locked.", nullptr);
-	smallChestOfDrawer_1B.SetInteract(InteractType::CALLBACK_ONLY, "", Callbacks::LockedDrawer);
-	//smallChestOfDrawer_1B.SetAudioOnInteract("Locked1.wav", 0.25f);
-
-	GameObject& smallChestOfDrawer_2B = _gameObjects.emplace_back(GameObject());
-	smallChestOfDrawer_2B.SetModel("SmallDrawerSecond");
-	smallChestOfDrawer_2B.SetMeshMaterial("Drawers");
-	smallChestOfDrawer_2B.SetParentName("SmallDrawersHers");
-	smallChestOfDrawer_2B.SetScriptName("OpenableDrawer");
-	smallChestOfDrawer_2B.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
-	smallChestOfDrawer_2B.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
-	smallChestOfDrawer_2B.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
-	smallChestOfDrawer_2B.SetOpenAxis(OpenAxis::TRANSLATE_Z);
-
-	GameObject& smallChestOfDrawer_3B = _gameObjects.emplace_back(GameObject());
-	smallChestOfDrawer_3B.SetModel("SmallDrawerThird");
-	smallChestOfDrawer_3B.SetMeshMaterial("Drawers");
-	smallChestOfDrawer_3B.SetParentName("SmallDrawersHers");
-	smallChestOfDrawer_3B.SetScriptName("OpenableDrawer");
-	smallChestOfDrawer_3B.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
-	smallChestOfDrawer_3B.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
-	smallChestOfDrawer_3B.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
-	smallChestOfDrawer_3B.SetOpenAxis(OpenAxis::TRANSLATE_Z);
-
-	GameObject& smallChestOfDrawer_4B = _gameObjects.emplace_back(GameObject());
-	smallChestOfDrawer_4B.SetModel("SmallDrawerFourth");
-	smallChestOfDrawer_4B.SetMeshMaterial("Drawers");
-	smallChestOfDrawer_4B.SetParentName("SmallDrawersHers");
-	smallChestOfDrawer_4B.SetScriptName("OpenableDrawer");
-	smallChestOfDrawer_4B.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
-	smallChestOfDrawer_4B.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
-	smallChestOfDrawer_4B.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
-	smallChestOfDrawer_4B.SetOpenAxis(OpenAxis::TRANSLATE_Z);
-
-	GameObject& diary = _gameObjects.emplace_back(GameObject());
-	diary.SetParentName("LockedSmallDrawer");
-	diary.SetModel("Diary");
-	//diary.SetPosition(-0.3f, 0.95f, 0.4f);
-	diary.SetPosition(0.0f, 0.65f, 0.3f);
-	diary.SetRotationY(0.4f);
-	diary.SetScale(0.75f);
-	diary.SetMeshMaterial("Diary");
-	diary.SetName("Wife's Diary");
-	diary.SetInteract(InteractType::PICKUP, "Take your [g]WIFE'S DIARY[w]?", nullptr);
-
-	GameObject& yourPhone = _gameObjects.emplace_back(GameObject());
-	yourPhone.SetModel("YourPhone");
-	yourPhone.SetName("Water Damaged Phone");
-	yourPhone.SetMeshMaterial("Phone");
-	yourPhone.SetInteract(InteractType::PICKUP, "Take the [g]WATER DAMAGED PHONE[w]?", nullptr);
-	yourPhone.SetPosition(-1.39f, 0.20f, 3.29f);
-	yourPhone.SetRotationX(-NOOSE_HALF_PI + 0.5);
-	yourPhone.SetRotationY(0.3);
-	yourPhone.SetScale(0.95f);
-
-
-	GameObject& bed = _gameObjects.emplace_back(GameObject());
-	bed.SetModel("BedNoPillows");
-	bed.SetMeshMaterial("BedFabrics");
-	bed.SetPosition(-2.75, 0.0, 0);
-	bed.SetRotationY(NOOSE_PI / 2);
-	bed.SetName("Bed");
-	bed.EnableCollision();
-	bed.SetBoundingBoxFromMesh(0);
-
-	GameObject& pillow = _gameObjects.emplace_back(GameObject());
-	pillow.SetParentName("Bed");
-	pillow.SetPosition(0, 0.3, 0);
-	pillow.SetModel("PillowHers");
-	pillow.SetMeshMaterial("BedFabrics");
-
-	GameObject& pillow2 = _gameObjects.emplace_back(GameObject());
-	pillow2.SetModel("PillowHis");
-	pillow2.SetPosition(0, 0.3, 0);
-	pillow2.SetParentName("Bed");
-	pillow2.SetMeshMaterial("BedFabrics");
-
-
-	GameObject& cube = _gameObjects.emplace_back(GameObject());
-	cube.SetModel("Cube");
-	cube.SetMeshMaterial("White");
-	cube.SetScale(glm::vec3(0.5, 0.95, 1.8));
-	cube.SetPosition(-0.4, 0, 0.6);
-	cube.SetRotationY(-1.1);
-	cube.SetName("Cube");
-	cube.SetMaterialType(MaterialType::MIRROR);
-	//cube.EnableCollision();
-	//cube.SetBoundingBoxFromMesh(0);
-
-	GameObject& cube2 = _gameObjects.emplace_back(GameObject());
-	cube2.SetModel("Cube");
-	cube2.SetMeshMaterial("White");
-	cube2.SetScale(glm::vec3(0.4, 1.2, 1.8));
-	cube2.SetPosition(-0.9, 0, -0.6);
-	cube2.SetRotationY(0.2);
-	cube2.SetName("Cube2");
-	cube2.SetMaterialType(MaterialType::GLASS);
-
-	/*GameObject& cube3 = _gameObjects.emplace_back(GameObject());
-	cube3.SetModel("Cube");
-	cube3.SetMeshMaterial("Red");
-	cube3.SetScale(glm::vec3(0.5, 0.174, 0.5));
-	cube3.SetPosition(0.2, 1.17, 0.2);
-	cube3.SetRotationY(0.2);
-	cube3.SetParentName("Cube2");
-	cube3.SetName("Cube3");
-	cube3.SetMaterialType(MaterialType::TRANSLUCENT);*/
-	//cube2.EnableCollision();
-	//cube2.SetBoundingBoxFromMesh(0);
-
-	/*GameObject& wineglass = _gameObjects.emplace_back(GameObject());
-	wineglass.SetModel("WineGlass");
-	wineglass.SetRotationY(1.6f);
-	wineglass.SetPosition(glm::vec3(1.26, 1.15f, -1.675f + 2.0f - 0.3f));
-	wineglass.SetScale(0.04f);
-	wineglass.SetMaterialType(MaterialType::GLASS);
-	wineglass.SetMeshMaterial("Ceiling");
-
-	GameObject& wineglass2 = _gameObjects.emplace_back(GameObject());
-	wineglass2.SetModel("WineGlass");
-	wineglass2.SetRotationY(1.6f);
-	wineglass2.SetPosition(glm::vec3(1.30, 1.15f, -1.675f + 2.0f - 0.15f));
-	wineglass2.SetScale(0.04f);
-	wineglass2.SetMaterialType(MaterialType::GLASS);
-	wineglass2.SetMeshMaterial("White");*/
-
-	GameObject& lightSwitch2 = _gameObjects.emplace_back(GameObject());
-	lightSwitch2.SetModel("LightSwitchOn");
-	lightSwitch2.SetMeshMaterial("LightSwitch");
-	lightSwitch2.SetName("LightswitchBathroom");
-	lightSwitch2.SetRotationY(-NOOSE_HALF_PI);
-	lightSwitch2.SetScale(1.05f);
-	lightSwitch2.SetPosition(-0.95f, 1.1f, 1.9f);
-	lightSwitch2.SetInteract(InteractType::CALLBACK_ONLY, "", Callbacks::TurnBathroomLightOff);
-
-	
-	/*GameObject& macbookClosed = _gameObjects.emplace_back(GameObject());
-	macbookClosed.SetModel("MacbookClosed");
-	macbookClosed.SetPosition(glm::vec3(0, 1, 0));
-	macbookClosed.SetScale(0.01f);
-	macbookClosed.SetMeshMaterial("Macbook");*/
-
-	GameObject& macbookBody = _gameObjects.emplace_back(GameObject());
-	macbookBody.SetModel("MacbookBody");
-	macbookBody.SetName("MacbookBody");
-	macbookBody.SetPosition(-2.45, 0.88, 1.17);
-	macbookBody.SetScale(0.01f);
-	macbookBody.SetRotationY(-1.42);
-	macbookBody.SetMeshMaterial("Macbook");
-	macbookBody.SetInteract(InteractType::QUESTION, "Use [g]WIFE'S MACBOOK[w]?", Callbacks::UseLaptop);
-
-	GameObject& macbookScreen = _gameObjects.emplace_back(GameObject());
-	macbookScreen.SetModel("MacbookScreen");
-	macbookScreen.SetName("MacbookScreen");
-	macbookScreen.SetParentName("MacbookBody");
-	macbookScreen.SetRotationX(-NOOSE_PI / 2);
-	macbookScreen.SetOpenState(OpenState::CLOSED, 12.0f, -(NOOSE_PI / 2), 0.43f);
-	macbookScreen.SetAudioOnOpen("LaptopOpen.wav", 0.25f);
-	macbookScreen.SetAudioOnClose("LaptopClose.wav", 0.25f);
-	macbookScreen.SetOpenAxis(OpenAxis::ROTATION_POS_X);
-	macbookScreen.SetMeshMaterial("Macbook");
-
-	GameObject& macbookScreenDisplay = _gameObjects.emplace_back(GameObject());
-	macbookScreenDisplay.SetModel("MacbookScreenDisplay");
-	macbookScreenDisplay.SetName("MacbookScreenDisplay");
-	macbookScreenDisplay.SetParentName("MacbookScreen");
-	macbookScreenDisplay.SetMeshMaterial("LaptopDisplay");
-	macbookScreenDisplay.SetInteractToAffectAnotherObject("MacbookScreen");
-	macbookScreenDisplay.SetMaterialType(MaterialType::LAPTOP_DISPLAY);
-
-	GameObject& lampHers = _gameObjects.emplace_back(GameObject());
-	lampHers.SetModel("Lamp");
-	lampHers.SetMeshMaterial("Lamp");
-	lampHers.SetPosition(-2.55f, 0.88, 1.43);
-	lampHers.SetRotationY(NOOSE_HALF_PI);
-	lampHers.SetScale(1.0);
-
-	GameObject& lampHis = _gameObjects.emplace_back(GameObject());
-	lampHis.SetModel("Lamp");
-	lampHis.SetMeshMaterial("Lamp");
-	lampHis.SetPosition(-2.55f, 0.88, -1.43);
-	lampHis.SetRotationY(NOOSE_HALF_PI);
-	lampHis.SetScale(1.0);
-
-	/*	X		   C  
-	 	|	  ___________
-		|	 |	     Wife|	
-		|	 |			 |A
-		|	 |			 |   E
-		|  B |			 |______
-		|	 |			 |      |
-		|	 |			 |______| G  
-		|	 |___________|H  I
-	    |    
-		|		   D        F
-	    (0,0)----------------- Z
-	*/
-
-	{
+namespace Scene {
+
+    void Init() {
+        CreateWalls();
+        CreateGameObjects();
+    }
+
+	/*	X		   C
+	|	  ___________
+	|	 |	     Wife|
+	|	 |			 |A
+	|	 |			 |   E
+	|  B |			 |______
+	|	 |			 |      |
+	|	 |			 |______| G
+	|	 |___________|H  I
+	|
+	|		   D        F
+	(0,0)----------------- Z */
+
+	void CreateWalls() {
+		// Inventory
 		float h = -1.2;
-		Wall& wallA = _inventoryWalls.emplace_back(glm::vec3(+1.1, h, +1.1), glm::vec3(-1.1, h, +1.1), "WallPaper");
-		Wall& wallB = _inventoryWalls.emplace_back(glm::vec3(-1.1, h, -1.1), glm::vec3(+1.1, h, -1.1), "WallPaper");
-		Wall& wallC = _inventoryWalls.emplace_back(glm::vec3(+1.1, h, -1.1), glm::vec3(+1.1, h, +1.1), "WallPaper");
-		Wall& wallD = _inventoryWalls.emplace_back(glm::vec3(-1.1, h, +1.1), glm::vec3(-1.1, h, -1.1), "WallPaper");
-	}
+		Wall& inventoryWallA = _inventoryWalls.emplace_back(glm::vec3(+1.1, h, +1.1), glm::vec3(-1.1, h, +1.1), "WallPaper");
+		Wall& inventoryWallB = _inventoryWalls.emplace_back(glm::vec3(-1.1, h, -1.1), glm::vec3(+1.1, h, -1.1), "WallPaper");
+		Wall& inventoryWallC = _inventoryWalls.emplace_back(glm::vec3(+1.1, h, -1.1), glm::vec3(+1.1, h, +1.1), "WallPaper");
+		Wall& inventoryWallD = _inventoryWalls.emplace_back(glm::vec3(-1.1, h, +1.1), glm::vec3(-1.1, h, -1.1), "WallPaper");
 
-	static bool runOnce = true;
-	if (runOnce) {
-		Wall& wallA = _walls.emplace_back(glm::vec3(roomXmax, 0, roomZmax), glm::vec3(bathroomDoorX + doorWidth / 2, 0, roomZmax), "WallPaper");
+		// Main room
+		Wall& wallA = _walls.emplace_back(glm::vec3(HOUSE_BEDROOM_X_MAX, 0, HOUSE_BEDROOM_Z_MAX), glm::vec3(HOUSE_BATHROOM_DOOR_X + DOOR_WIDTH / 2, 0, HOUSE_BEDROOM_Z_MAX), "WallPaper");
 		wallA._material = AssetManager::GetMaterial("Green");
-		Wall& wallH = _walls.emplace_back(glm::vec3(bathroomDoorX - doorWidth / 2, 0, roomZmax), glm::vec3(roomXmin, 0, roomZmax), "WallPaper");
+		Wall& wallH = _walls.emplace_back(glm::vec3(HOUSE_BATHROOM_DOOR_X - DOOR_WIDTH / 2, 0, HOUSE_BEDROOM_Z_MAX), glm::vec3(HOUSE_BEDROOM_X_MIN, 0, HOUSE_BEDROOM_Z_MAX), "WallPaper");
 		wallH._material = AssetManager::GetMaterial("Green");
-		Wall& wallAboveBathroomDoor = _walls.emplace_back(glm::vec3(bathroomDoorX + doorWidth / 2, 2, roomZmax), glm::vec3(bathroomDoorX - doorWidth / 2, 2, roomZmax), "WallPaper");
+		Wall& wallAboveBathroomDoor = _walls.emplace_back(glm::vec3(HOUSE_BATHROOM_DOOR_X + DOOR_WIDTH / 2, 2, HOUSE_BEDROOM_Z_MAX), glm::vec3(HOUSE_BATHROOM_DOOR_X - DOOR_WIDTH / 2, 2, HOUSE_BEDROOM_Z_MAX), "WallPaper");
 		wallAboveBathroomDoor._material = AssetManager::GetMaterial("Green");
-		Wall& wallB = _walls.emplace_back(glm::vec3(roomXmin, 0, roomZmin), glm::vec3(hallDoorX - doorWidth / 2, 0, -roomZmax), "WallPaper");
+		Wall& wallB = _walls.emplace_back(glm::vec3(HOUSE_BEDROOM_X_MIN, 0, HOUSE_BEDROOM_Z_MIN), glm::vec3(HOUSE_HALL_DOOR_X - DOOR_WIDTH / 2, 0, -HOUSE_BEDROOM_Z_MAX), "WallPaper");
 		wallB._material = AssetManager::GetMaterial("Red");
-		Wall& wallB2 = _walls.emplace_back(glm::vec3(hallDoorX + doorWidth / 2, 0, roomZmin), glm::vec3(roomXmax, 0, roomZmin), "WallPaper");
+		Wall& wallB2 = _walls.emplace_back(glm::vec3(HOUSE_HALL_DOOR_X + DOOR_WIDTH / 2, 0, HOUSE_BEDROOM_Z_MIN), glm::vec3(HOUSE_BEDROOM_X_MAX, 0, HOUSE_BEDROOM_Z_MIN), "WallPaper");
 		wallB2._material = AssetManager::GetMaterial("Red");
-		Wall& wallBC = _walls.emplace_back(glm::vec3(hallDoorX - doorWidth / 2, 2, -roomZmax), glm::vec3(hallDoorX + doorWidth / 2, 2, roomZmin), "WallPaper");
+		Wall& wallBC = _walls.emplace_back(glm::vec3(HOUSE_HALL_DOOR_X - DOOR_WIDTH / 2, 2, -HOUSE_BEDROOM_Z_MAX), glm::vec3(HOUSE_HALL_DOOR_X + DOOR_WIDTH / 2, 2, HOUSE_BEDROOM_Z_MIN), "WallPaper");
 		wallBC._material = AssetManager::GetMaterial("Red");
-		Wall& wallC = _walls.emplace_back(glm::vec3(roomXmax, 0, roomZmin), glm::vec3(roomXmax, 0, roomZmax), "WallPaper");
+		Wall& wallC = _walls.emplace_back(glm::vec3(HOUSE_BEDROOM_X_MAX, 0, HOUSE_BEDROOM_Z_MIN), glm::vec3(HOUSE_BEDROOM_X_MAX, 0, HOUSE_BEDROOM_Z_MAX), "WallPaper");
 		wallC._material = AssetManager::GetMaterial("White");
-		Wall& wallD = _walls.emplace_back(glm::vec3(roomXmin, 0, roomZmax), glm::vec3(roomXmin, 0, roomZmin), "WallPaper");
+		Wall& wallD = _walls.emplace_back(glm::vec3(HOUSE_BEDROOM_X_MIN, 0, HOUSE_BEDROOM_Z_MAX), glm::vec3(HOUSE_BEDROOM_X_MIN, 0, HOUSE_BEDROOM_Z_MIN), "WallPaper");
 		wallD._material = AssetManager::GetMaterial("White");
 
+		// Bathroom
+		Wall& wallE = _walls.emplace_back(glm::vec3(HOUSE_BATHROOM_X_MAX, 0, HOUSE_BATHROOM_Z_MIN), glm::vec3(HOUSE_BATHROOM_X_MAX, 0, HOUSE_BATHROOM_Z_MAX), "BathroomWall");
+		Wall& wallG = _walls.emplace_back(glm::vec3(HOUSE_BATHROOM_X_MAX, 0, HOUSE_BATHROOM_Z_MAX), glm::vec3(HOUSE_BATHROOM_X_MIN, 0, HOUSE_BATHROOM_Z_MAX), "BathroomWall");
+		Wall& wallI = _walls.emplace_back(glm::vec3(HOUSE_BATHROOM_X_MIN, 0, HOUSE_BATHROOM_Z_MAX), glm::vec3(HOUSE_BATHROOM_X_MIN, 0, HOUSE_BATHROOM_Z_MIN), "BathroomWall");
+		Wall& wallHI2DOOR = _walls.emplace_back(glm::vec3(HOUSE_BATHROOM_X_MIN, 0, HOUSE_BATHROOM_Z_MIN), glm::vec3(HOUSE_BATHROOM_DOOR_X - DOOR_WIDTH / 2, 0, HOUSE_BATHROOM_Z_MIN), "BathroomWall");
+		Wall& otherGapNextToBathroomDoor = _walls.emplace_back(glm::vec3(HOUSE_BATHROOM_DOOR_X + DOOR_WIDTH / 2, 0, HOUSE_BATHROOM_Z_MIN), glm::vec3(HOUSE_BATHROOM_X_MAX, 0, HOUSE_BATHROOM_Z_MIN), "BathroomWall");
+		Wall& aboveBathroomDoor = _walls.emplace_back(glm::vec3(HOUSE_BATHROOM_DOOR_X - DOOR_WIDTH / 2, 2, HOUSE_BATHROOM_Z_MIN), glm::vec3(HOUSE_BATHROOM_DOOR_X + DOOR_WIDTH / 2, 2, HOUSE_BATHROOM_Z_MIN), "BathroomWall");
+	
+        // Create mesh
+        Model& model = AssetManager::CreateModel("Walls");
+		for (Wall& wall : _walls) {
+			// Old
+			wall._meshIndex = AssetManager::CreateMeshOLD(wall.m_vertices, wall.m_indices);
 
-
-
-		//wallAboveBathroomDoor._material = AssetManager::GetMaterial("Green");
-
-		Wall& wallE = _walls.emplace_back(glm::vec3(bathroomXmax, 0, bathroomZmin), glm::vec3(bathroomXmax, 0, bathroomZmax), "BathroomWall");
-		Wall& wallG = _walls.emplace_back(glm::vec3(bathroomXmax, 0, bathroomZmax), glm::vec3(bathroomXmin, 0, bathroomZmax), "BathroomWall");
-		Wall& wallI = _walls.emplace_back(glm::vec3(bathroomXmin, 0, bathroomZmax), glm::vec3(bathroomXmin, 0, bathroomZmin), "BathroomWall");
-		Wall& wallHI2DOOR = _walls.emplace_back(glm::vec3(bathroomXmin, 0, bathroomZmin), glm::vec3(bathroomDoorX - doorWidth / 2, 0, bathroomZmin), "BathroomWall");
-		Wall& otherGapNextToBathroomDoor = _walls.emplace_back(glm::vec3(bathroomDoorX + doorWidth / 2, 0, bathroomZmin), glm::vec3(bathroomXmax, 0, bathroomZmin), "BathroomWall");
-		Wall& aboveBathroomDoor = _walls.emplace_back(glm::vec3(bathroomDoorX - doorWidth / 2, 2, bathroomZmin), glm::vec3(bathroomDoorX + doorWidth / 2, 2, bathroomZmin), "BathroomWall");
-		runOnce = false;
+			// New
+            model.AddMeshIndex(AssetManager::CreateMesh("Wall", wall.m_vertices, wall.m_indices));
+            model.SetLoadingState(LoadingState::Value::LOADING_COMPLETE);
+		}
 	}
-	for (auto& wall : _walls) {
-		GameObject& trim = _gameObjects.emplace_back(GameObject());
-		trim.SetPosition(wall._begin.x, CEILING_HEIGHT - 2.4f, wall._begin.z);
-		trim.SetRotationY(Util::YRotationBetweenTwoPoints(wall._begin, wall._end));
-		trim.SetScaleX(glm::distance(wall._end, wall._begin));
-		trim.SetModel("TrimCeiling");
-		trim.SetMeshMaterial("Trims");
+
+	void CreateGameObjects() {
+		_gameObjects.clear();
+		_gameObjects.reserve(1000);
+		_lights.clear();
+
+		Light& light = _lights.emplace_back(Light());
+		light.position = { -0.6, 2.1, -0 };
+		light.color = { 1, 0.95, 0.8 };
+		//light.color += glm::vec3(0.1);
+		light.state = Light::State::ON;
+		light.currentBrightness = 1.0f;
+
+		Light& light2 = _lights.emplace_back(Light());
+		light2.position = glm::vec3(-1.7376, 2, 2.85);
+		light2.color = glm::vec3(1, 0.95, 0.8) * glm::vec3(1, 0.95, 0.8) * glm::vec3(0.45);
+		light2.state = Light::State::ON;
+		light2.currentBrightness = 1.0f;
+
+		GameObject& chair = _gameObjects.emplace_back(GameObject());
+		chair.SetModel("FallenChairBottom");
+		chair.SetPosition(glm::vec3(0.8f, 0, 1.1f));
+		chair.SetRotationY(3.7f);
+		chair.SetMeshMaterial("FallenChair");
+		chair.EnableCollision();
+		chair.SetBoundingBoxFromMesh(0);
+
+		GameObject& chair1 = _gameObjects.emplace_back(GameObject());
+		chair1.SetModel("FallenChairTop");
+		chair1.SetPosition(glm::vec3(0.8f, 0, 1.1f));
+		chair1.SetRotationY(3.7f);
+		chair1.SetMeshMaterial("FallenChair");
+
+		GameObject& floor = _gameObjects.emplace_back(GameObject());
+		floor.SetModel("floor");
+		floor.SetMeshMaterial("FloorBoards");
+		//floor.SetScale(glm::vec3(1, -1, 1));
+
+		GameObject& bathroomfloor = _gameObjects.emplace_back(GameObject());
+		bathroomfloor.SetModel("bathroom_floor");
+		bathroomfloor.SetMeshMaterial("BathroomFloor");
+		//bathroomfloor.SetScale(glm::vec3(1, -1, 1));
+
+		GameObject& ceiling = _gameObjects.emplace_back(GameObject());
+		ceiling.SetModel("ceiling");
+		ceiling.SetMeshMaterial("Ceiling");
+
+		GameObject& bathroom_ceiling = _gameObjects.emplace_back(GameObject());
+		bathroom_ceiling.SetModel("bathroom_ceiling");
+		bathroom_ceiling.SetMeshMaterial("Ceiling");
+		//bathroom_ceiling.SetScale(glm::vec3(1, -1, 1));
+
+		GameObject& skull = _gameObjects.emplace_back(GameObject());
+		skull.SetModel("BlackSkull");
+		skull.SetRotationY(3.7f);
+		skull.SetPosition(glm::vec3(-4, 0, -4));
+		skull.SetScale(2);
+		skull.SetMeshMaterial("BlackSkull");
+
+
+		{ // Drawers	
+			GameObject& drawers = _gameObjects.emplace_back(GameObject());
+			drawers.SetModel("DrawerFrame");
+			drawers.SetPosition(glm::vec3(1.6, 0, 0));
+			drawers.SetRotationY(-NOOSE_PI / 2);
+			drawers.SetMeshMaterial("Drawers");
+			drawers.SetName("ChestOfDrawers");
+			drawers.SetBoundingBoxFromMesh(0);
+			drawers.EnableCollision();
+
+			float drawerVolume = 1.0f;
+			GameObject& topLeftDrawer = _gameObjects.emplace_back(GameObject());
+			topLeftDrawer.SetModel("DrawerTopLeft");
+			topLeftDrawer.SetMeshMaterial("Drawers");
+			topLeftDrawer.SetScriptName("OpenableDrawer");
+			topLeftDrawer.SetParentName("ChestOfDrawers");
+			topLeftDrawer.SetName("TopLeftDrawer");
+			topLeftDrawer.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+			topLeftDrawer.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+			topLeftDrawer.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+			topLeftDrawer.SetOpenAxis(OpenAxis::TRANSLATE_Z);
+
+			GameObject& topRightDrawer = _gameObjects.emplace_back(GameObject());
+			topRightDrawer.SetModel("DrawerTopRight");
+			topRightDrawer.SetMeshMaterial("Drawers");
+			topRightDrawer.SetScriptName("OpenableDrawer");
+			topRightDrawer.SetParentName("ChestOfDrawers");
+			topRightDrawer.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+			topRightDrawer.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+			topRightDrawer.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+			topRightDrawer.SetOpenAxis(OpenAxis::TRANSLATE_Z);
+
+			GameObject& drawSecond = _gameObjects.emplace_back(GameObject());
+			drawSecond.SetModel("DrawerSecond");
+			drawSecond.SetMeshMaterial("Drawers");
+			drawSecond.SetScriptName("OpenableDrawer");
+			drawSecond.SetParentName("ChestOfDrawers");
+			drawSecond.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+			drawSecond.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+			drawSecond.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+			drawSecond.SetOpenAxis(OpenAxis::TRANSLATE_Z);
+
+			GameObject& drawThird = _gameObjects.emplace_back(GameObject());
+			drawThird.SetModel("DrawerThird");
+			drawThird.SetMeshMaterial("Drawers");
+			drawThird.SetScriptName("OpenableDrawer");
+			drawThird.SetParentName("ChestOfDrawers");
+			drawThird.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+			drawThird.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+			drawThird.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+			drawThird.SetOpenAxis(OpenAxis::TRANSLATE_Z);
+
+			GameObject& drawerFourth = _gameObjects.emplace_back(GameObject());
+			drawerFourth.SetModel("DrawerFourth");
+			drawerFourth.SetMeshMaterial("Drawers");
+			drawerFourth.SetScriptName("OpenableDrawer");
+			drawerFourth.SetParentName("ChestOfDrawers");
+			drawerFourth.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+			drawerFourth.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+			drawerFourth.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+			drawerFourth.SetOpenAxis(OpenAxis::TRANSLATE_Z);
+		}
+
+		GameObject& skull2 = _gameObjects.emplace_back(GameObject());
+		skull2.SetModel("BlackSkull");
+		skull2.SetParentName("ChestOfDrawers");
+		skull2.SetRotationY(1.6f);
+		skull2.SetPosition(glm::vec3(-0.4f, 1.15f, -1.675f + 2.0f));
+		skull2.SetMeshMaterial("BlackSkull");
+		skull2.SetScale(0.1f);
+		skull2.SetParentName("ChestOfDrawers");
+		skull2.SetName("Black Skull");
+		skull2.SetInteract(InteractType::PICKUP, "Take the [g]BLACK SKULL[w]?", nullptr);
+
+
+		GameObject& wife = _gameObjects.emplace_back(GameObject());
+		wife.SetModel("Wife");
+		wife.SetName("Wife");
+		wife.SetPosition(0.6f, 2.6f, 0.9f);
+		wife.SetRotationY(-1.75f);
+		wife.SetScale(0.01f);
+		wife.SetMeshMaterialByMeshName("Side_part_wavy", "WifeHair");
+		wife.SetMeshMaterialByMeshName("CC_Base_Eye", "WifeEye");
+		wife.SetMeshMaterialByMeshName("CC_Base_Teeth", "WifeTeeth");
+		wife.SetMeshMaterialByMeshName("CC_Game_Body", "WifeSkin");
+		wife.SetMeshMaterialByMeshName("CC_Game_Tongue", "WifeSkin");
+		wife.SetMeshMaterialByMeshName("Dress", "WifeDress");
+		wife.SetMeshMaterialByMeshName("F_BS_wDress_L", "WifeDress2");
+		wife.SetMeshMaterialByMeshName("WifeDress_low", "WifeDress2");
+		wife.SetMeshMaterialByMeshName("WifeDress_low_0", "WifeDress2");
+		wife.SetMeshMaterialByMeshName("Noose_pivot", "Noose");
+		wife.SetMeshMaterialByMeshName("Noose", "Noose");
+		wife.SetMeshMaterialByMeshName("Object001", "Noose");
+		wife.SetMeshMaterialByMeshName("Rope_Low", "Noose");
+
+		/*wife.SetMeshMaterial("WifeHair", 0);
+		wife.SetMeshMaterial("WifeSkin", 1);
+		wife.SetMeshMaterial("WifeSkin", 2);
+		wife.SetMeshMaterial("WifeBrows", 3);
+		wife.SetMeshMaterial("WifeDress", 4);
+		wife.SetMeshMaterial("WifeEye", 5);
+		wife.SetMeshMaterial("WifeTeeth", 6);
+		wife.SetMeshMaterial("Noose", 7);
+		wife.SetMeshMaterial("Noose", 8);*/
+		wife.SetInteract(InteractType::TEXT, "This can't be fucking happening.", nullptr);
+
+
+		//float DOOR_WIDTH = 0.8f;
+
+		GameObject& door0 = _gameObjects.emplace_back(GameObject());
+		door0.SetModel("Door");
+		door0.SetName("Door");
+		door0.SetMeshMaterial("Door");
+		door0.SetRotationY(NOOSE_HALF_PI);
+		door0.SetPosition(HOUSE_HALL_DOOR_X + 0.39550f, 0, -1.85 - 0.058520);
+		door0.SetScriptName("OpenableDoor");
+		//door0.SetOpenState(OpenState::CLOSED, 5.208f, NOOSE_HALF_PI, -NOOSE_HALF_PI - 1.9f);
+		door0.SetOpenState(OpenState::CLOSED, 5.208f, NOOSE_HALF_PI, NOOSE_HALF_PI - 1.9f);
+		door0.SetAudioOnOpen("Door_Open.wav", DOOR_VOLUME);
+		door0.SetAudioOnClose("Door_Open.wav", DOOR_VOLUME);
+		door0.SetOpenAxis(OpenAxis::ROTATION_NEG_Y);
+
+		GameObject& doorFrame0 = _gameObjects.emplace_back(GameObject());
+		doorFrame0.SetModel("DoorFrame");
+		doorFrame0.SetName("DoorFrame");
+		doorFrame0.SetMeshMaterial("Door");
+		doorFrame0.SetRotationY(NOOSE_HALF_PI);
+		doorFrame0.SetPosition(HOUSE_HALL_DOOR_X, 0, -2.05 + 0.2f);
+
+		GameObject& door1 = _gameObjects.emplace_back(GameObject());
+		door1.SetModel("Door");
+		door1.SetName("Door");
+		door1.SetMeshMaterial("Door");
+		door1.SetRotationY(NOOSE_HALF_PI);
+		door1.SetPosition(HOUSE_BATHROOM_DOOR_X - 0.39550f, 0, HOUSE_BATHROOM_Z_MIN - 0.05f + 0.058520);
+		door1.SetScriptName("OpenableDoor");
+		door1.SetOpenState(OpenState::CLOSED, 5.208f, -NOOSE_HALF_PI, -1.9f - NOOSE_HALF_PI);
+		door1.SetAudioOnOpen("Door_Open.wav", DOOR_VOLUME);
+		door1.SetAudioOnClose("Door_Open.wav", DOOR_VOLUME);
+		door1.SetOpenAxis(OpenAxis::ROTATION_NEG_Y);
+
+
+		GameObject& doorFrame1 = _gameObjects.emplace_back(GameObject());
+		doorFrame1.SetModel("DoorFrame");
+		doorFrame1.SetName("DoorFrame");
+		doorFrame1.SetMeshMaterial("Door");
+		doorFrame1.SetRotationY(-NOOSE_HALF_PI);
+		doorFrame1.SetPosition(HOUSE_BATHROOM_DOOR_X, 0, HOUSE_BATHROOM_Z_MIN - 0.05f);
+
+
+		GameObject& lightSwitch = _gameObjects.emplace_back(GameObject());
+		lightSwitch.SetModel("LightSwitchOn");
+		lightSwitch.SetMeshMaterial("LightSwitch");
+		lightSwitch.SetName("LightswitchBedroom");
+		lightSwitch.SetRotationY(-NOOSE_HALF_PI);
+		lightSwitch.SetScale(1.05f);
+		lightSwitch.SetPosition(-0.12f, 1.1f, -1.8f);
+		lightSwitch.SetInteract(InteractType::CALLBACK_ONLY, "", Callbacks::TurnBedroomLightOff);
+
+		GameObject& vase = _gameObjects.emplace_back(GameObject());
+		vase.SetModel("Vase");
+		vase.SetRotationY(-0.6f - NOOSE_HALF_PI);
+		vase.SetPosition(1.6f - 0.4f, 1.49f, 0.395f);
+		vase.SetMeshMaterial("Vase");
+		vase.SetName("Vase");
+
+		GameObject& keyInVase = _gameObjects.emplace_back(GameObject());
+		keyInVase.SetModel("KeyInVase");
+		keyInVase.SetRotationY(-0.6f - NOOSE_HALF_PI);
+		keyInVase.SetPosition(1.6f - 0.4f, 1.49f, 0.395f);
+		keyInVase.SetMeshMaterial("SmallKey");
+		keyInVase.SetName("Small Key");
+
+		GameObject& flowers = _gameObjects.emplace_back(GameObject());
+		flowers.SetModel("Flowers");
+		flowers.SetRotationY(-0.6f - NOOSE_HALF_PI);
+		flowers.SetPosition(1.6f - 0.4f, 1.49f, 0.395f);
+		flowers.SetMeshMaterial("Flowers");
+		flowers.SetName("Flowers");
+		flowers.SetInteract(InteractType::PICKUP, "Take the [g]FLOWERS[w]?", Callbacks::FlowersWereTaken);
+
+		GameObject& _toilet = _gameObjects.emplace_back(GameObject());
+		_toilet.SetModel("Toilet");
+		_toilet.SetMeshMaterial("Toilet");
+		_toilet.SetName("Toilet");
+		_toilet.SetPosition(-1.4, 0.0f, 3.8f);
+
+		GameObject& toiletLid = _gameObjects.emplace_back(GameObject());
+		toiletLid.SetModel("ToiletLid");
+		toiletLid.SetName("ToiletLid");
+		toiletLid.SetMeshMaterial("Toilet");
+		toiletLid.SetPosition(0, 0.40727, -0.2014);
+		toiletLid.SetParentName("Toilet");
+		toiletLid.SetOpenState(OpenState::OPENING, 12.0f, 0, -(NOOSE_PI / 2) - 0.12);
+		toiletLid.SetAudioOnOpen("ToiletLidUp.wav", 0.75f);
+		toiletLid.SetAudioOnClose("ToiletLidDown.wav", 0.5f);
+		toiletLid.SetOpenAxis(OpenAxis::ROTATION_NEG_X);
+
+		GameObject& toiletSeat = _gameObjects.emplace_back(GameObject());
+		toiletSeat.SetModel("ToiletSeat");
+		toiletSeat.SetName("ToiletSeat");
+		toiletSeat.SetMeshMaterial("Toilet");
+		toiletSeat.SetPosition(0, 0.40727, -0.2014);
+		toiletSeat.SetAudioOnOpen("ToiletSeatUp.wav", 0.75f);
+		toiletSeat.SetAudioOnClose("ToiletSeatDown.wav", 0.5f);
+		toiletSeat.SetParentName("Toilet");
+		toiletSeat.SetOpenState(OpenState::CLOSED, 12.0f, 0, (NOOSE_PI / 2) + 0.12);
+		toiletSeat.SetOpenAxis(OpenAxis::ROTATION_POS_X);
+
+		GameObject& bathroomHeater = _gameObjects.emplace_back(GameObject());
+		bathroomHeater.SetModel("Heater");
+		bathroomHeater.SetMeshMaterial("Heater");
+		bathroomHeater.SetPosition(-0.76f, 0.0f, 3.3f);
+
+		GameObject& toiletPaper = _gameObjects.emplace_back(GameObject());
+		toiletPaper.SetModel("ToiletPaper");
+		toiletPaper.SetMeshMaterial("Toilet");
+		toiletPaper.SetPosition(-1.8, 0.7f, 3.8f);
+
+		GameObject& basin = _gameObjects.emplace_back(GameObject());
+		basin.SetModel("Basin");
+		basin.SetMeshMaterial("Basin");
+		basin.SetPosition(-0.76f, 0.0f, 2.55f);
+
+		GameObject& towel = _gameObjects.emplace_back(GameObject());
+		towel.SetModel("Towel");
+		towel.SetMeshMaterial("Basin");
+		towel.SetPosition(-0.76f, 1.8f, 3.3f);
+
+		GameObject& bin = _gameObjects.emplace_back(GameObject());
+		bin.SetModel("BathroomBin");
+		bin.SetMeshMaterial("BathroomBin");
+		bin.SetName("BathroomBin");
+		bin.SetPosition(-0.81, 0.0f, 2.15f);
+
+		GameObject& bathroomBinPedal = _gameObjects.emplace_back(GameObject());
+		bathroomBinPedal.SetModel("BathroomBinPedal");
+		bathroomBinPedal.SetMeshMaterial("BathroomBin");
+		bathroomBinPedal.SetParentName("BathroomBin");
+
+		GameObject& bathroomBinLid = _gameObjects.emplace_back(GameObject());
+		bathroomBinLid.SetModel("BathroomBinLid");
+		bathroomBinLid.SetMeshMaterial("BathroomBin");
+		bathroomBinLid.SetParentName("BathroomBin");
+		bathroomBinLid.SetPositionY(0.22726f);
+
+		GameObject& cabinet = _gameObjects.emplace_back(GameObject());
+		cabinet.SetModel("CabinetBody");
+		cabinet.SetMeshMaterial("Cabinet");
+		cabinet.SetName("Cabinet");
+		cabinet.SetPosition(-0.76f, 1.25f, 2.55f);
+
+		GameObject& cabinetDoor = _gameObjects.emplace_back(GameObject());
+		cabinetDoor.SetModel("CabinetDoor");
+		cabinetDoor.SetMeshMaterial("Cabinet");
+		cabinetDoor.SetName("Cabinet Door");
+		cabinetDoor.SetParentName("Cabinet");
+		cabinetDoor.SetPosition(-0.10763f, 0, 0.24941);
+		cabinetDoor.SetAudioOnOpen("CabinetOpen.wav", CABINET_VOLUME);
+		cabinetDoor.SetAudioOnClose("CabinetClose.wav", CABINET_VOLUME);
+		cabinetDoor.SetOpenState(OpenState::CLOSED, 9, 0, NOOSE_HALF_PI);
+		cabinetDoor.SetOpenAxis(OpenAxis::ROTATION_POS_Y);
+
+		GameObject& cabinetMirror = _gameObjects.emplace_back(GameObject());
+		cabinetMirror.SetModel("CabinetMirror");
+		cabinetMirror.SetMeshMaterial("NumGrid");
+		cabinetMirror.SetMeshMaterial("Cabinet");
+		cabinetMirror.SetParentName("Cabinet Door");
+		cabinetMirror.SetScriptName("OpenCabinetDoor");
+		cabinetMirror.SetInteract(InteractType::TEXT, "", Callbacks::OpenCabinet);
+		cabinetMirror.SetMaterialType(MaterialType::MIRROR);
+
+		GameObject& smallChestOfDrawers = _gameObjects.emplace_back(GameObject());
+		smallChestOfDrawers.SetModel("SmallChestOfDrawersFrame");
+		smallChestOfDrawers.SetMeshMaterial("Drawers");
+		smallChestOfDrawers.SetName("SmallDrawersHis");
+		smallChestOfDrawers.SetPosition(-2.75, 0, -1.3);
+		smallChestOfDrawers.SetRotationY(NOOSE_PI / 2);
+		smallChestOfDrawers.SetBoundingBoxFromMesh(0);
+		smallChestOfDrawers.EnableCollision();
+
+		GameObject& smallChestOfDrawer_1 = _gameObjects.emplace_back(GameObject());
+		smallChestOfDrawer_1.SetModel("SmallDrawerTop");
+		smallChestOfDrawer_1.SetMeshMaterial("Drawers");
+		smallChestOfDrawer_1.SetParentName("SmallDrawersHis");
+		smallChestOfDrawer_1.SetScriptName("OpenableDrawer");
+		smallChestOfDrawer_1.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+		smallChestOfDrawer_1.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+		smallChestOfDrawer_1.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+		smallChestOfDrawer_1.SetOpenAxis(OpenAxis::TRANSLATE_Z);
+
+		GameObject& smallChestOfDrawer_2 = _gameObjects.emplace_back(GameObject());
+		smallChestOfDrawer_2.SetModel("SmallDrawerSecond");
+		smallChestOfDrawer_2.SetMeshMaterial("Drawers");
+		smallChestOfDrawer_2.SetParentName("SmallDrawersHis");
+		smallChestOfDrawer_2.SetScriptName("OpenableDrawer");
+		smallChestOfDrawer_2.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+		smallChestOfDrawer_2.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+		smallChestOfDrawer_2.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+		smallChestOfDrawer_2.SetOpenAxis(OpenAxis::TRANSLATE_Z);
+
+		GameObject& smallChestOfDrawer_3 = _gameObjects.emplace_back(GameObject());
+		smallChestOfDrawer_3.SetModel("SmallDrawerThird");
+		smallChestOfDrawer_3.SetMeshMaterial("Drawers");
+		smallChestOfDrawer_3.SetParentName("SmallDrawersHis");
+		smallChestOfDrawer_3.SetScriptName("OpenableDrawer");
+		smallChestOfDrawer_3.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+		smallChestOfDrawer_3.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+		smallChestOfDrawer_3.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+		smallChestOfDrawer_3.SetOpenAxis(OpenAxis::TRANSLATE_Z);
+
+		GameObject& smallChestOfDrawer_4 = _gameObjects.emplace_back(GameObject());
+		smallChestOfDrawer_4.SetModel("SmallDrawerFourth");
+		smallChestOfDrawer_4.SetMeshMaterial("Drawers");
+		smallChestOfDrawer_4.SetParentName("SmallDrawersHis");
+		smallChestOfDrawer_4.SetScriptName("OpenableDrawer");
+		smallChestOfDrawer_4.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+		smallChestOfDrawer_4.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+		smallChestOfDrawer_4.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+		smallChestOfDrawer_4.SetOpenAxis(OpenAxis::TRANSLATE_Z);
+
+
+		GameObject& smallChestOfDrawersB = _gameObjects.emplace_back(GameObject());
+		smallChestOfDrawersB.SetModel("SmallChestOfDrawersFrame");
+		smallChestOfDrawersB.SetMeshMaterial("Drawers");
+		smallChestOfDrawersB.SetName("SmallDrawersHers");
+		smallChestOfDrawersB.SetPosition(-2.75, 0, 1.3);
+		smallChestOfDrawersB.SetRotationY(NOOSE_PI / 2);
+		smallChestOfDrawersB.SetBoundingBoxFromMesh(0);
+		smallChestOfDrawersB.EnableCollision();
+
+		GameObject& smallChestOfDrawer_1B = _gameObjects.emplace_back(GameObject());
+		smallChestOfDrawer_1B.SetModel("SmallDrawerTop");
+		smallChestOfDrawer_1B.SetMeshMaterial("Drawers");
+		smallChestOfDrawer_1B.SetParentName("SmallDrawersHers");
+		smallChestOfDrawer_1B.SetName("LockedSmallDrawer");
+		//smallChestOfDrawer_1B.SetInteract(InteractType::TEXT, "It's locked.", nullptr);
+		smallChestOfDrawer_1B.SetInteract(InteractType::CALLBACK_ONLY, "", Callbacks::LockedDrawer);
+		//smallChestOfDrawer_1B.SetAudioOnInteract("Locked1.wav", 0.25f);
+
+		GameObject& smallChestOfDrawer_2B = _gameObjects.emplace_back(GameObject());
+		smallChestOfDrawer_2B.SetModel("SmallDrawerSecond");
+		smallChestOfDrawer_2B.SetMeshMaterial("Drawers");
+		smallChestOfDrawer_2B.SetParentName("SmallDrawersHers");
+		smallChestOfDrawer_2B.SetScriptName("OpenableDrawer");
+		smallChestOfDrawer_2B.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+		smallChestOfDrawer_2B.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+		smallChestOfDrawer_2B.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+		smallChestOfDrawer_2B.SetOpenAxis(OpenAxis::TRANSLATE_Z);
+
+		GameObject& smallChestOfDrawer_3B = _gameObjects.emplace_back(GameObject());
+		smallChestOfDrawer_3B.SetModel("SmallDrawerThird");
+		smallChestOfDrawer_3B.SetMeshMaterial("Drawers");
+		smallChestOfDrawer_3B.SetParentName("SmallDrawersHers");
+		smallChestOfDrawer_3B.SetScriptName("OpenableDrawer");
+		smallChestOfDrawer_3B.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+		smallChestOfDrawer_3B.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+		smallChestOfDrawer_3B.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+		smallChestOfDrawer_3B.SetOpenAxis(OpenAxis::TRANSLATE_Z);
+
+		GameObject& smallChestOfDrawer_4B = _gameObjects.emplace_back(GameObject());
+		smallChestOfDrawer_4B.SetModel("SmallDrawerFourth");
+		smallChestOfDrawer_4B.SetMeshMaterial("Drawers");
+		smallChestOfDrawer_4B.SetParentName("SmallDrawersHers");
+		smallChestOfDrawer_4B.SetScriptName("OpenableDrawer");
+		smallChestOfDrawer_4B.SetOpenState(OpenState::CLOSED, 2.183f, 0, 0.2f);
+		smallChestOfDrawer_4B.SetAudioOnOpen("DrawerOpen.wav", DRAWER_VOLUME);
+		smallChestOfDrawer_4B.SetAudioOnClose("DrawerOpen.wav", DRAWER_VOLUME);
+		smallChestOfDrawer_4B.SetOpenAxis(OpenAxis::TRANSLATE_Z);
+
+		GameObject& diary = _gameObjects.emplace_back(GameObject());
+		diary.SetParentName("LockedSmallDrawer");
+		diary.SetModel("Diary");
+		//diary.SetPosition(-0.3f, 0.95f, 0.4f);
+		diary.SetPosition(0.0f, 0.65f, 0.3f);
+		diary.SetRotationY(0.4f);
+		diary.SetScale(0.75f);
+		diary.SetMeshMaterial("Diary");
+		diary.SetName("Wife's Diary");
+		diary.SetInteract(InteractType::PICKUP, "Take your [g]WIFE'S DIARY[w]?", nullptr);
+
+		GameObject& yourPhone = _gameObjects.emplace_back(GameObject());
+		yourPhone.SetModel("YourPhone");
+		yourPhone.SetName("Water Damaged Phone");
+		yourPhone.SetMeshMaterial("Phone");
+		yourPhone.SetInteract(InteractType::PICKUP, "Take the [g]WATER DAMAGED PHONE[w]?", nullptr);
+		yourPhone.SetPosition(-1.39f, 0.20f, 3.29f);
+		yourPhone.SetRotationX(-NOOSE_HALF_PI + 0.5);
+		yourPhone.SetRotationY(0.3);
+		yourPhone.SetScale(0.95f);
+
+
+		GameObject& bed = _gameObjects.emplace_back(GameObject());
+		bed.SetModel("BedNoPillows");
+		bed.SetMeshMaterial("BedFabrics");
+		bed.SetPosition(-2.75, 0.0, 0);
+		bed.SetRotationY(NOOSE_PI / 2);
+		bed.SetName("Bed");
+		bed.EnableCollision();
+		bed.SetBoundingBoxFromMesh(0);
+
+		GameObject& pillow = _gameObjects.emplace_back(GameObject());
+		pillow.SetParentName("Bed");
+		pillow.SetPosition(0, 0.3, 0);
+		pillow.SetModel("PillowHers");
+		pillow.SetMeshMaterial("BedFabrics");
+
+		GameObject& pillow2 = _gameObjects.emplace_back(GameObject());
+		pillow2.SetModel("PillowHis");
+		pillow2.SetPosition(0, 0.3, 0);
+		pillow2.SetParentName("Bed");
+		pillow2.SetMeshMaterial("BedFabrics");
+
+
+		GameObject& cube = _gameObjects.emplace_back(GameObject());
+		cube.SetModel("Cube");
+		cube.SetMeshMaterial("White");
+		cube.SetScale(glm::vec3(0.5, 0.95, 1.8));
+		cube.SetPosition(-0.4, 0, 0.6);
+		cube.SetRotationY(-1.1);
+		cube.SetName("Cube");
+		cube.SetMaterialType(MaterialType::MIRROR);
+		//cube.EnableCollision();
+		//cube.SetBoundingBoxFromMesh(0);
+
+		GameObject& cube2 = _gameObjects.emplace_back(GameObject());
+		cube2.SetModel("Cube");
+		cube2.SetMeshMaterial("White");
+		cube2.SetScale(glm::vec3(0.4, 1.2, 1.8));
+		cube2.SetPosition(-0.9, 0, -0.6);
+		cube2.SetRotationY(0.2);
+		cube2.SetName("Cube2");
+		cube2.SetMaterialType(MaterialType::GLASS);
+
+		/*GameObject& cube3 = _gameObjects.emplace_back(GameObject());
+		cube3.SetModel("Cube");
+		cube3.SetMeshMaterial("Red");
+		cube3.SetScale(glm::vec3(0.5, 0.174, 0.5));
+		cube3.SetPosition(0.2, 1.17, 0.2);
+		cube3.SetRotationY(0.2);
+		cube3.SetParentName("Cube2");
+		cube3.SetName("Cube3");
+		cube3.SetMaterialType(MaterialType::TRANSLUCENT);*/
+		//cube2.EnableCollision();
+		//cube2.SetBoundingBoxFromMesh(0);
+
+		/*GameObject& wineglass = _gameObjects.emplace_back(GameObject());
+		wineglass.SetModel("WineGlass");
+		wineglass.SetRotationY(1.6f);
+		wineglass.SetPosition(glm::vec3(1.26, 1.15f, -1.675f + 2.0f - 0.3f));
+		wineglass.SetScale(0.04f);
+		wineglass.SetMaterialType(MaterialType::GLASS);
+		wineglass.SetMeshMaterial("Ceiling");
+
+		GameObject& wineglass2 = _gameObjects.emplace_back(GameObject());
+		wineglass2.SetModel("WineGlass");
+		wineglass2.SetRotationY(1.6f);
+		wineglass2.SetPosition(glm::vec3(1.30, 1.15f, -1.675f + 2.0f - 0.15f));
+		wineglass2.SetScale(0.04f);
+		wineglass2.SetMaterialType(MaterialType::GLASS);
+		wineglass2.SetMeshMaterial("White");*/
+
+		GameObject& lightSwitch2 = _gameObjects.emplace_back(GameObject());
+		lightSwitch2.SetModel("LightSwitchOn");
+		lightSwitch2.SetMeshMaterial("LightSwitch");
+		lightSwitch2.SetName("LightswitchBathroom");
+		lightSwitch2.SetRotationY(-NOOSE_HALF_PI);
+		lightSwitch2.SetScale(1.05f);
+		lightSwitch2.SetPosition(-0.95f, 1.1f, 1.9f);
+		lightSwitch2.SetInteract(InteractType::CALLBACK_ONLY, "", Callbacks::TurnBathroomLightOff);
+
+
+		/*GameObject& macbookClosed = _gameObjects.emplace_back(GameObject());
+		macbookClosed.SetModel("MacbookClosed");
+		macbookClosed.SetPosition(glm::vec3(0, 1, 0));
+		macbookClosed.SetScale(0.01f);
+		macbookClosed.SetMeshMaterial("Macbook");*/
+
+		GameObject& macbookBody = _gameObjects.emplace_back(GameObject());
+		macbookBody.SetModel("MacbookBody");
+		macbookBody.SetName("MacbookBody");
+		macbookBody.SetPosition(-2.45, 0.88, 1.17);
+		macbookBody.SetScale(0.01f);
+		macbookBody.SetRotationY(-1.42);
+		macbookBody.SetMeshMaterial("Macbook");
+		macbookBody.SetInteract(InteractType::QUESTION, "Use [g]WIFE'S MACBOOK[w]?", Callbacks::UseLaptop);
+
+		GameObject& macbookScreen = _gameObjects.emplace_back(GameObject());
+		macbookScreen.SetModel("MacbookScreen");
+		macbookScreen.SetName("MacbookScreen");
+		macbookScreen.SetParentName("MacbookBody");
+		macbookScreen.SetRotationX(-NOOSE_PI / 2);
+		macbookScreen.SetOpenState(OpenState::CLOSED, 12.0f, -(NOOSE_PI / 2), 0.43f);
+		macbookScreen.SetAudioOnOpen("LaptopOpen.wav", 0.25f);
+		macbookScreen.SetAudioOnClose("LaptopClose.wav", 0.25f);
+		macbookScreen.SetOpenAxis(OpenAxis::ROTATION_POS_X);
+		macbookScreen.SetMeshMaterial("Macbook");
+
+		GameObject& macbookScreenDisplay = _gameObjects.emplace_back(GameObject());
+		macbookScreenDisplay.SetModel("MacbookScreenDisplay");
+		macbookScreenDisplay.SetName("MacbookScreenDisplay");
+		macbookScreenDisplay.SetParentName("MacbookScreen");
+		macbookScreenDisplay.SetMeshMaterial("LaptopDisplay");
+		macbookScreenDisplay.SetInteractToAffectAnotherObject("MacbookScreen");
+		macbookScreenDisplay.SetMaterialType(MaterialType::LAPTOP_DISPLAY);
+
+		GameObject& lampHers = _gameObjects.emplace_back(GameObject());
+		lampHers.SetModel("Lamp");
+		lampHers.SetMeshMaterial("Lamp");
+		lampHers.SetPosition(-2.55f, 0.88, 1.43);
+		lampHers.SetRotationY(NOOSE_HALF_PI);
+		lampHers.SetScale(1.0);
+
+		GameObject& lampHis = _gameObjects.emplace_back(GameObject());
+		lampHis.SetModel("Lamp");
+		lampHis.SetMeshMaterial("Lamp");
+		lampHis.SetPosition(-2.55f, 0.88, -1.43);
+		lampHis.SetRotationY(NOOSE_HALF_PI);
+		lampHis.SetScale(1.0);
+
+		for (auto& wall : _walls) {
+			GameObject& trim = _gameObjects.emplace_back(GameObject());
+			trim.SetPosition(wall._begin.x, CEILING_HEIGHT - 2.4f, wall._begin.z);
+			trim.SetRotationY(Util::YRotationBetweenTwoPoints(wall._begin, wall._end));
+			trim.SetScaleX(glm::distance(wall._end, wall._begin));
+			trim.SetModel("TrimCeiling");
+			trim.SetMeshMaterial("Trims");
+		}
 	}
 }
+
 
 void Scene::UpdateInventoryScene(float deltaTime) {
 

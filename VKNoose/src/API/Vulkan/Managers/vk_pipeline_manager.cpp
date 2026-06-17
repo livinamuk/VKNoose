@@ -66,17 +66,15 @@ namespace VulkanPipelineManager {
 
     void CreateCompositePipeline() {
         VkDevice device = VulkanDeviceManager::GetDevice();
+        
         VulkanShader* shader = VulkanResourceManager::GetShader("Composite");
         if (!shader) return;
+
+        VulkanDescriptorSet& staticDescriptorSet = VulkanRenderer::GetStaticDescriptorSet();
 
         VulkanPipeline& pipeline = g_pipelines["Composite"];
         pipeline.Cleanup(device);
 
-        pipeline.PushDescriptorSetLayout(VulkanDescriptorManager::GetDynamicSetLayout());
-        pipeline.PushDescriptorSetLayout(VulkanDescriptorManager::GetStaticSetLayout());
-        pipeline.PushDescriptorSetLayout(VulkanDescriptorManager::GetSamplerSetLayout());
-
-        VulkanDescriptorSet& staticDescriptorSet = VulkanRenderer::GetStaticDescriptorSet();
         pipeline.PushDescriptorSetLayout(staticDescriptorSet.GetLayout());
 
         pipeline.SetVertexDescription<Vertex>();

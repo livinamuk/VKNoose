@@ -28,6 +28,7 @@ namespace VulkanDeviceManager {
     VkPhysicalDeviceFeatures2 g_features2 = {};
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR g_rayTracingPipelineFeatures = {};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR g_accelerationStructureFeatures = {};
+    VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR g_unifiedLayoutFeatures = {};
 
     bool Init() {
         VkInstance instance = VulkanInstanceManager::GetInstance();
@@ -55,7 +56,8 @@ namespace VulkanDeviceManager {
             VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME,
             VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME,
             VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME,
-            VK_KHR_SWAPCHAIN_EXTENSION_NAME
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+            VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME
         };
 
         // Select first suitable device
@@ -76,6 +78,15 @@ namespace VulkanDeviceManager {
             }
             if (!allFound) continue;
 
+            // check for unified layouts feature support
+            VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR unifiedFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_UNIFIED_IMAGE_LAYOUTS_FEATURES_KHR };
+            VkPhysicalDeviceFeatures2 checkFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
+            checkFeatures.pNext = &unifiedFeatures;
+            vkGetPhysicalDeviceFeatures2(physicalDevice, &checkFeatures);
+
+            // skip if hardware doesn't support the feature
+            if (!unifiedFeatures.unifiedImageLayouts) continue;
+
             // Find queue families
             uint32_t qCount = 0;
             vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &qCount, nullptr);
@@ -90,6 +101,7 @@ namespace VulkanDeviceManager {
                 if (presentSupport) presentFam = i;
                 if (graphicsFam != -1 && presentFam != -1) break;
             }
+            if (graphicsFam == -1 || presentFam != -1) { /* graphicsFam check sufficient for loop break logic */ }
             if (graphicsFam == -1 || presentFam == -1) continue;
 
             // This device is usable
@@ -120,12 +132,17 @@ namespace VulkanDeviceManager {
             VkPhysicalDeviceVulkan13Features features13{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
             features13.maintenance4 = VK_TRUE;
             features13.dynamicRendering = VK_TRUE;
+            features13.synchronization2 = VK_TRUE;
             features13.pNext = &accel;
+
+            VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR deviceUnifiedFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_UNIFIED_IMAGE_LAYOUTS_FEATURES_KHR };
+            deviceUnifiedFeatures.unifiedImageLayouts = VK_TRUE;
+            deviceUnifiedFeatures.pNext = &features13;
 
             VkPhysicalDeviceFeatures2 features2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
             features2.features = features;
             features2.pNext = &features12;
-            features12.pNext = &features13;
+            features12.pNext = &deviceUnifiedFeatures;
 
             float priority = 1.0f;
             std::vector<VkDeviceQueueCreateInfo> qInfos;
@@ -174,9 +191,9 @@ namespace VulkanDeviceManager {
             }
 
             vkGetDeviceQueue(g_device, graphicsFam, 0, &g_graphicsQueue);
+
             if (presentFam != graphicsFam) {
-                VkQueue presentQueue;
-                vkGetDeviceQueue(g_device, presentFam, 0, &presentQueue);
+                vkGetDeviceQueue(g_device, presentFam, 0, &g_presentQueue);
             }
 
             volkLoadDevice(GetDevice());
@@ -187,32 +204,6 @@ namespace VulkanDeviceManager {
 
         std::cout << "No suitable Vulkan device found\n";
         return false;
-    }
-
-    void InitTest(VkPhysicalDevice g_physicalDevice) {
-        // Properties
-        g_memoryProperties = {};
-        vkGetPhysicalDeviceMemoryProperties(g_physicalDevice, &g_memoryProperties);
-
-        g_properties = {};
-        vkGetPhysicalDeviceProperties(g_physicalDevice, &g_properties);
-
-        g_rayTracingPipelineProperties = {};
-        g_rayTracingPipelineProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
-      
-        g_properties2 = {};
-        g_properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-        g_properties2.pNext = &g_rayTracingPipelineProperties;
-        vkGetPhysicalDeviceProperties2(g_physicalDevice, &g_properties2);
-      
-        // Features
-        g_accelerationStructureFeatures = {};
-        g_accelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
-      
-        g_features2 = {};
-        g_features2.sType = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
-        g_features2.pNext = &g_accelerationStructureFeatures;
-        vkGetPhysicalDeviceFeatures2(g_physicalDevice, &g_features2);
     }
 
     void Cleanup() {

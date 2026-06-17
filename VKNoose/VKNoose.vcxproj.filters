@@ -186,6 +186,9 @@
     <ClCompile Include="src\API\Vulkan\Types\vk_acceleration_structure.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\AssetManagement\AssetManager_hardcoded.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="vendor\VkBootstrap\VkBootstrapDispatch.h">
@@ -411,6 +414,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\API\Vulkan\Renderer\vk_descriptor_indices.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\API\Vulkan\Renderer\vk_push_constants.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

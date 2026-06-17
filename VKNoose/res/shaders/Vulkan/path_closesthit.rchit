@@ -41,9 +41,6 @@ struct SceneDeviceAddresses {
 // 
 
 
-
-
-
 struct Light {
 	vec4 position;
 	vec4 color;
@@ -90,17 +87,17 @@ layout(set = 2, binding = 7) uniform sampler2D laptop_render_texture;
 
 
 // Global Device addresses (TODO: split these into SceneDeviceAddresses)
-layout(set = 4, binding = 0) readonly buffer GlobalAddressTable { DeviceAddresses addresses; } g_table;
+layout(set = 4, binding = 0) readonly buffer GlobalAddressTable { DeviceAddresses addresses; } table;
 
 
 
 // Static Descriptor set
-layout(set = 3, binding = DESC_IDX_SAMLPLERS)               uniform sampler g_samplers[];
-layout(set = 3, binding = DESC_IDX_TEXTURES)                uniform texture2D g_textures[];
-layout(set = 3, binding = DESC_IDX_SSBOS)                   readonly buffer GlobalSSBO { uint data[]; } g_ssbos[];
-layout(set = 3, binding = DESC_IDX_STORAGE_IMAGES_RGBA32F,  rgba32f) uniform image2D g_storage_images_rgba32f[];
-layout(set = 3, binding = DESC_IDX_STORAGE_IMAGES_RGBA16F,  rgba16f) uniform image2D g_storage_images_rgba16f[];
-layout(set = 3, binding = DESC_IDX_STORAGE_IMAGES_RGBA8,    rgba8)   uniform image2D g_storage_images_rgba8[];
+layout(set = 3, binding = DESC_IDX_SAMPLERS)                uniform sampler samplers[];
+layout(set = 3, binding = DESC_IDX_TEXTURES)                uniform texture2D textures[];
+layout(set = 3, binding = DESC_IDX_SSBOS)                   readonly buffer GlobalSSBO { uint data[]; } ssbos[];
+layout(set = 3, binding = DESC_IDX_STORAGE_IMAGES_RGBA32F,  rgba32f) uniform image2D storage_images_rgba32f[];
+layout(set = 3, binding = DESC_IDX_STORAGE_IMAGES_RGBA16F,  rgba16f) uniform image2D storage_images_rgba16f[];
+layout(set = 3, binding = DESC_IDX_STORAGE_IMAGES_RGBA8,    rgba8)   uniform image2D storage_images_rgba8[];
 						  
 layout(set = 3, binding = DESC_IDX_VERTICES) readonly buffer Vertices { Vertex v[]; } g_vertices; // Geometry Data (remove me when you can)
 layout(set = 3, binding = DESC_IDX_INDICES)  readonly buffer Indices { uint i[]; } g_indices;     // Geometry Data (remove me when you can)
@@ -229,15 +226,11 @@ vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic,
 
 
 
-
-
-
-
 void main() {
 
 	
-	uint64_t lightsAddress = g_table.addresses.sceneLights;
-	uint64_t sceneInstancesAddress = g_table.addresses.sceneInstances;
+	uint64_t lightsAddress = table.addresses.sceneLights;
+	uint64_t sceneInstancesAddress = table.addresses.sceneInstances;
 	
     LightBuffer lights = LightBuffer(lightsAddress);
     SceneInstancesBuffer sceneInstances = SceneInstancesBuffer(sceneInstancesAddress);
@@ -277,37 +270,33 @@ void main() {
 	const vec4 tng2 = vec4(v2.tangent, 0);
 		
     vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y + v2.texCoord * barycentrics.z;
-    vec4 baseColor = texture(sampler2D(g_textures[meshInstance.basecolorIndex], g_samplers[0]), texCoord).rgba;
+    vec4 baseColor = texture(sampler2D(textures[meshInstance.basecolorIndex], samplers[0]), texCoord).rgba;
+    vec3 rma = texture(sampler2D(textures[meshInstance.rmaIndex], samplers[0]), texCoord).rgb;	
+	vec3 normalMap = texture(sampler2D(textures[meshInstance.normalIndex], samplers[0]), texCoord).rgb;
 
+	// Did the ray hit the laptop?
 	if (materialType == 3) {
-		baseColor = texture(laptop_render_texture,vec2(texCoord.x, texCoord.y)).rgba; // makes no fucking difference
+		baseColor = texture(laptop_render_texture,vec2(texCoord.x, texCoord.y)).rgba;
 	}
 
-    vec3 rma = texture(sampler2D(g_textures[meshInstance.rmaIndex], g_samplers[0]), texCoord).rgb;	
-	vec3 normalMap = texture(sampler2D(g_textures[meshInstance.normalIndex], g_samplers[0]), texCoord).rgb;
-
-	// Normal
+	// Normals/tangents
 	vec3 vnormal = normalize(mixBary(nrm0, nrm1, nrm2, barycentrics));
-	vec3 normal    = normalize(vec3(vnormal * gl_WorldToObjectEXT));
-	vec3 geonrm = normalize(cross(pos1 - pos0, pos2 - pos0));
-	geonrm = normalize(vec3(geonrm * gl_WorldToObjectEXT));
+	vec3 normal  = normalize(vec3(vnormal * gl_WorldToObjectEXT));
+	vec3 geonrm  = normalize(cross(pos1 - pos0, pos2 - pos0));
 	vec3 tangent = normalize(mixBary(tng0.xyz, tng1.xyz, tng2.xyz, barycentrics));
-	tangent    = normalize(vec3(tangent * gl_WorldToObjectEXT));
-
+	geonrm  = normalize(vec3(geonrm * gl_WorldToObjectEXT));
+	tangent = normalize(vec3(tangent * gl_WorldToObjectEXT));
 	vec3 bitangent = cross(normal, tangent);
 	
-
-
+	// World position
 	vec4 modelSpaceHitPos = vec4(pos0 * barycentrics.x + pos1 * barycentrics.y + pos2 * barycentrics.z, 1.0);
 	vec3 worldPos = (worldMatrix * modelSpaceHitPos).xyz;
 
-	// Adjusting normal
-	const vec3 V = -gl_WorldRayDirectionEXT;
-	if(dot(geonrm, V) < 0)  // Flip if back facing
+	// Flip normal/tangenets if backfacing
+	if(dot(geonrm, -gl_WorldRayDirectionEXT) < 0) {
 		geonrm = -geonrm;
-
-	// If backface
-	if(dot(geonrm, normal) < 0) { // Make Normal and GeoNormal on the same side
+	}
+	if(dot(geonrm, normal) < 0) {
 		normal    = -normal;
 		tangent   = -tangent;
 		bitangent = -bitangent;

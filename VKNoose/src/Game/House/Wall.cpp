@@ -2,13 +2,14 @@
 #include "AssetManagement/AssetManager.h"
 
 Wall::Wall(glm::vec3 begin, glm::vec3 end, std::string materialName) {
+	m_vertices.clear();
+	m_indices.clear();
 
 	_material = AssetManager::GetMaterial(materialName);
 
 	_begin = begin;
 	_end = end;
 
-	std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
 
 	Vertex vert0;
 	Vertex vert1;
@@ -41,15 +42,15 @@ Wall::Wall(glm::vec3 begin, glm::vec3 end, std::string materialName) {
 	vert2.uv = glm::vec2(wallWidth, upperYCoord);
 	vert3.uv = glm::vec2(wallWidth, lowerYCoord);
 
-	std::vector<Vertex> vertices;
-	vertices.push_back(vert0);
-	vertices.push_back(vert1);
-	vertices.push_back(vert2);
-	vertices.push_back(vert3);
+	m_vertices.push_back(vert0);
+	m_vertices.push_back(vert1);
+	m_vertices.push_back(vert2);
+	m_vertices.push_back(vert3);
 
-	Util::SetTangentsFromVertices(vertices, indices);
+    m_indices = { 0, 1, 2, 0, 2, 3 };
 
-	_meshIndex = AssetManager::CreateMeshOLD(vertices, indices);
+	Util::SetTangentsFromVertices(m_vertices, m_indices);
+
 
 	/*std::cout << "\nnew wall\n";
 	for (auto index : indices) {

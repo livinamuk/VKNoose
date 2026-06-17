@@ -80,7 +80,7 @@ namespace VulkanRenderer {
 		VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 		VulkanResourceManager::CreateAllocatedImage("LoadingScreen", 1024, 576, VK_FORMAT_R8G8B8A8_UNORM, usage);
 
-		// Raytracing Storage Images (Using R32G32B32A32_SFLOAT to match shader expectations)
+		// Raytracing Storage Images
 		VulkanResourceManager::CreateAllocatedImage("RT_FirstHit_Color", rtWidth, rtHeight, VK_FORMAT_R32G32B32A32_SFLOAT, usage);
 		VulkanResourceManager::CreateAllocatedImage("RT_FirstHit_Normals", rtWidth, rtHeight, VK_FORMAT_R32G32B32A32_SFLOAT, usage);
 		VulkanResourceManager::CreateAllocatedImage("RT_FirstHit_BaseColor", rtWidth, rtHeight, VK_FORMAT_R32G32B32A32_SFLOAT, usage);
@@ -100,7 +100,6 @@ namespace VulkanRenderer {
 		VkImageUsageFlags depthUsage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 		VulkanResourceManager::CreateAllocatedImage("Depth_Present", width, height, VK_FORMAT_D32_SFLOAT, depthUsage);
 		VulkanResourceManager::CreateAllocatedImage("Depth_GBuffer", rtWidth, rtHeight, VK_FORMAT_D32_SFLOAT, depthUsage);
-
 	}
 
 	void CreatePipelines() {
@@ -151,8 +150,8 @@ namespace VulkanRenderer {
 		const std::vector<Vertex>& vertices = AssetManager::GetVertices();
 		const std::vector<uint32_t>& indices = AssetManager::GetIndices();
 
-		std::vector<Vertex>& vertices2 = AssetManager::GetVertices_TEMPORARY();
-		std::vector<uint32_t>& indices2 = AssetManager::GetIndices_TEMPORARY();
+		//std::vector<Vertex>& vertices2 = AssetManager::GetVertices_TEMPORARY();
+		//std::vector<uint32_t>& indices2 = AssetManager::GetIndices_TEMPORARY();
 
 		// Define the usage flags once
 		VkBufferUsageFlags usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT |
@@ -249,7 +248,7 @@ namespace VulkanRenderer {
 	}
 
 	VulkanBuffer* GetVertexBuffer() {
-		return VulkanResourceManager::GetBuffer(g_indexBuffer);
+		return VulkanResourceManager::GetBuffer(g_vertexBuffer);
 	}
 
 	VulkanBuffer* GetIndexBuffer() {

@@ -11,7 +11,8 @@ struct AllocatedImage {
     AllocatedImage(AllocatedImage&& other) noexcept;
     AllocatedImage& operator=(AllocatedImage&& other) noexcept;
 
-    void TransitionLayout(VkCommandBuffer cmd, VkImageLayout newLayout, VkAccessFlags dstAccess, VkPipelineStageFlags dstStage);
+    void Sync(VkCommandBuffer cmd, VkAccessFlags2 dstAccess, VkPipelineStageFlags2 dstStage);
+    //void TransitionLayout(VkCommandBuffer cmd, VkImageLayout newLayout, VkAccessFlags dstAccess, VkPipelineStageFlags dstStage);
     void Cleanup(VkDevice device, VmaAllocator allocator);
 
     int32_t GetWidth() const            { return m_extent.width; }

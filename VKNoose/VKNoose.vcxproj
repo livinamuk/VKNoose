@@ -112,6 +112,7 @@
     <ClCompile Include="src\API\Vulkan\Types\vk_sampler.cpp" />
     <ClCompile Include="src\API\Vulkan\Types\vk_shader.cpp" />
     <ClCompile Include="src\API\Vulkan\Renderer\vk_renderer.cpp" />
+    <ClCompile Include="src\AssetManagement\AssetManager_hardcoded.cpp" />
     <ClCompile Include="src\AssetManagement\AssetManager_mesh.cpp" />
     <ClCompile Include="src\AssetManagement\AssetManager_model.cpp" />
     <ClCompile Include="src\Audio\Audio.cpp" />
@@ -155,6 +156,7 @@
     <ClInclude Include="src\API\Vulkan\Renderer\vk_descriptor_indices.h" />
     <ClInclude Include="src\API\Vulkan\Renderer\vk_device_addresses.h" />
     <ClInclude Include="src\API\Vulkan\Renderer\vk_frame_data.h" />
+    <ClInclude Include="src\API\Vulkan\Renderer\vk_push_constants.h" />
     <ClInclude Include="src\API\Vulkan\Types\vk_descriptor_set.h" />
     <ClInclude Include="src\API\Vulkan\Types\vk_mesh_buffer.h" />
     <ClInclude Include="src\API\Vulkan\Types\vk_sampler.h" />

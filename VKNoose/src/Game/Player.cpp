@@ -97,7 +97,7 @@ void Player::UpdateMouselook(float deltaTime)
 	if (m_mouselookDisabled)
 		return;
 
-	float mouseSensitivity = 0.005f;
+	float mouseSensitivity = 0.001f;
 	float xoffset = Input::GetMouseOffsetY() * mouseSensitivity * Input::_sensitivity * 0.62375f * deltaTime;
 	float yoffset = Input::GetMouseOffsetX() * mouseSensitivity * Input::_sensitivity * 0.62375f * deltaTime;
 	float yLimit = 1.5f;	

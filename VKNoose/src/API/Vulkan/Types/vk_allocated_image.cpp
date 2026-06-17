@@ -1,4 +1,5 @@
 #include "vk_allocated_image.h"
+#include "API/Vulkan/Managers/vk_command_manager.h"
 #include "API/Vulkan/vk_utils.h"
 
 AllocatedImage::AllocatedImage(VkDevice device, VmaAllocator allocator, VkFormat imageFormat, VkExtent3D imageExtent, VkImageUsageFlags usage, std::string debugName) {
@@ -36,6 +37,26 @@ AllocatedImage::AllocatedImage(VkDevice device, VmaAllocator allocator, VkFormat
     viewInfo.subresourceRange.layerCount = 1;
 
     vkCreateImageView(device, &viewInfo, nullptr, &m_imageView);
+
+    // Move image to its permanent layout
+    VulkanCommandManager::SubmitImmediate([&](VkCommandBuffer cmd) {
+        VkImageMemoryBarrier2 barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+        barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        barrier.image = m_image;
+        barrier.subresourceRange = { VulkanUtils::GetImageAspectFlagsFromFormat(m_format), 0, 1, 0, 1 };
+        barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+        barrier.srcAccessMask = 0;
+        barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+        barrier.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT;
+
+        VkDependencyInfo dep{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+        dep.imageMemoryBarrierCount = 1;
+        dep.pImageMemoryBarriers = &barrier;
+        vkCmdPipelineBarrier2(cmd, &dep);
+    });
+
+    m_currentLayout = VK_IMAGE_LAYOUT_GENERAL;
 
     VkDebugUtilsObjectNameInfoEXT nameInfo = {};
     nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
@@ -83,29 +104,47 @@ AllocatedImage& AllocatedImage::operator=(AllocatedImage&& other) noexcept {
     return *this;
 }
 
-void AllocatedImage::TransitionLayout(VkCommandBuffer cmd, VkImageLayout newLayout, VkAccessFlags dstAccess, VkPipelineStageFlags dstStage) {
-    if (m_currentLayout == newLayout) {
-        return;
-    }
+//void AllocatedImage::TransitionLayout(VkCommandBuffer cmd, VkImageLayout newLayout, VkAccessFlags dstAccess, VkPipelineStageFlags dstStage) {
+//    if (m_currentLayout == newLayout) {
+//        return;
+//    }
+//
+//    VkImageMemoryBarrier barrier = {};
+//    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+//    barrier.oldLayout = m_currentLayout;
+//    barrier.newLayout = newLayout;
+//    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+//    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+//    barrier.image = m_image;
+//    barrier.subresourceRange.aspectMask = VulkanUtils::GetImageAspectFlagsFromFormat(m_format);
+//    barrier.subresourceRange.baseMipLevel = 0;
+//    barrier.subresourceRange.levelCount = 1;
+//    barrier.subresourceRange.baseArrayLayer = 0;
+//    barrier.subresourceRange.layerCount = 1;
+//    barrier.srcAccessMask = m_currentAccessMask;
+//    barrier.dstAccessMask = dstAccess;
+//
+//    vkCmdPipelineBarrier(cmd, m_currentStageFlags, dstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+//
+//    m_currentLayout = newLayout;
+//    m_currentAccessMask = dstAccess;
+//    m_currentStageFlags = dstStage;
+//}
 
-    VkImageMemoryBarrier barrier = {};
-    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.oldLayout = m_currentLayout;
-    barrier.newLayout = newLayout;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = m_image;
-    barrier.subresourceRange.aspectMask = VulkanUtils::GetImageAspectFlagsFromFormat(m_format);
-    barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = 1;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = 1;
+void AllocatedImage::Sync(VkCommandBuffer cmd, VkAccessFlags2 dstAccess, VkPipelineStageFlags2 dstStage) {
+    // only sync memory, no layout transition needed
+    VkMemoryBarrier2 barrier{ VK_STRUCTURE_TYPE_MEMORY_BARRIER_2 };
+    barrier.srcStageMask = m_currentStageFlags;
     barrier.srcAccessMask = m_currentAccessMask;
+    barrier.dstStageMask = dstStage;
     barrier.dstAccessMask = dstAccess;
 
-    vkCmdPipelineBarrier(cmd, m_currentStageFlags, dstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+    VkDependencyInfo dep{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+    dep.memoryBarrierCount = 1;
+    dep.pMemoryBarriers = &barrier;
 
-    m_currentLayout = newLayout;
+    vkCmdPipelineBarrier2(cmd, &dep);
+
     m_currentAccessMask = dstAccess;
     m_currentStageFlags = dstStage;
 }

@@ -22,9 +22,9 @@ namespace VulkanResourceManager {
         VkDevice device = VulkanDeviceManager::GetDevice();
         VmaAllocator allocator = VulkanMemoryManager::GetAllocator();
 
-        for (VulkanAccelerationStructure& object : g_accelerationStructures)   object.Cleanup();   g_buffers.clear();
-        for (VulkanBuffer& object : g_buffers)                                 object.Cleanup();   g_buffers.clear();
-        for (VulkanDescriptorSet& object : g_descriptorSets)                   object.Cleanup();   g_descriptorSets.clear();
+        for (VulkanAccelerationStructure& object : g_accelerationStructures) { object.Cleanup(); g_buffers.clear(); }
+        for (VulkanBuffer& object : g_buffers)                               { object.Cleanup(); g_buffers.clear(); }
+        for (VulkanDescriptorSet& object : g_descriptorSets)                 { object.Cleanup(); g_descriptorSets.clear(); }
 
         // Allocated images
         for (auto& [name, image] : g_allocatedImages) {

@@ -9,6 +9,7 @@
 
 #include <filesystem>
 #include <span>
+#include <unordered_map>
 
 struct AssetFile {
 	char type[4];
@@ -109,6 +110,8 @@ namespace AssetManager  {
 	//void CreateMeshBvhs();
 	const std::string& GetMeshNameByMeshIndex(int index);
 
+	std::unordered_map<std::string, ModelOLD>& GetModelsOLD();
+
 	// Models
 	std::vector<Model>& GetModels();
 	Model& CreateModel(const std::string& name);
@@ -154,8 +157,8 @@ namespace AssetManager  {
 	Vertex GetVertex(int offset);
 	uint32_t GetIndex(int offset);
 
-	std::vector<Vertex>& GetVertices_TEMPORARY();
-	std::vector<uint32_t>& GetIndices_TEMPORARY();
+	//std::vector<Vertex>& GetVertices_TEMPORARY();
+	//std::vector<uint32_t>& GetIndices_TEMPORARY();
 
 	//int CreateModel(std::vector<int> meshIndices);
 	void AddTexture(Texture& texture);

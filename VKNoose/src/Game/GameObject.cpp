@@ -415,8 +415,8 @@ void GameObject::SetInteract(InteractType type, std::string text, std::function<
 void GameObject::SetBoundingBoxFromMesh(int meshIndex) {
 
 	MeshOLD* mesh = AssetManager::GetMesh(_model->m_meshIndices[meshIndex]);	
-	std::vector<Vertex>& vertices = AssetManager::GetVertices_TEMPORARY();
-	std::vector<uint32_t>& indices = AssetManager::GetIndices_TEMPORARY();
+	std::vector<Vertex>& vertices = AssetManager::GetVertices();
+	std::vector<uint32_t>& indices = AssetManager::GetIndices();
 
 	int firstIndex = mesh->m_indexOffset;
 	int lastIndex = firstIndex + (int)mesh->m_indexCount;

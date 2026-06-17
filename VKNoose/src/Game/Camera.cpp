@@ -17,6 +17,7 @@ void Camera::ResetHeadBob() {
 	breatheBob.position = glm::vec3(0);
 }
 #include <fstream>
+
 void Camera::Update(bool moving, bool crouching, float deltaTime)
 {
 	

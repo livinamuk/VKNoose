@@ -98,10 +98,10 @@ namespace VulkanBackEnd {
 			VkImageView imageView = (i < AssetManager::GetNumberOfTextures()) ? AssetManager::GetTexture(i)->imageView : AssetManager::GetTexture(0)->imageView;
 
 			textureImageInfo[i].sampler = nullptr;
-			textureImageInfo[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			textureImageInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 			textureImageInfo[i].imageView = imageView;
 		
-			bindlessSet.WriteImage(1, imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, i);
+			bindlessSet.WriteImage(1, imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, i);
 		}
 
 		bindlessSet.Update();
@@ -205,7 +205,6 @@ void VulkanBackEnd::Cleanup() {
 	VulkanPipelineManager::Cleanup();
 
 
-	// Cleanup Raytracing
 	cleanup_raytracing();
 
 	// Cleanup Mesh Buffers
@@ -271,28 +270,20 @@ void VulkanBackEnd::RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuff
 
 	uint32_t frameIndex = VulkanRenderer::GetCurrentFrameIndex();
 
-	// Transition to the layout expected by the rendering info
-	loadingTarget->TransitionLayout(
-		commandBuffer,
-		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-	);
-
-	VkRenderingAttachmentInfo colorAttachment = {};
-	colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	colorAttachment.imageView = loadingTarget->GetImageView();
-	colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	colorAttachment.clearValue = { {{ 0.0f, 0.0f, 0.0f, 1.0f }} };
+	VkRenderingAttachmentInfo renderingAttachmentInfo = {};
+	renderingAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	renderingAttachmentInfo.imageView = loadingTarget->GetImageView();
+	renderingAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	renderingAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	renderingAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	renderingAttachmentInfo.clearValue = { {{ 0.0f, 0.0f, 0.0f, 1.0f }} };
 
 	VkRenderingInfo renderingInfo = {};
 	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
 	renderingInfo.renderArea = { 0, 0, (uint32_t)loadingTarget->GetWidth(), (uint32_t)loadingTarget->GetHeight() };
 	renderingInfo.layerCount = 1;
 	renderingInfo.colorAttachmentCount = 1;
-	renderingInfo.pColorAttachments = &colorAttachment;
+	renderingInfo.pColorAttachments = &renderingAttachmentInfo;
 
 	vkCmdBeginRendering(commandBuffer, &renderingInfo);
 
@@ -302,7 +293,6 @@ void VulkanBackEnd::RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuff
 
 	HellDescriptorSet& dynamicSet = VulkanDescriptorManager::GetDynamicDescriptorSet(frameIndex);
 	HellDescriptorSet& staticSet = VulkanDescriptorManager::GetStaticDescriptorSet();
-
 
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 0, 1, &dynamicSet.handle, 0, nullptr);
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 1, 1, &staticSet.handle, 0, nullptr);
@@ -342,47 +332,33 @@ void VulkanBackEnd::BlitAllocatedImageToSwapchain(VkCommandBuffer cmd, Allocated
 	int32_t windowWidth = GLFWIntegration::GetCurrentWindowWidth();
 	int32_t windowHeight = GLFWIntegration::GetCurrentWindowHeight();
 
-	// Prepare source image for blit
-	srcImage.TransitionLayout(cmd, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+	srcImage.Sync(cmd, VK_ACCESS_2_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT);
 
-	// Prepare swapchain image for blit
 	VkImage swapchainImage = GetSwapchainImages()[swapchainIndex];
 
-	VkImageMemoryBarrier swapchainBarrier = {};
-	swapchainBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	VkImageMemoryBarrier2 swapchainBarrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+	swapchainBarrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+	swapchainBarrier.srcAccessMask = 0;
+	swapchainBarrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+	swapchainBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 	swapchainBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	swapchainBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 	swapchainBarrier.image = swapchainImage;
-	swapchainBarrier.srcAccessMask = 0;
-	swapchainBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	swapchainBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	swapchainBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	swapchainBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	swapchainBarrier.subresourceRange.baseMipLevel = 0;
-	swapchainBarrier.subresourceRange.levelCount = 1;
-	swapchainBarrier.subresourceRange.baseArrayLayer = 0;
-	swapchainBarrier.subresourceRange.layerCount = 1;
+	swapchainBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
-	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &swapchainBarrier);
+	VkDependencyInfo depInfo{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+	depInfo.imageMemoryBarrierCount = 1;
+	depInfo.pImageMemoryBarriers = &swapchainBarrier;
+
+	vkCmdPipelineBarrier2(cmd, &depInfo);
 
 	VkImageBlit blitRegion = {};
-	// Source region
-	blitRegion.srcOffsets[0] = { 0, 0, 0 };
 	blitRegion.srcOffsets[1] = { srcImage.GetWidth(), srcImage.GetHeight(), 1 };
-	blitRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	blitRegion.srcSubresource.mipLevel = 0;
-	blitRegion.srcSubresource.baseArrayLayer = 0;
-	blitRegion.srcSubresource.layerCount = 1;
-
-	// Destination region (Swapchain)
-	blitRegion.dstOffsets[0] = { 0, 0, 0 };
+	blitRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
 	blitRegion.dstOffsets[1] = { windowWidth, windowHeight, 1 };
-	blitRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	blitRegion.dstSubresource.mipLevel = 0;
-	blitRegion.dstSubresource.baseArrayLayer = 0;
-	blitRegion.dstSubresource.layerCount = 1;
+	blitRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
 
-	vkCmdBlitImage(cmd, srcImage.GetImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapchainImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blitRegion, VK_FILTER_LINEAR);
+	vkCmdBlitImage(cmd, srcImage.GetImage(), VK_IMAGE_LAYOUT_GENERAL, swapchainImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blitRegion, VK_FILTER_LINEAR);
 }
 
 void VulkanBackEnd::RenderLoadingFrame() {
@@ -804,14 +780,15 @@ void VulkanBackEnd::add_debug_name(VkDescriptorSetLayout descriptorSetLayout, co
 
 void VulkanBackEnd::create_rt_buffers() {
 	// Get the raw geometry data from the asset manager
-	std::vector<Vertex>& vertices = AssetManager::GetVertices_TEMPORARY();
-	std::vector<uint32_t>& indices = AssetManager::GetIndices_TEMPORARY();
+	//std::vector<Vertex>& verticesOLD = AssetManager::GetVertices_TEMPORARY();
+	//std::vector<uint32_t>& indicesOLD = AssetManager::GetIndices_TEMPORARY();
 
-	const std::vector<Vertex>& vertices2 = AssetManager::GetVertices();
-	const std::vector<uint32_t>& indices2 = AssetManager::GetIndices();
+	const std::vector<Vertex>& vertices = AssetManager::GetVertices();
+	const std::vector<uint32_t>& indices = AssetManager::GetIndices();
 
-	std::cout << "vertices: " << vertices.size() << " " << vertices2.size() << "\n";
-	std::cout << "indices:  " << indices.size() << " " << indices2.size() << "\n";
+	//std::cout << "\nOLD / NEW \n";
+    //std::cout << "vertices: " << verticesOLD.size() << " " << vertices.size() << "\n";
+    //std::cout << "indices:  " << indicesOLD.size() << " " << indices.size() << "\n";
 
 	// Define flags for raytracing geometry buffers
 	// These allow the buffer to be used for AS builds and as a storage buffer in shaders
@@ -821,12 +798,11 @@ void VulkanBackEnd::create_rt_buffers() {
 		VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
 
 	// Create the high-level VulkanBuffer objects via the resource manager
-	// These are GPU_ONLY for optimal traversal performance
+	// These are currently GPU_ONLY for traversal performance
 	g_vertexBuffer = VulkanResourceManager::CreateBuffer(vertices.size() * sizeof(Vertex), rtGeometryUsage, VMA_MEMORY_USAGE_GPU_ONLY);
 	g_indexBuffer = VulkanResourceManager::CreateBuffer(indices.size() * sizeof(uint32_t), rtGeometryUsage, VMA_MEMORY_USAGE_GPU_ONLY);
 
 	// Upload the data using the internal staging logic
-	// This handles the creation and destruction of the temporary staging buffer automatically
 	VulkanResourceManager::UploadBufferData(g_vertexBuffer, vertices.data(), vertices.size() * sizeof(Vertex));
 	VulkanResourceManager::UploadBufferData(g_indexBuffer, indices.data(), indices.size() * sizeof(uint32_t));
 
@@ -973,10 +949,8 @@ void VulkanBackEnd::update_static_descriptor_set_old() {
 	for (uint32_t i = 0; i < TEXTURE_ARRAY_SIZE; ++i) {
 		VkImageView view = (i < AssetManager::GetNumberOfTextures()) ? AssetManager::GetTexture(i)->imageView : AssetManager::GetTexture(0)->imageView;
 		textureImageInfo[i].sampler = nullptr;
-		textureImageInfo[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		textureImageInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 		textureImageInfo[i].imageView = view;
-
-		//bindlessSet.WriteImage(DESC_IDX_TEXTURES, view, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, i);
 	}
 	legacySet.Update(GetDevice(), 1, TEXTURE_ARRAY_SIZE, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, textureImageInfo);
 
@@ -986,17 +960,6 @@ void VulkanBackEnd::update_static_descriptor_set_old() {
 	legacySet.Update(GetDevice(), 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, vertexBuffer->GetBuffer());
 	legacySet.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, indexBuffer->GetBuffer());
 
-	//bindlessSet.WriteImage(DESC_IDX_SAMPLERS, VK_NULL_HANDLE, linearSampler->GetSampler(), VK_IMAGE_LAYOUT_UNDEFINED, VK_DESCRIPTOR_TYPE_SAMPLER);
-	//bindlessSet.WriteBuffer(DESC_IDX_VERTICES, vertexBuffer->GetBuffer(), vertexBuffer->GetSize(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-	//bindlessSet.WriteBuffer(DESC_IDX_INDICES, indexBuffer->GetBuffer(), indexBuffer->GetSize(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-	//
-	//// Append Render Targets to the texture array so you can read from them bindlessly
-	//
-	//bindlessSet.WriteImage(DESC_IDX_TEXTURES, rtFirstHitColorAllocatedImage->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, DESC_OFFSET_RENDER_TARGET + 0);
-	//bindlessSet.WriteImage(DESC_IDX_TEXTURES, rtFirstHitNormalsAllocatedImage->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, DESC_OFFSET_RENDER_TARGET + 1);
-	//bindlessSet.WriteImage(DESC_IDX_TEXTURES, rtFirstHitBaseColorAllocatedImage->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, DESC_OFFSET_RENDER_TARGET + 2);
-
-	
 	// Raytracing storage images
 	VkDescriptorImageInfo storageImageDescriptor{};
 	storageImageDescriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -1031,12 +994,12 @@ void VulkanBackEnd::update_static_descriptor_set_old() {
 	//bindlessSet.Update();
 
 	// Transition layouts for General layout requirements
-	VulkanCommandManager::SubmitImmediate([&](VkCommandBuffer cmd) {
-		laptopDisplayAllocatedImage->TransitionLayout(cmd, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-		gBufferNormalAllocatedImage->TransitionLayout(cmd, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-		gBufferRmaAllocatedImage->TransitionLayout(cmd, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-		depthGBufferAllocatedImage->TransitionLayout(cmd, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-		});
+	//VulkanCommandManager::SubmitImmediate([&](VkCommandBuffer cmd) {
+	//	laptopDisplayAllocatedImage->TransitionLayout(cmd, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+	//	gBufferNormalAllocatedImage->TransitionLayout(cmd, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+	//	gBufferRmaAllocatedImage->TransitionLayout(cmd, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+	//	depthGBufferAllocatedImage->TransitionLayout(cmd, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+	//	});
 
 	// Update Sampler Sets (Traditional Combined Samplers)
 	VkDescriptorImageInfo staticSamplerImageInfo = linearSampler->GetDescriptorInfo();
@@ -1073,59 +1036,59 @@ void VulkanBackEnd::UpdateStaticDescriptorSet() {
 	AllocatedImage* depthPresent = VulkanResourceManager::GetAllocatedImage("Depth_Present");
 	AllocatedImage* depthGBuffer = VulkanResourceManager::GetAllocatedImage("Depth_GBuffer");
 
-	VulkanDescriptorSet& bindlessSet = VulkanRenderer::GetStaticDescriptorSet();
+	VulkanDescriptorSet& staticDescriptorSet = VulkanRenderer::GetStaticDescriptorSet();
 	VulkanSampler* linearSampler = VulkanResourceManager::GetSampler("Linear");
 	if (!linearSampler) return;
 	
 	// Samplers
-	bindlessSet.WriteImage(DESC_IDX_SAMPLERS, VK_NULL_HANDLE, linearSampler->GetSampler(), VK_IMAGE_LAYOUT_UNDEFINED, VK_DESCRIPTOR_TYPE_SAMPLER);
+	staticDescriptorSet.WriteImage(DESC_IDX_SAMPLERS, VK_NULL_HANDLE, linearSampler->GetSampler(), VK_IMAGE_LAYOUT_UNDEFINED, VK_DESCRIPTOR_TYPE_SAMPLER);
 
 	// // Textures
 	uint32_t assetTextureCount = AssetManager::GetNumberOfTextures();
 	for (uint32_t i = 0; i < assetTextureCount; ++i) {
 		VkImageView view = AssetManager::GetTexture(i)->imageView;
-		bindlessSet.WriteImage(DESC_IDX_TEXTURES, view, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, i);
+		staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, view, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, i);
 	}
 
 	// Render Targets
-	bindlessSet.WriteImage(DESC_IDX_TEXTURES, rtFirstHitColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_FIRST_HIT_COLOR);
-	bindlessSet.WriteImage(DESC_IDX_TEXTURES, rtFirstHitNormals->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_FIRST_HIT_NORMALS);
-	bindlessSet.WriteImage(DESC_IDX_TEXTURES, rtFirstHitBaseColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_FIRST_HIT_BASE);
-	bindlessSet.WriteImage(DESC_IDX_TEXTURES, rtSecondHitColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_SECOND_HIT_COLOR);
-	bindlessSet.WriteImage(DESC_IDX_TEXTURES, gBufferBaseColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_GBUFFER_BASE);
-	bindlessSet.WriteImage(DESC_IDX_TEXTURES, gBufferNormal->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_GBUFFER_NORMAL);
-	bindlessSet.WriteImage(DESC_IDX_TEXTURES, gBufferRma->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_GBUFFER_RMA);
-	bindlessSet.WriteImage(DESC_IDX_TEXTURES, laptopDisplay->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_LAPTOP);
-	bindlessSet.WriteImage(DESC_IDX_TEXTURES, composite->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_COMPOSITE);
+	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, rtFirstHitColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_FIRST_HIT_COLOR);
+	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, rtFirstHitNormals->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_FIRST_HIT_NORMALS);
+	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, rtFirstHitBaseColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_FIRST_HIT_BASE);
+	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, rtSecondHitColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_SECOND_HIT_COLOR);
+	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, gBufferBaseColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_GBUFFER_BASE);
+	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, gBufferNormal->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_GBUFFER_NORMAL);
+	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, gBufferRma->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_GBUFFER_RMA);
+	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, laptopDisplay->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_LAPTOP);
+	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, composite->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_COMPOSITE);
 
 	// Depth targets use specific depth layout
-	bindlessSet.WriteImage(DESC_IDX_TEXTURES, depthGBuffer->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_DEPTH_GBUFFER);
+	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, depthGBuffer->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_DEPTH_GBUFFER);
 
 	// Storage Images RGBA32F
-	bindlessSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA32F, rtFirstHitColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_RT_FIRST_COLOR);
-	bindlessSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA32F, rtFirstHitNormals->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_RT_FIRST_NORMALS);
-	bindlessSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA32F, rtFirstHitBaseColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_RT_FIRST_BASE);
-	bindlessSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA32F, rtSecondHitColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_RT_SECOND_COLOR);
+	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA32F, rtFirstHitColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_RT_FIRST_COLOR);
+	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA32F, rtFirstHitNormals->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_RT_FIRST_NORMALS);
+	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA32F, rtFirstHitBaseColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_RT_FIRST_BASE);
+	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA32F, rtSecondHitColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_RT_SECOND_COLOR);
 
 	// Storage Images RGBA16F
 
 	// Storage Images RGBA8
-	bindlessSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, gBufferBaseColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_GBUFFER_BASE);
-	bindlessSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, gBufferNormal->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_GBUFFER_NORMAL);
-	bindlessSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, gBufferRma->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_GBUFFER_RMA);
-	bindlessSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, laptopDisplay->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_LAPTOP);
-	bindlessSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, composite->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_COMPOSITE);
+	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, gBufferBaseColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_GBUFFER_BASE);
+	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, gBufferNormal->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_GBUFFER_NORMAL);
+	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, gBufferRma->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_GBUFFER_RMA);
+	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, laptopDisplay->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_LAPTOP);
+	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, composite->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_COMPOSITE);
 
 	// REMOVE ME WHEN YOU CAN!!! or maybe Keep me in here??? and only use the SceneData variant for raytracing shaders.. but why else would u ever want to access these?
 	VulkanBuffer* vertexBuffer = VulkanResourceManager::GetBuffer(g_vertexBuffer);
 	VulkanBuffer* indexBuffer = VulkanResourceManager::GetBuffer(g_indexBuffer);
 	if (vertexBuffer && indexBuffer) {
-		bindlessSet.WriteBuffer(DESC_IDX_VERTICES, vertexBuffer->GetBuffer(), vertexBuffer->GetSize(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-		bindlessSet.WriteBuffer(DESC_IDX_INDICES, indexBuffer->GetBuffer(), indexBuffer->GetSize(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+		staticDescriptorSet.WriteBuffer(DESC_IDX_VERTICES, vertexBuffer->GetBuffer(), vertexBuffer->GetSize(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+		staticDescriptorSet.WriteBuffer(DESC_IDX_INDICES, indexBuffer->GetBuffer(), indexBuffer->GetSize(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
 	}
 
 	// Finalize all writes
-	bindlessSet.Update();
+	staticDescriptorSet.Update();
 }
 
 void VulkanBackEnd::UpdateDynamicDescriptorSet() {
@@ -1189,6 +1152,8 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 	VulkanPipeline* linesPipeline = VulkanPipelineManager::GetPipeline("Lines");
 	VulkanPipeline* textBlitterPipeline = VulkanPipelineManager::GetPipeline("TextBlitter");
 
+	VulkanDescriptorSet& staticDescriptorSet = VulkanRenderer::GetStaticDescriptorSet();
+
 
 	if (!linesPipeline) return;
 	if (!compositePipeline) return;
@@ -1221,10 +1186,15 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _raytracerPath.pipelineLayout, 4, 1, dynamicDescriptorSet->GetHandlePtr(), 0, nullptr);
 
 	// Transition RT images to GENERAL for storage write
-	rtFirstHitColorAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-	rtFirstHitNormalsAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-	rtSecondHitColorAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-	rtFirstHitBaseColorAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+	//rtFirstHitColorAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+	//rtFirstHitNormalsAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+	//rtSecondHitColorAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+	//rtFirstHitBaseColorAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+
+	rtFirstHitColorAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR);
+	rtFirstHitNormalsAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR);
+	rtSecondHitColorAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR);
+	rtFirstHitBaseColorAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR);
 
 	vkCmdTraceRaysKHR(commandBuffer, &_raytracerPath.raygenShaderSbtEntry, &_raytracerPath.missShaderSbtEntry, &_raytracerPath.hitShaderSbtEntry, &_raytracerPath.callableShaderSbtEntry, rtFirstHitColorAllocatedImage->GetWidth(), rtFirstHitColorAllocatedImage->GetHeight(), 1);
 
@@ -1245,23 +1215,26 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 	{
 		Texture* bg_texture = AssetManager::GetTexture("OS_bg");
 		if (bg_texture) {
-			bg_texture->insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-			laptopDisplayAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-			
+			// Sync laptopDisplayAllocatedImage for WRITING (it's the destination of the blit)
+			laptopDisplayAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT);
+
 			VkImageBlit blitRegion{};
 			blitRegion.srcOffsets[1] = { (int32_t)bg_texture->_width, (int32_t)bg_texture->_height, 1 };
 			blitRegion.dstOffsets[1] = { (int32_t)laptopDisplayAllocatedImage->GetWidth(), (int32_t)laptopDisplayAllocatedImage->GetHeight(), 1 };
 			blitRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
 			blitRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-			vkCmdBlitImage(commandBuffer, bg_texture->image._image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, laptopDisplayAllocatedImage->GetImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blitRegion, VK_FILTER_NEAREST);
 
-			bg_texture->insertImageBarrier(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+			// Use GENERAL for both layouts now
+			vkCmdBlitImage(commandBuffer, bg_texture->image._image, VK_IMAGE_LAYOUT_GENERAL, laptopDisplayAllocatedImage->GetImage(), VK_IMAGE_LAYOUT_GENERAL, 1, &blitRegion, VK_FILTER_NEAREST);
 
-			// Transition to ATTACHMENT_OPTIMAL for Rendering
-			laptopDisplayAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+			// If bg_texture also has a Sync method, use it instead of insertImageBarrier
+			laptopDisplayAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_SHADER_READ_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT);
+
+			// Sync laptopDisplayAllocatedImage to receive color attachment writes
+			laptopDisplayAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
 
 			VkRenderingAttachmentInfo laptopColorAttachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
-			laptopColorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			laptopColorAttachment.imageLayout = VK_IMAGE_LAYOUT_GENERAL; // Stay General
 			laptopColorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 			laptopColorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 			laptopColorAttachment.imageView = laptopDisplayAllocatedImage->GetImageView();
@@ -1279,27 +1252,24 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 0, 1, &dynamicSet.handle, 0, nullptr);
 			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 1, 1, &staticSet.handle, 0, nullptr);
 
-			//cmd_BindPipeline(commandBuffer, _pipelines.textBlitter);
-			//cmd_BindDescriptorSet(commandBuffer, _pipelines.textBlitter, 0, dynamicSet);
-			//cmd_BindDescriptorSet(commandBuffer, _pipelines.textBlitter, 1, staticSet);
 			for (int i = 0; i < RasterRenderer::instanceCount; i++) {
 				if (RasterRenderer::_UIToRender[i].destination == RasterRenderer::Destination::LAPTOP_DISPLAY)
 					RasterRenderer::DrawMesh(commandBuffer, i);
 			}
 			vkCmdEndRendering(commandBuffer);
 
-			laptopDisplayAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-
+			// Final sync for the next raytracing pass
+			laptopDisplayAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR);
 		}
 	}
 
 	// Composite Pass
 	{
-		compositeAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+		compositeAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
 
 		VkRenderingAttachmentInfo compositeAttachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
 		compositeAttachment.imageView = compositeAllocatedImage->GetImageView();
-		compositeAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		compositeAttachment.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 		compositeAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		compositeAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 		compositeAttachment.clearValue = { 0.2f, 1.0f, 0.0f, 0.0f };
@@ -1314,35 +1284,32 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 		cmd_SetViewportSize(commandBuffer, compositeAllocatedImage->GetWidth(), compositeAllocatedImage->GetHeight());
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, compositePipeline->GetHandle());
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, compositePipeline->GetLayout(), 0, 1, &dynamicSet.handle, 0, nullptr);
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, compositePipeline->GetLayout(), 1, 1, &staticSet.handle, 0, nullptr);
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, compositePipeline->GetLayout(), 2, 1, &samplerSet.handle, 0, nullptr);
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, compositePipeline->GetLayout(), 0, 1, staticDescriptorSet.GetHandlePtr(), 0, nullptr);
 
-		//cmd_BindPipeline(commandBuffer, _pipelines.composite);
-		//cmd_BindDescriptorSet(commandBuffer, _pipelines.composite, 0, dynamicSet);
-		//cmd_BindDescriptorSet(commandBuffer, _pipelines.composite, 1, staticSet);
-		//cmd_BindDescriptorSet(commandBuffer, _pipelines.composite, 2, samplerSet);
 		AssetManager::GetMesh(AssetManager::GetModel("fullscreen_quad")->m_meshIndices[0])->draw(commandBuffer, 0);
 		vkCmdEndRendering(commandBuffer);
 
 		// Blit Composite to Present
-		compositeAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-		presentAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+		//compositeAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+		//presentAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+		compositeAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT);
+		presentAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT);
 
 		VkImageBlit blitRegion{};
 		blitRegion.srcOffsets[1] = { (int32_t)compositeAllocatedImage->GetWidth(), (int32_t)compositeAllocatedImage->GetHeight(), 1 };
 		blitRegion.dstOffsets[1] = { (int32_t)presentAllocatedImage->GetWidth(), (int32_t)presentAllocatedImage->GetHeight(), 1 };
 		blitRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
 		blitRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-		vkCmdBlitImage(commandBuffer, compositeAllocatedImage->GetImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, presentAllocatedImage->GetImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blitRegion, VK_FILTER_LINEAR);
+		vkCmdBlitImage(commandBuffer, compositeAllocatedImage->GetImage(), VK_IMAGE_LAYOUT_GENERAL, presentAllocatedImage->GetImage(), VK_IMAGE_LAYOUT_GENERAL, 1, &blitRegion, VK_FILTER_LINEAR);
 	}
 
 	// Main UI Pass
 	{
-		presentAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+		presentAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
 
 		VkRenderingAttachmentInfo uiAttachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
-		uiAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		uiAttachment.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 		uiAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 		uiAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 		uiAttachment.imageView = presentAllocatedImage->GetImageView();
@@ -1382,28 +1349,50 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 
 	// Final Swapchain Blit
 	{
-		presentAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+		// sync present image for reading
+		presentAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT);
 
-		VkImageMemoryBarrier swapChainBarrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+		VkImage swapchainImage = GetSwapchainImages()[swapchainIndex];
+
+		// swapchain still needs legacy layout transitions
+		VkImageMemoryBarrier2 swapChainBarrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
 		swapChainBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		swapChainBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		swapChainBarrier.image = GetSwapchainImages()[swapchainIndex];
+		swapChainBarrier.image = swapchainImage;
 		swapChainBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-		swapChainBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &swapChainBarrier);
+
+		// src info for the barrier
+		swapChainBarrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+		swapChainBarrier.srcAccessMask = 0;
+
+		// dst info for the barrier
+		swapChainBarrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+		swapChainBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+
+		VkDependencyInfo depInfo{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+		depInfo.imageMemoryBarrierCount = 1;
+		depInfo.pImageMemoryBarriers = &swapChainBarrier;
+
+		vkCmdPipelineBarrier2(commandBuffer, &depInfo);
 
 		VkImageBlit blitRegion{};
 		blitRegion.srcOffsets[1] = { (int32_t)presentAllocatedImage->GetWidth(), (int32_t)presentAllocatedImage->GetHeight(), 1 };
 		blitRegion.dstOffsets[1] = { (int32_t)currentWindowWidth, (int32_t)currentWindowHeight, 1 };
 		blitRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
 		blitRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-		vkCmdBlitImage(commandBuffer, presentAllocatedImage->GetImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, GetSwapchainImages()[swapchainIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blitRegion, VK_FILTER_NEAREST);
 
+		// blit from unified GENERAL to legacy TRANSFER_DST_OPTIMAL
+		vkCmdBlitImage(commandBuffer, presentAllocatedImage->GetImage(), VK_IMAGE_LAYOUT_GENERAL, swapchainImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blitRegion, VK_FILTER_NEAREST);
+
+		// final transition for presentation
 		swapChainBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 		swapChainBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		swapChainBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		swapChainBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &swapChainBarrier);
+		swapChainBarrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+		swapChainBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		swapChainBarrier.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+		swapChainBarrier.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT;
+
+		vkCmdPipelineBarrier2(commandBuffer, &depInfo);
 	}
 
 	if (!GameData::inventoryOpen) {

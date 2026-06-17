@@ -1,11 +1,29 @@
 #pragma once
 #include "API/Vulkan/vk_common.h"
 #include "API/Vulkan/Types/vk_vertex_descriptions.h"
+#include "API/Vulkan/Types/vk_shader.h"
 #include "Hell/Types.h"
 
 #include <vector>
 #include <string>
 #include <iostream>
+
+struct VulkanPipelineCreateInfo {
+    VulkanShader* shader = nullptr;
+    std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
+    std::vector<VkFormat> colorAttachmentFormats; // One per color attachment
+    VkFormat depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+    VkFormat stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+    VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    VkCullModeFlags cullMode = VK_CULL_MODE_NONE;
+    VkFrontFace frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    std::vector<bool> colorBlendEnables; // If empty, all will use blendEnable
+    bool blendEnable = true;
+    bool depthEnable = true;
+    bool depthWrite = true;
+    uint32_t pushConstantSizeBytes = 0;
+    VkShaderStageFlags pushConstantStageFlags = 0;
+};
 
 enum struct VertexDescriptionType {
     POSITION,
