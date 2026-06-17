@@ -78,7 +78,7 @@ namespace VulkanPipelineManager {
         VulkanPipeline& pipeline = g_pipelines["Lines"];
         pipeline.Cleanup(device);
 
-        pipeline.PushDescriptorSetLayout(VulkanDescriptorManager::GetDynamicSetLayout());
+        pipeline.PushDescriptorSetLayout(VulkanDescriptorManager::GetTlasSetLayout());
         pipeline.PushDescriptorSetLayout(VulkanRenderer::GetStaticDescriptorSet().GetLayout());
 
         pipeline.SetPushConstant(64, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -113,7 +113,7 @@ namespace VulkanPipelineManager {
     }
 
     void CreatePathRaytracingPipeline() {
-        std::vector<VkDescriptorSetLayout> layouts = { VulkanDescriptorManager::GetDynamicSetLayout(), VulkanRenderer::GetStaticDescriptorSet().GetLayout() };
+        std::vector<VkDescriptorSetLayout> layouts = { VulkanDescriptorManager::GetTlasSetLayout(), VulkanRenderer::GetStaticDescriptorSet().GetLayout() };
 
         std::vector<VkPushConstantRange> pushConstantRanges;
         VkPushConstantRange& pushConstantRange = pushConstantRanges.emplace_back();
@@ -133,7 +133,7 @@ namespace VulkanPipelineManager {
     }
 
     void CreateMousePickRaytracingPipeline() {
-        std::vector<VkDescriptorSetLayout> layouts = { VulkanDescriptorManager::GetDynamicSetLayout(), VulkanRenderer::GetStaticDescriptorSet().GetLayout() };
+        std::vector<VkDescriptorSetLayout> layouts = { VulkanDescriptorManager::GetTlasSetLayout(), VulkanRenderer::GetStaticDescriptorSet().GetLayout() };
 
         std::vector<VkPushConstantRange> pushConstantRanges;
         VkPushConstantRange& pushConstantRange = pushConstantRanges.emplace_back();

@@ -5,8 +5,6 @@
 #include <iostream>
 #include <vector>
 
-//#include "Common.h"
-
 inline void VK_CHECK(VkResult err) {
 	if (err) {
 		std::cout << "Detected Vulkan error: " << err << "\n";
@@ -18,19 +16,6 @@ struct AllocatedBufferOLD {
 	VkBuffer m_buffer = VK_NULL_HANDLE;
 	VmaAllocation m_allocation = VK_NULL_HANDLE;
 	void* m_mapped = nullptr;
-};
-
-struct HellDescriptorSet {
-	std::vector<VkDescriptorSetLayoutBinding> bindings;
-	VkDescriptorSetLayout layout;
-	VkDescriptorSet handle;
-	void AddBinding(VkDescriptorType type, uint32_t binding, uint32_t descriptorCount, VkShaderStageFlags stageFlags);
-	void AllocateSet(VkDevice device, VkDescriptorPool descriptorPool);
-	void BuildSetLayout(VkDevice device);
-	void Update(VkDevice device, uint32_t binding, uint32_t descriptorCount, VkDescriptorType type, VkBuffer buffer);
-	void Update(VkDevice device, uint32_t binding, uint32_t descriptorCount, VkDescriptorType type, VkDescriptorImageInfo* imageInfo);
-	void Update(VkDevice device, uint32_t binding, uint32_t descriptorCount, VkDescriptorType type, VkAccelerationStructureKHR* accelerationStructure);
-	void Destroy(VkDevice device);
 };
 
 struct AllocatedImageOLD {

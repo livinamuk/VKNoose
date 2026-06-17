@@ -141,8 +141,10 @@ void VulkanBackEnd::LoadNextItem() {
 		Audio::Init();
 		Scene::Init();						// Scene::Init creates wall geometry, and thus must run before upload_meshes
 		create_rt_buffers();
-		
-		UpdateStaticDescriptorSet();
+
+        vkDeviceWaitIdle(GetDevice());
+
+        UpdateStaticDescriptorSet();
 		Input::SetMousePos(_windowedModeExtent.width / 2, _windowedModeExtent.height / 2);
 	}
 
@@ -849,12 +851,14 @@ void VulkanBackEnd::UpdateRaytracingTlasDescriptors() {
 	VulkanFrameData& frameData = VulkanRenderer::GetCurrentFrameData();
 
     VulkanAccelerationStructure* sceneTlas = VulkanResourceManager::GetAccelerationStructure(frameData.tlas.scene);
-    HellDescriptorSet& dynamicSet = VulkanDescriptorManager::GetDynamicDescriptorSet(frameIndex);
-    dynamicSet.Update(GetDevice(), 0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &sceneTlas->m_handle);
+    VulkanDescriptorSet& sceneSet = VulkanDescriptorManager::GetSceneTlasSet(frameIndex);
+    sceneSet.WriteAccelerationStructure(DESC_IDX_TLAS, sceneTlas->GetHandle());
+    sceneSet.Update();
 
-	VulkanAccelerationStructure* inventoryTLAS = VulkanResourceManager::GetAccelerationStructure(frameData.tlas.inventory);
-	HellDescriptorSet& dynamicSetInventory = VulkanDescriptorManager::GetDynamicInventoryDescriptorSet(frameIndex);
-    dynamicSetInventory.Update(GetDevice(), 0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &inventoryTLAS->m_handle);
+    VulkanAccelerationStructure* inventoryTLAS = VulkanResourceManager::GetAccelerationStructure(frameData.tlas.inventory);
+    VulkanDescriptorSet& inventorySet = VulkanDescriptorManager::GetInventoryTlasSet(frameIndex);
+    inventorySet.WriteAccelerationStructure(DESC_IDX_TLAS, inventoryTLAS->GetHandle());
+    inventorySet.Update();
 }
 
 void DrawMesh(VkCommandBuffer commandBuffer, uint32_t meshIndex, uint32_t firstInstance) {
@@ -925,16 +929,15 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 	VkCommandBufferBeginInfo cmdBufInfo = vkinit::command_buffer_begin_info();
 	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &cmdBufInfo));
 
-	HellDescriptorSet& dynamicSet = VulkanDescriptorManager::GetDynamicDescriptorSet(frameIndex);
-	HellDescriptorSet& dynamicSetInventory = VulkanDescriptorManager::GetDynamicInventoryDescriptorSet(frameIndex);
-
+    VulkanDescriptorSet& sceneTlasSet = VulkanDescriptorManager::GetSceneTlasSet(frameIndex);
+    VulkanDescriptorSet& inventoryTlasSet = VulkanDescriptorManager::GetInventoryTlasSet(frameIndex);
 	VulkanDescriptorSet& staticSet = VulkanRenderer::GetStaticDescriptorSet();
 	VulkanDescriptorSet& bindlessStaticSet = VulkanRenderer::GetStaticDescriptorSet();
 	VulkanDescriptorSet* dynamicDescriptorSet = VulkanResourceManager::GetDescriptorSet(frameData.dynamicDescriptorSet);
 
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetHandle());
 
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 0, 1, &dynamicSet.handle, 0, nullptr);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 0, 1, sceneTlasSet.GetHandlePtr(), 0, nullptr);
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 1, 1, bindlessStaticSet.GetHandlePtr(), 0, nullptr);
 
 	rtFirstHitColorAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR);
@@ -948,7 +951,6 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
     pushConstant.lightsDeviceAddress = VulkanResourceManager::GetBuffer(frameData.buffers.sceneLights)->GetDeviceAddress();
     pushConstant.cameraDeviceAddress = VulkanResourceManager::GetBuffer(frameData.buffers.sceneCameraData)->GetDeviceAddress();
     pushConstant.lightCount = 2;
-
     vkCmdPushConstants(commandBuffer,pathPipeline->GetLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 0, sizeof(ScenePushConstants), &pushConstant);
 
 	//vkCmdTraceRaysKHR(commandBuffer, &_raytracerPath.raygenShaderSbtEntry, &_raytracerPath.missShaderSbtEntry, &_raytracerPath.hitShaderSbtEntry, &_raytracerPath.callableShaderSbtEntry, rtFirstHitColorAllocatedImage->GetWidth(), rtFirstHitColorAllocatedImage->GetHeight(), 1);
@@ -964,17 +966,14 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
         pushConstant.lightsDeviceAddress = VulkanResourceManager::GetBuffer(frameData.buffers.inventoryLights)->GetDeviceAddress();
         pushConstant.cameraDeviceAddress = VulkanResourceManager::GetBuffer(frameData.buffers.inventoryCameraData)->GetDeviceAddress();
         pushConstant.lightCount = 2;
-
         vkCmdPushConstants(commandBuffer, pathPipeline->GetLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 0, sizeof(ScenePushConstants), &pushConstant);
 
-		cmd_BindRayTracingDescriptorSet(commandBuffer, pathPipeline->GetLayout(), 0, dynamicSetInventory);
-	
+		// Descriptor set
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 0, 1, inventoryTlasSet.GetHandlePtr(), 0, nullptr);
+
 		// Trace rays
         vkCmdTraceRaysKHR(commandBuffer, &pathSbt.raygen, &pathSbt.miss, &pathSbt.hit, &pathSbt.callable, rtFirstHitColorAllocatedImage->GetWidth(), rtFirstHitColorAllocatedImage->GetHeight(), 1);
-		//vkCmdTraceRaysKHR(commandBuffer, &_raytracerPath.raygenShaderSbtEntry, &_raytracerPath.missShaderSbtEntry, &_raytracerPath.hitShaderSbtEntry, &_raytracerPath.callableShaderSbtEntry, rtFirstHitColorAllocatedImage->GetWidth(), rtFirstHitColorAllocatedImage->GetHeight(), 1);
 	}
-
-
 
 	// Mouse pick
 	{
@@ -984,9 +983,8 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
         vkCmdPushConstants(commandBuffer, mousePickPipeline->GetLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(MousePickPushConstants), &pushConstant);
 
         cmd_BindRayTracingPipeline(commandBuffer, mousePickPipeline->GetHandle());
-        cmd_BindRayTracingDescriptorSet(commandBuffer, mousePickPipeline->GetLayout(), 0, dynamicSet);
 
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 0, 1, &dynamicSet.handle, 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 0, 1, sceneTlasSet.GetHandlePtr(), 0, nullptr);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 1, 1, bindlessStaticSet.GetHandlePtr(), 0, nullptr);
 
         const VulkanShaderBindingTable& mouseSbt = mousePickPipeline->GetShaderBindingTable();
@@ -1031,7 +1029,7 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 			cmd_SetViewportSize(commandBuffer, laptopDisplayAllocatedImage->GetWidth(), laptopDisplayAllocatedImage->GetHeight());
 
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetHandle());
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 1, 1, staticSet.GetHandlePtr(), 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, textBlitterPipeline->GetLayout(), 1, 1, staticSet.GetHandlePtr(), 0, nullptr);
 
             // Push constant
             UIPushConstant pushConstant{};
@@ -1340,16 +1338,8 @@ void VulkanBackEnd::cmd_BindPipeline(VkCommandBuffer commandBuffer, Pipeline& pi
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline._handle);
 }
 
-void VulkanBackEnd::cmd_BindDescriptorSet(VkCommandBuffer commandBuffer, Pipeline& pipeline, uint32_t setIndex, HellDescriptorSet& descriptorSet) {
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline._layout, setIndex, 1, &descriptorSet.handle, 0, nullptr);
-}
-
 void VulkanBackEnd::cmd_BindRayTracingPipeline(VkCommandBuffer commandBuffer, VkPipeline pipeline) {
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline);
-}
-
-void VulkanBackEnd::cmd_BindRayTracingDescriptorSet(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, uint32_t setIndex, HellDescriptorSet& descriptorSet) {
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipelineLayout, setIndex, 1, &descriptorSet.handle, 0, nullptr);
 }
 
 GLFWwindow* VulkanBackEnd::GetWindow() {

@@ -114,9 +114,7 @@ namespace VulkanBackEnd {
 	// Commands
 	void cmd_SetViewportSize(VkCommandBuffer commandBuffer, int width, int height);
 	void cmd_BindPipeline(VkCommandBuffer commandBuffer, Pipeline& pipeline);
-	void cmd_BindDescriptorSet(VkCommandBuffer commandBuffer, Pipeline& pipeline, uint32_t setIndex, HellDescriptorSet& descriptorSet);
 	void cmd_BindRayTracingPipeline(VkCommandBuffer commandBuffer, VkPipeline pipeline);
-	void cmd_BindRayTracingDescriptorSet(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, uint32_t setIndex, HellDescriptorSet& descriptorSet);
 
 	inline uint32_t _frameIndex;
 
