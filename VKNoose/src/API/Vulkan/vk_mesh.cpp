@@ -7,25 +7,6 @@
 #include "AssetManagement/AssetManager.h"
 #include "API/Vulkan/Managers/vk_resource_manager.h"
 
-
-void MeshOLD::draw(VkCommandBuffer commandBuffer, uint32_t firstInstance)
-{
-	if (m_vertexCount <= 0)
-		return;
-
-	VkDeviceSize offset = 0;
-	if (m_indexCount > 0) {
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_vertexBufferOLD.m_buffer, &offset);
-		vkCmdBindIndexBuffer(commandBuffer, m_indexBufferOLD.m_buffer, 0, VK_INDEX_TYPE_UINT32);
-		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_indexCount), 1, 0, 0, firstInstance);
-	}
-	else {
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_vertexBufferOLD.m_buffer, &offset);
-		vkCmdDraw(commandBuffer, m_vertexCount, 1, 0, firstInstance);
-	}
-}
-
-
 uint64_t MeshOLD::GetVulkanAccelerationStructureDeviceAddress() {
 	if (VulkanAccelerationStructure* accelerationStructure = VulkanResourceManager::GetAccelerationStructure(m_vulkanAccelerationStructure)) {
 		return accelerationStructure->GetDeviceAddress();
@@ -34,7 +15,6 @@ uint64_t MeshOLD::GetVulkanAccelerationStructureDeviceAddress() {
 		return 0;
 	}
 }
-
 
 ModelOLD::ModelOLD(const char* filepath) {
 
@@ -98,7 +78,7 @@ ModelOLD::ModelOLD(const char* filepath) {
 
 		int meshIndex = AssetManager::CreateMeshOLD(vertices, indices);
 		m_meshIndices.push_back(meshIndex);
-		AssetManager::GetMesh(meshIndex)->m_name = shape.name;
+		AssetManager::GetMeshByIndexOLD(meshIndex)->m_name = shape.name;
 		m_meshNames.push_back(shape.name);
 		//std::cout << shape.name << "\n";
 	}
@@ -107,18 +87,4 @@ ModelOLD::ModelOLD(const char* filepath) {
 
 ModelOLD::ModelOLD() {
 	// intentionally blank
-}
-
-/*
-Model::Model(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, const char* name)
-{
-	Mesh& mesh = _meshes.emplace_back(Mesh());
-	mesh.load_from_raw_data(vertices, indices);
-	_filename = name;
-}*/
-
-void ModelOLD::draw(VkCommandBuffer commandBuffer, uint32_t firstInstance) {
-
-	for (int i = 0; i < m_meshIndices.size(); i++)
-		AssetManager::GetMesh(m_meshIndices[i])->draw(commandBuffer, firstInstance);
 }

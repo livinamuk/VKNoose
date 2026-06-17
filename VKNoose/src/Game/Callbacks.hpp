@@ -63,27 +63,39 @@ namespace Callbacks {
 	inline void TurnBedroomLightOn() {
 		Audio::PlayAudio("LightSwitchOn.wav");
 		Scene::SetLightState(0, Light::State::ON);
-		Scene::GetGameObjectByName("LightswitchBedroom")->_model = AssetManager::GetModel("LightSwitchOn");
-		Scene::GetGameObjectByName("LightswitchBedroom")->SetInteract(InteractType::CALLBACK_ONLY, "", Callbacks::TurnBedroomLightOff);
 
+        if (GameObject* gameObject = Scene::GetGameObjectByName("LightswitchBedroom")) {
+            gameObject->SetModel("LightSwitchOn");
+            gameObject->SetInteract(InteractType::CALLBACK_ONLY, "", Callbacks::TurnBedroomLightOff);
+		}
 	}
 	inline void TurnBedroomLightOff() {
 		Audio::PlayAudio("LightSwitchOff.wav");
 		Scene::SetLightState(0, Light::State::OFF);
-		Scene::GetGameObjectByName("LightswitchBedroom")->_model = AssetManager::GetModel("LightSwitchOff");
-		Scene::GetGameObjectByName("LightswitchBedroom")->SetInteract(InteractType::CALLBACK_ONLY, "", Callbacks::TurnBedroomLightOn);
+
+        if (GameObject* gameObject = Scene::GetGameObjectByName("LightswitchBedroom")) {
+            gameObject->SetModel("LightSwitchOff");
+            gameObject->SetInteract(InteractType::CALLBACK_ONLY, "", Callbacks::TurnBedroomLightOn);
+        }
 	}
+
 	inline void TurnBathroomLightOn() {
 		Audio::PlayAudio("LightSwitchOn.wav");
 		Scene::SetLightState(1, Light::State::ON);
-		Scene::GetGameObjectByName("LightswitchBathroom")->_model = AssetManager::GetModel("LightSwitchOn");
-		Scene::GetGameObjectByName("LightswitchBathroom")->SetInteract(InteractType::CALLBACK_ONLY, "", Callbacks::TurnBathroomLightOff);
 
+        if (GameObject* gameObject = Scene::GetGameObjectByName("LightswitchBathroom")) {
+            gameObject->SetModel("LightSwitchOn");
+            gameObject->SetInteract(InteractType::CALLBACK_ONLY, "", Callbacks::TurnBathroomLightOff);
+        }
 	}
+
 	inline void TurnBathroomLightOff() {
 		Audio::PlayAudio("LightSwitchOff.wav");
 		Scene::SetLightState(1, Light::State::OFF);
-		Scene::GetGameObjectByName("LightswitchBathroom")->_model = AssetManager::GetModel("LightSwitchOff");
-		Scene::GetGameObjectByName("LightswitchBathroom")->SetInteract(InteractType::CALLBACK_ONLY, "", Callbacks::TurnBathroomLightOn);
+
+        if (GameObject* gameObject = Scene::GetGameObjectByName("LightswitchBathroom")) {
+            gameObject->SetModel("LightSwitchOff");
+            gameObject->SetInteract(InteractType::CALLBACK_ONLY, "", Callbacks::TurnBathroomLightOn);
+        }
 	}
 }

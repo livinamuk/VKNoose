@@ -1,4 +1,5 @@
 #include "AssetManager.h"
+#include "Hell/Core/Logging.h"
 #include "Util.h"
 #include <future>
 
@@ -47,6 +48,10 @@ namespace AssetManager {
     ModelData ImportModel(const std::string& path) {
 		ModelData modelData;
 
+		// AABB
+        modelData.aabbMin = glm::vec3(99999.9f);
+        modelData.aabbMax = glm::vec3(-99999.9f);
+
 		tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
 		std::vector<tinyobj::material_t> materials;
@@ -60,9 +65,12 @@ namespace AssetManager {
 
 		std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
 
+
 		for (const auto& shape : shapes) {
 			std::vector<Vertex> vertices;
-			std::vector<uint32_t> indices;
+            std::vector<uint32_t> indices;
+            glm::vec3 aabbMin = glm::vec3(99999.9f);
+            glm::vec3 aabbMax = glm::vec3(-99999.9f);
 
 			for (int i = 0; i < shape.mesh.indices.size(); i++) {
 
@@ -90,6 +98,9 @@ namespace AssetManager {
 					vertices.push_back(vertex);
 				}
 
+                aabbMin = glm::min(aabbMin, vertex.position);
+                aabbMax = glm::max(aabbMax, vertex.position);
+
 				indices.push_back(uniqueVertices[vertex]);
 			}
 
@@ -105,11 +116,17 @@ namespace AssetManager {
 			meshData.vertices = vertices;
 			meshData.indices = indices;
 			meshData.vertexCount = vertices.size();
-			meshData.indexCount = indices.size();
+            meshData.indexCount = indices.size();
+            meshData.aabbMin = aabbMin;
+            meshData.aabbMax = aabbMax;
+
+            modelData.aabbMin = glm::min(modelData.aabbMin, meshData.aabbMin);
+			modelData.aabbMax = glm::max(modelData.aabbMax, meshData.aabbMax);
 		}
 
         modelData.meshCount = modelData.meshes.size();
         modelData.name = Util::GetFileInfo(path).filename;
+
 		return modelData;
     }
 
@@ -117,6 +134,17 @@ namespace AssetManager {
 		Model& model = GetModels().emplace_back();
 		model.SetName(name);
 		return model;
+	}
+
+	Model* GetModelByName(const std::string& name) {
+		for (Model& model : GetModels()) {
+			if (model.GetName() == name) {
+				return &model;
+			}
+		}
+
+		Logging::Error() << "AssetManager::GetModelByName(..) failed '" << name << "' not found\n";
+		return nullptr;
 	}
 
 	void BakeModels() {
@@ -136,7 +164,6 @@ namespace AssetManager {
 
 		// Copy the vertices/indices into the asset manager
 		for (Model& model : GetModels()) {
-			model.SetName(model.m_modelData.name);
 			model.SetAABB(model.m_modelData.aabbMin, model.m_modelData.aabbMax);
 
 			for (MeshData& meshData : model.m_modelData.meshes) {

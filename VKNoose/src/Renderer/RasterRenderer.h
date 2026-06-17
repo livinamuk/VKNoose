@@ -3,6 +3,8 @@
 #include "AssetManagement/AssetManager.h"
 #include "Material.hpp"
 
+#include "API/Vulkan/Renderer/vk_renderer.h"
+
 namespace RasterRenderer {
 
 	enum class Destination { MAIN_UI, LAPTOP_DISPLAY };
@@ -34,9 +36,24 @@ namespace RasterRenderer {
 		instanceCount++;
 	}
 
-	inline void DrawMesh(VkCommandBuffer commandbuffer, int index) {
-		MeshOLD* mesh = AssetManager::GetMesh(_UIToRender[index].meshIndex);
-		mesh->draw(commandbuffer, index);
+	inline void DrawMesh(VkCommandBuffer commandBuffer, int index) {
+        Mesh* mesh = AssetManager::GetMeshByIndex(_UIToRender[index].meshIndex);
+        if (!mesh) return;
+
+        if (mesh->GetVertexCount() == 0) return;
+		if (mesh->GetIndexCount() == 0) return;
+
+        VkDeviceSize offset = 0;
+		uint32_t firstInstance = index;
+
+        VulkanBuffer* vertexBuffer = VulkanRenderer::GetVertexBuffer();
+        VulkanBuffer* indexBuffer = VulkanRenderer::GetIndexBuffer();
+        VkBuffer vertexBufferPtr = vertexBuffer->GetBuffer();
+        VkBuffer indexBufferPtr = indexBuffer->GetBuffer();
+
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBufferPtr, &offset);
+		vkCmdBindIndexBuffer(commandBuffer, indexBufferPtr, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh->GetIndexCount()), 1, 0, 0, firstInstance);
 	}
 
 	inline void ClearQueue() {
@@ -83,7 +100,7 @@ namespace RasterRenderer {
 		transform.position.x = ndcX;
 		transform.position.y = ndcY * -1;
 		transform.scale = glm::vec3(width, height * -1, 1);
-		int meshIndex = AssetManager::GetModel("blitter_quad")->m_meshIndices[0];
+		int meshIndex = AssetManager::GetModelByName("blitter_quad")->GetMeshIndices()[0];
 		int textureIndex = AssetManager::GetTextureIndex(textureName);
 		SubmitUI(meshIndex, textureIndex, 0, transform.to_mat4(), destination, xClipMin, xClipMax, yClipMin, yClipMax);
 	}

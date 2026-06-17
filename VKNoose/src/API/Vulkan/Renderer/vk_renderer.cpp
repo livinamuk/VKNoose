@@ -150,9 +150,6 @@ namespace VulkanRenderer {
 		const std::vector<Vertex>& vertices = AssetManager::GetVertices();
 		const std::vector<uint32_t>& indices = AssetManager::GetIndices();
 
-		//std::vector<Vertex>& vertices2 = AssetManager::GetVertices_TEMPORARY();
-		//std::vector<uint32_t>& indices2 = AssetManager::GetIndices_TEMPORARY();
-
 		// Define the usage flags once
 		VkBufferUsageFlags usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT |
 			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |

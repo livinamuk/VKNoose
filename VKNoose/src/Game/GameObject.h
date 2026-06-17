@@ -14,7 +14,9 @@ enum class MaterialType { DEFAULT = 0, MIRROR = 1, GLASS = 2, LAPTOP_DISPLAY = 3
 
 struct GameObject {
 public:
-	ModelOLD* _model = nullptr;
+	ModelOLD* _modelOLD = nullptr;
+	Model* m_model = nullptr;
+
 	std::vector<int> _meshMaterialIndices;
 	std::vector<MaterialType> _meshMaterialTypes;
 	std::vector<Transform> _meshTransforms;

@@ -115,6 +115,7 @@ namespace AssetManager  {
 	// Models
 	std::vector<Model>& GetModels();
 	Model& CreateModel(const std::string& name);
+	Model* GetModelByName(const std::string& name);
 
 	// Vertex data
 	std::vector<Vertex>& GetVertices();
@@ -164,12 +165,12 @@ namespace AssetManager  {
 	void AddTexture(Texture& texture);
 	int GetTextureIndex(const std::string& name);
 	int GetMaterialIndex(const std::string& name);
-	MeshOLD* GetMesh(int index);
+	MeshOLD* GetMeshByIndexOLD(int index);
 	Texture* GetTexture(int index);
 	Texture* GetTexture(const std::string& filename);
 	Material* GetMaterial(int index);
 	Material* GetMaterial(const std::string& filename);
-	ModelOLD* GetModel(const std::string& name);
+	ModelOLD* GetModelByNameOLD(const std::string& name);
 	//std::vector<Model*> GetAllModels();
 
 	std::vector<MeshOLD>& GetMeshList();

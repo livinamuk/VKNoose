@@ -772,7 +772,7 @@ void Scene::UpdateInventoryScene(float deltaTime) {
 				if (GameData::GetInventoryItemNameByIndex(i) == GameData::_inventoryItemDataContainer[j].name) {
 					auto itemData = GameData::_inventoryItemDataContainer[j];
 					GameObject& item = _inventoryGameObjects.emplace_back(GameObject());
-					item._model = itemData.model;
+					item._modelOLD = itemData.model;
 
 					Transform trans = itemData.transform;
 					trans.position.x += i - camXOffset;
@@ -781,8 +781,8 @@ void Scene::UpdateInventoryScene(float deltaTime) {
 					//item.SetModelMatrix(translateYPos.to_mat4() * GameData::_inventoryExamineMatrix * trans.to_mat4());
 					item.SetModelMatrixTransformOverride(translateYPos.to_mat4() * trans.to_mat4());
 
-					item._meshMaterialIndices.resize(item._model->m_meshIndices.size());
-					item._meshMaterialTypes.resize(item._model->m_meshIndices.size());
+					item._meshMaterialIndices.resize(item._modelOLD->m_meshIndices.size());
+					item._meshMaterialTypes.resize(item._modelOLD->m_meshIndices.size());
 					item.SetMeshMaterial(itemData.material->_name.c_str());
 				}
 			}
@@ -854,15 +854,15 @@ void Scene::UpdateInventoryScene(float deltaTime) {
 
 			// Build the game objects vector						
 			GameObject& item = _inventoryGameObjects.emplace_back(GameObject());
-			item._model = inventoryItemData->model;
+			item._modelOLD = inventoryItemData->model;
 
 			Transform trans = inventoryItemData->transform;
 			trans.position.x += _selectedInventoryItemIndex - camXOffset;
 			trans.position.y +=  0;
 			item.SetModelMatrixTransformOverride(translateYPos.to_mat4() * GameData::_inventoryExamineMatrix * trans.to_mat4());
 
-			item._meshMaterialIndices.resize(item._model->m_meshIndices.size());
-			item._meshMaterialTypes.resize(item._model->m_meshIndices.size());
+			item._meshMaterialIndices.resize(item._modelOLD->m_meshIndices.size());
+			item._meshMaterialTypes.resize(item._modelOLD->m_meshIndices.size());
 			item.SetMeshMaterial(inventoryItemData->material->_name.c_str());
 
 			
@@ -1143,27 +1143,26 @@ std::vector<GameObject>& Scene::GetGameObjects() {
 	return _gameObjects;
 }
 
-std::vector<MeshInstance> Scene::GetSceneMeshInstances(bool debugScene)
-{
+std::vector<MeshInstance> Scene::GetSceneMeshInstances(bool debugScene) {
 	std::vector<MeshInstance> instances;
 
 	for (GameObject& gameObject : _gameObjects) {
-		for (int i = 0; i < gameObject._model->m_meshIndices.size(); i++) {
-			int meshIndex = gameObject._model->m_meshIndices[i];
-			MeshOLD* mesh = AssetManager::GetMesh(meshIndex);
+		for (int i = 0; i < gameObject.m_model->GetMeshIndices().size(); i++) {
+			int meshIndex = gameObject.m_model->GetMeshIndices()[i];
+			Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
 			MeshInstance instance;
 			instance.worldMatrix = gameObject.GetModelMatrix();
 			instance.basecolorIndex = gameObject.GetMaterial(i)->_basecolor;
 			instance.normalIndex = gameObject.GetMaterial(i)->_normal;
 			instance.rmaIndex = gameObject.GetMaterial(i)->_rma;
-			instance.vertexOffset = mesh->m_vertexOffset;
-			instance.indexOffset = mesh->m_indexOffset;
+			instance.vertexOffset = mesh->GetBaseVertex();
+			instance.indexOffset = mesh->GetBaseIndex();
 			instance.materialType = (int)gameObject._meshMaterialTypes[i];
 			instances.push_back(instance);
 		}
 	}
 	for (Wall& wall : _walls) {
-		MeshOLD* mesh = AssetManager::GetMesh(wall._meshIndex);
+		MeshOLD* mesh = AssetManager::GetMeshByIndexOLD(wall._meshIndex);
 		Material* material = wall._material;
 		if (!debugScene && material != AssetManager::GetMaterial("BathroomWall")) {
 			material = AssetManager::GetMaterial("WallPaper");
@@ -1187,22 +1186,22 @@ std::vector<MeshInstance> Scene::GetInventoryMeshInstances(bool debugScene)
 	std::vector<MeshInstance> instances;
 
 	for (GameObject& gameObject : _inventoryGameObjects) {
-		for (int i = 0; i < gameObject._model->m_meshIndices.size(); i++) {
-			int meshIndex = gameObject._model->m_meshIndices[i];
-			MeshOLD* mesh = AssetManager::GetMesh(meshIndex);
+		for (int i = 0; i < gameObject.m_model->GetMeshIndices().size(); i++) {
+			int meshIndex = gameObject.m_model->GetMeshIndices()[i];
+			Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
 			MeshInstance instance;
 			instance.worldMatrix = gameObject.GetModelMatrix();
 			instance.basecolorIndex = gameObject.GetMaterial(i)->_basecolor;
 			instance.normalIndex = gameObject.GetMaterial(i)->_normal;
 			instance.rmaIndex = gameObject.GetMaterial(i)->_rma;
-			instance.vertexOffset = mesh->m_vertexOffset;
-			instance.indexOffset = mesh->m_indexOffset;
+			instance.vertexOffset = mesh->GetBaseVertex();
+			instance.indexOffset = mesh->GetBaseIndex();
 			instance.materialType = (int)gameObject._meshMaterialTypes[i];
 			instances.push_back(instance);
 		}
 	}
 	for (Wall& wall : _inventoryWalls) {
-		MeshOLD* mesh = AssetManager::GetMesh(wall._meshIndex);
+		Mesh* mesh = AssetManager::GetMeshByIndex(wall._meshIndex);
 		Material* material = wall._material;
 		if (!debugScene && material != AssetManager::GetMaterial("BathroomWall")) {
 			material = AssetManager::GetMaterial("WallPaper");
@@ -1212,8 +1211,8 @@ std::vector<MeshInstance> Scene::GetInventoryMeshInstances(bool debugScene)
 		instance.basecolorIndex = material->_basecolor;
 		instance.normalIndex = material->_normal;
 		instance.rmaIndex = material->_rma;
-		instance.vertexOffset = mesh->m_vertexOffset;
-		instance.indexOffset = mesh->m_indexOffset;
+		instance.vertexOffset = mesh->GetBaseVertex();
+		instance.indexOffset = mesh->GetBaseIndex();
 		instance.materialType = (int)MaterialType::DEFAULT;
 		instances.push_back(instance);
 	}
@@ -1227,8 +1226,8 @@ std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForInvent
 	std::vector<VkAccelerationStructureInstanceKHR> instances;
 
 	for (GameObject& gameObject : _inventoryGameObjects) {
-		for (auto meshIndex : gameObject._model->m_meshIndices) {
-			MeshOLD* mesh = AssetManager::GetMesh(meshIndex);
+		for (auto meshIndex : gameObject.m_model->GetMeshIndices()) {
+			MeshOLD* mesh = AssetManager::GetMeshByIndexOLD(meshIndex);
 			VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
 			instance.transform = gameObject.GetVkTransformMatrixKHR();
 			instance.instanceCustomIndex = instanceCustomIndex++;
@@ -1240,7 +1239,7 @@ std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForInvent
 	}
 
 	for (Wall& wall : _inventoryWalls) {
-		MeshOLD* mesh = AssetManager::GetMesh(wall._meshIndex);
+		MeshOLD* mesh = AssetManager::GetMeshByIndexOLD(wall._meshIndex);
 		VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
 		instance.transform = Util::GetIdentiyVkTransformMatrixKHR();
 		instance.instanceCustomIndex = instanceCustomIndex++;
@@ -1257,8 +1256,8 @@ std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForSceneA
 	std::vector<VkAccelerationStructureInstanceKHR> instances;
 
 	for (GameObject& gameObject : _gameObjects) {
-		for (auto meshIndex : gameObject._model->m_meshIndices) {
-			MeshOLD* mesh = AssetManager::GetMesh(meshIndex);
+		for (auto meshIndex : gameObject._modelOLD->m_meshIndices) {
+			MeshOLD* mesh = AssetManager::GetMeshByIndexOLD(meshIndex);
 			VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
 			instance.transform = gameObject.GetVkTransformMatrixKHR();
 			instance.instanceCustomIndex = instanceCustomIndex++;
@@ -1269,7 +1268,7 @@ std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForSceneA
 		}
 	}
 	for (Wall& wall : _walls) {
-		MeshOLD* mesh = AssetManager::GetMesh(wall._meshIndex);
+		MeshOLD* mesh = AssetManager::GetMeshByIndexOLD(wall._meshIndex);
 		VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
 		instance.transform = Util::GetIdentiyVkTransformMatrixKHR();
 		instance.instanceCustomIndex = instanceCustomIndex++;
@@ -1285,12 +1284,12 @@ std::vector<MeshOLD*> Scene::GetSceneMeshes(bool debugScene)
 {
 	std::vector<MeshOLD*> meshes;
 	for (GameObject& gameObject : _gameObjects) {
-		for (auto meshIndex : gameObject._model->m_meshIndices) {
-			meshes.push_back(AssetManager::GetMesh(meshIndex));
+		for (auto meshIndex : gameObject._modelOLD->m_meshIndices) {
+			meshes.push_back(AssetManager::GetMeshByIndexOLD(meshIndex));
 		}
 	}
 	for (Wall& wall : _walls) {
-		meshes.push_back(AssetManager::GetMesh(wall._meshIndex));
+		meshes.push_back(AssetManager::GetMeshByIndexOLD(wall._meshIndex));
 	}
 	return meshes;
 }
@@ -1315,17 +1314,17 @@ void Scene::StoreMousePickResult(int instanceIndex, int primitiveIndex)
 	std::vector<MeshHitInfo> infos;
 
 	for (GameObject& gameObject : _gameObjects) {
-		for (auto meshIndex : gameObject._model->m_meshIndices) {
+		for (auto meshIndex : gameObject._modelOLD->m_meshIndices) {
 			MeshHitInfo& info = infos.emplace_back(MeshHitInfo());
-			info.model = gameObject._model;
-			info.mesh = AssetManager::GetMesh(meshIndex);
+			info.model = gameObject._modelOLD;
+			info.mesh = AssetManager::GetMeshByIndexOLD(meshIndex);
 			info.parent = &gameObject;
 		}
 	}
 	for (Wall& wall : _walls) {
 		MeshHitInfo& info = infos.emplace_back(MeshHitInfo());
 		info.model = nullptr;
-		info.mesh = AssetManager::GetMesh(wall._meshIndex);
+		info.mesh = AssetManager::GetMeshByIndexOLD(wall._meshIndex);
 		info.parent = &wall;
 	}
 
@@ -1341,7 +1340,7 @@ void Scene::StoreMousePickResult(int instanceIndex, int primitiveIndex)
 	// Find the vertices
 	for (GameObject& gameObject : _gameObjects) {
 		if (&gameObject == hitInfo.parent) {
-			_hitModelName = gameObject._model->m_filename;
+			_hitModelName = gameObject._modelOLD->m_filename;
 			int indexOffset = hitInfo.mesh->m_indexOffset;
 			int vertexOffset = hitInfo.mesh->m_vertexOffset;
 			int index0 = AssetManager::GetIndex(3 * primitiveIndex + 0 + indexOffset);
@@ -1362,7 +1361,7 @@ void Scene::StoreMousePickResult(int instanceIndex, int primitiveIndex)
 	for (Wall& wall : _walls) {
 		if (&wall == hitInfo.parent) {
 			_hitModelName = "Wall";
-			MeshOLD* mesh = AssetManager::GetMesh(wall._meshIndex);
+			MeshOLD* mesh = AssetManager::GetMeshByIndexOLD(wall._meshIndex);
 			int indexOffset = hitInfo.mesh->m_indexOffset;
 			int vertexOffset = hitInfo.mesh->m_vertexOffset;
 			int index0 = AssetManager::GetIndex(3 * primitiveIndex + 0 + indexOffset);

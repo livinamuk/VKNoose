@@ -4,8 +4,10 @@
 #include "API/Vulkan/Managers/vk_device_manager.h"
 #include "API/Vulkan/Managers/vk_memory_manager.h"
 #include "API/Vulkan/Managers/vk_resource_manager.h"
+#include "API/Vulkan/Renderer/vk_renderer.h"
 #include "API/Vulkan/vk_utils.h"
 #include "API/Vulkan/vk_mesh.h"
+
 #include "Hell/Types.h"
 
 namespace VulkanRaytracingManager {
@@ -101,6 +103,10 @@ namespace VulkanRaytracingManager {
         indexBufferDeviceAddress.deviceAddress = VulkanUtils::GetBufferDeviceAddress(device, mesh->m_indexBufferOLD.m_buffer);
         transformBufferDeviceAddress.deviceAddress = VulkanUtils::GetBufferDeviceAddress(device, mesh->m_transformBufferOLD.m_buffer);
     
+        //vertexBufferDeviceAddress.deviceAddress = VulkanRenderer::GetVertexBuffer()->GetDeviceAddress() + mesh->m_vertexOffset * sizeof(Vertex);
+        //indexBufferDeviceAddress.deviceAddress = VulkanRenderer::GetIndexBuffer()->GetDeviceAddress() + mesh->m_indexOffset * sizeof(uint32_t);
+        //transformBufferDeviceAddress.deviceAddress = VulkanUtils::GetBufferDeviceAddress(device, mesh->m_transformBufferOLD.m_buffer);
+
         // Standard geometry setup for triangles
         VkAccelerationStructureGeometryKHR geometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
         geometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;

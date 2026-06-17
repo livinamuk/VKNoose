@@ -332,18 +332,18 @@ void GameObject::SetOpenState(OpenState openState, float speed, float min, float
 	_maxOpenAmount = max;
 }
 
-void GameObject::SetModel(const std::string& name)
-{
-	_model = AssetManager::GetModel(name);
+void GameObject::SetModel(const std::string& name){
+    m_model = AssetManager::GetModelByName(name);
+    if (m_model) {
+        _meshMaterialIndices.resize(m_model->GetMeshCount());
+        _meshMaterialTypes.resize(m_model->GetMeshCount());
+        _meshTransforms.resize(m_model->GetMeshCount());
+    }
+    else {
+        std::cout << "Failed to set model '" << name << "', it does not exist.\n";
+    }
 
-	if (_model) {
-		_meshMaterialIndices.resize(_model->m_meshIndices.size());
-		_meshMaterialTypes.resize(_model->m_meshIndices.size());
-		_meshTransforms.resize(_model->m_meshIndices.size());
-	}
-	else {
-		std::cout << "Failed to set model '" << name << "', it does not exist.\n";
-	}
+	_modelOLD = AssetManager::GetModelByNameOLD(name); // REMOVE ME
 }
 
 VkTransformMatrixKHR GameObject::GetVkTransformMatrixKHR() {
@@ -413,29 +413,16 @@ void GameObject::SetInteract(InteractType type, std::string text, std::function<
 }
 
 void GameObject::SetBoundingBoxFromMesh(int meshIndex) {
-
-	MeshOLD* mesh = AssetManager::GetMesh(_model->m_meshIndices[meshIndex]);	
-	std::vector<Vertex>& vertices = AssetManager::GetVertices();
-	std::vector<uint32_t>& indices = AssetManager::GetIndices();
-
-	int firstIndex = mesh->m_indexOffset;
-	int lastIndex = firstIndex + (int)mesh->m_indexCount;
-
-	for (int i = firstIndex; i < lastIndex; i++) {
-		_boundingBox.xLow = std::min(_boundingBox.xLow, vertices[indices[i] + mesh->m_vertexOffset].position.x);
-		_boundingBox.xHigh = std::max(_boundingBox.xHigh, vertices[indices[i] + mesh->m_vertexOffset].position.x);
-		_boundingBox.zLow = std::min(_boundingBox.zLow, vertices[indices[i] + mesh->m_vertexOffset].position.z);
-		_boundingBox.zHigh = std::max(_boundingBox.zHigh, vertices[indices[i] + mesh->m_vertexOffset].position.z);
-	}	
-	/*
-	std::cout << "\n" << GetName() << "\n";
-	std::cout << " meshIndex: " << meshIndex << "\n";
-	std::cout << " firstIndex: " << firstIndex << "\n";
-	std::cout << " lastIndex: " << lastIndex << "\n";
-	std::cout << " _boundingBox.xLow: " << _boundingBox.xLow << "\n";
-	std::cout << " _boundingBox.xHigh: " << _boundingBox.xHigh << "\n";
-	std::cout << " _boundingBox.zLow: " << _boundingBox.zLow << "\n";
-	std::cout << " _boundingBox.zHigh: " << _boundingBox.zHigh << "\n";*/
+	if (!m_model) return;
+	
+	for (uint32_t meshIndex : m_model->GetMeshIndices()) {
+		Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
+		
+        _boundingBox.xLow = std::min(_boundingBox.xLow, mesh->aabbMin.x);
+        _boundingBox.xHigh = std::max(_boundingBox.xHigh, mesh->aabbMax.x);
+        _boundingBox.zLow = std::min(_boundingBox.zLow, mesh->aabbMin.z);
+        _boundingBox.zHigh = std::max(_boundingBox.zHigh, mesh->aabbMax.z);
+	}
 }
 
 BoundingBox GameObject::GetBoundingBox() {
@@ -492,11 +479,19 @@ void GameObject::SetInteractToAffectAnotherObject(std::string objectName)
 }
 
 void GameObject::SetMeshMaterialByMeshName(std::string meshName, std::string materialName) {
-	if (_model && AssetManager::GetMaterial(materialName)) {
-		for(int i = 0; i < _model->m_meshNames.size(); i++) {
-			if (_model->m_meshNames[i] == meshName) {
-				_meshMaterialIndices[i] = AssetManager::GetMaterialIndex(materialName);
-			}
-		}
-	}
+    if (!m_model) return;
+
+	int materialIndex = AssetManager::GetMaterialIndex(materialName);
+	if (materialIndex == -1) return;
+
+    for (int i = 0; i < m_model->GetMeshIndices().size(); i++) {
+		int meshIndex = m_model->GetMeshIndices()[i];
+
+		Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
+		if (!mesh) continue;
+
+        if (mesh->GetName() == meshName) {
+            _meshMaterialIndices[i] = AssetManager::GetMaterialIndex(materialName);
+        }
+    }
 }

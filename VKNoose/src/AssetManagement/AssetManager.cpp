@@ -1,6 +1,7 @@
 #include "AssetManager.h"
 #include "../Util.h"
 #include "API/Vulkan/vk_initializers.h"
+#include "Hell/Core/Logging.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -64,6 +65,7 @@ namespace AssetManager {
 		for (FileInfo fileInfo : Util::IterateDirectory("res/models", {"obj"})) {
 			Model& model = g_models.emplace_back();
 			model.SetFileInfo(fileInfo);
+			model.SetName(fileInfo.name);
 		}
 	}
 
@@ -381,14 +383,6 @@ uint32_t AssetManager::GetIndex(int offset) {
 	return _indicesOLD[offset];
 }
 
-//std::vector<Vertex>& AssetManager::GetVertices_TEMPORARY() {
-//	return _verticesOLD;
-//}
-//
-//std::vector<uint32_t>& AssetManager::GetIndices_TEMPORARY() {
-//	return _indicesOLD;
-//}
-
 std::vector<MeshOLD>& AssetManager::GetMeshList() {
 	return _meshes;
 }
@@ -422,7 +416,7 @@ int AssetManager::CreateModel(std::vector<int> meshIndices) {
 
 }*/
 
-MeshOLD* AssetManager::GetMesh(int index) {
+MeshOLD* AssetManager::GetMeshByIndexOLD(int index) {
 	if (index >= 0 && index < _meshes.size())
 		return &_meshes[index];
 	else
@@ -966,7 +960,7 @@ bool AssetManager::LoadNextModel() {
 }
 
 
-ModelOLD* AssetManager::GetModel(const std::string & name) {
+ModelOLD* AssetManager::GetModelByNameOLD(const std::string & name) {
 	auto it = _models.find(name);
 	if (it == _models.end()) {
 		std::cout << "GetModel() failed coz " << name << " was not found\n";

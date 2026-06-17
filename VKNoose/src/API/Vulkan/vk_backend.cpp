@@ -582,7 +582,11 @@ void VulkanBackEnd::LoadLegacyShaders() {
 
 
 void VulkanBackEnd::upload_meshes() {
-	for (MeshOLD& mesh : AssetManager::GetMeshList()) {
+	std::vector<MeshOLD>& meshes = AssetManager::GetMeshList();
+
+	for (int i = 0; i < meshes.size(); i++) {
+		MeshOLD& mesh = meshes[i];
+	
 		if (!mesh.m_uploadedToGPU) {
 			upload_mesh(mesh);
 			mesh.m_vulkanAccelerationStructure = VulkanResourceManager::CreateAccelerationStructure();
@@ -821,7 +825,7 @@ void VulkanBackEnd::create_rt_buffers() {
 void VulkanBackEnd::UpdateBuffers2D() {
 
 	// Queue all text characters for rendering
-	int quadMeshIndex = AssetManager::GetModel("blitter_quad")->m_meshIndices[0];
+	int quadMeshIndex = AssetManager::GetMeshIndexByName("blitter_quad_mesh");
 	for (auto& instanceInfo : TextBlitter::_objectData) {
 			RasterRenderer::SubmitUI(quadMeshIndex, instanceInfo.index_basecolor, instanceInfo.index_color, instanceInfo.modelMatrix, RasterRenderer::Destination::MAIN_UI, instanceInfo.xClipMin, instanceInfo.xClipMax, instanceInfo.yClipMin, instanceInfo.yClipMax); // Todo: You are storing color in the normals. Probably not a major deal but could be confusing at some point down the line.
 	}
@@ -1134,6 +1138,40 @@ void VulkanBackEnd::UpdateDynamicDescriptorSet() {
 	VulkanRenderer::UpdateDynamicDescriptorSet();
 }
 
+void DrawMesh(VkCommandBuffer commandBuffer, uint32_t meshIndex, uint32_t firstInstance) {
+    Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
+    if (!mesh) return;
+
+    if (mesh->GetVertexCount() == 0) return;
+    if (mesh->GetIndexCount() == 0) return;
+
+    VkDeviceSize offset = 0;
+
+    VulkanBuffer* vertexBuffer = VulkanRenderer::GetVertexBuffer();
+    VulkanBuffer* indexBuffer = VulkanRenderer::GetIndexBuffer();
+    VkBuffer vertexBufferPtr = vertexBuffer->GetBuffer();
+    VkBuffer indexBufferPtr = indexBuffer->GetBuffer();
+
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBufferPtr, &offset);
+    vkCmdBindIndexBuffer(commandBuffer, indexBufferPtr, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh->GetIndexCount()), 1, 0, 0, firstInstance);
+}
+
+void DrawMesh(VkCommandBuffer commandBuffer, Mesh* mesh, uint32_t firstInstance) {
+    if (!mesh || mesh->GetVertexCount() == 0 || mesh->GetIndexCount() == 0) return;
+
+    VulkanBuffer* vertexBuffer = VulkanRenderer::GetVertexBuffer();
+    VulkanBuffer* indexBuffer = VulkanRenderer::GetIndexBuffer();
+    VkBuffer vertexBufferPtr = vertexBuffer->GetBuffer();
+    VkBuffer indexBufferPtr = indexBuffer->GetBuffer();
+
+    VkDeviceSize offset = 0;
+
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBufferPtr, &offset);
+    vkCmdBindIndexBuffer(commandBuffer, indexBufferPtr, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh->GetIndexCount()), 1, 0, 0, firstInstance);
+}
+
 void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 	uint32_t frameIndex = VulkanRenderer::GetCurrentFrameIndex();
 	VulkanFrameData& frameData = VulkanRenderer::GetCurrentFrameData();
@@ -1286,7 +1324,9 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, compositePipeline->GetHandle());
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, compositePipeline->GetLayout(), 0, 1, staticDescriptorSet.GetHandlePtr(), 0, nullptr);
 
-		AssetManager::GetMesh(AssetManager::GetModel("fullscreen_quad")->m_meshIndices[0])->draw(commandBuffer, 0);
+        uint32_t meshIndex = AssetManager::GetModelByName("fullscreen_quad")->GetMeshIndices()[0];
+		DrawMesh(commandBuffer, meshIndex, 0);
+
 		vkCmdEndRendering(commandBuffer);
 
 		// Blit Composite to Present
@@ -1342,7 +1382,21 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 			LineShaderPushConstants constants;
 			constants.transformation = projection * view;
 			vkCmdPushConstants(commandBuffer, linesPipeline->GetLayout(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(LineShaderPushConstants), &constants);
-			_lineListMesh.draw(commandBuffer, 0);
+
+            if (_lineListMesh.GetVertexCount() == 0) return;
+            if (_lineListMesh.GetIndexCount() == 0) return;
+
+            VulkanBuffer* vertexBuffer = VulkanRenderer::GetVertexBuffer();
+            VulkanBuffer* indexBuffer = VulkanRenderer::GetIndexBuffer();
+            VkBuffer vertexBufferPtr = vertexBuffer->GetBuffer();
+            VkBuffer indexBufferPtr = indexBuffer->GetBuffer();
+
+            VkDeviceSize offset = 0;
+            uint32_t firstInstance = 0;
+
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBufferPtr, &offset);
+            vkCmdBindIndexBuffer(commandBuffer, indexBufferPtr, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(_lineListMesh.GetIndexCount()), 1, 0, 0, firstInstance);
 		}
 		vkCmdEndRendering(commandBuffer);
 	}
