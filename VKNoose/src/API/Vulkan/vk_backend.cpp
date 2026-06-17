@@ -80,6 +80,7 @@ namespace VulkanBackEnd {
 		VulkanSampler* linearSampler = VulkanResourceManager::GetSampler("Linear");
 		if (!linearSampler) return false;
 
+
 		VulkanDescriptorSet& bindlessSet = VulkanRenderer::GetStaticDescriptorSet();
 		HellDescriptorSet& legacySet = VulkanDescriptorManager::GetStaticDescriptorSet();
 
@@ -241,6 +242,7 @@ void VulkanBackEnd::RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuff
 	if (!loadingTarget) return;
 	if (!textBlitterPipeline) return;
 
+    VulkanFrameData& frameData = VulkanRenderer::GetCurrentFrameData();
 	uint32_t frameIndex = VulkanRenderer::GetCurrentFrameIndex();
 
 	VkRenderingAttachmentInfo renderingAttachmentInfo = {};
@@ -269,6 +271,11 @@ void VulkanBackEnd::RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuff
 
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 0, 1, &dynamicSet.handle, 0, nullptr);
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 1, 1, &staticSet.handle, 0, nullptr);
+
+    // Push constant
+    UIPushConstant pushConstant{};
+    pushConstant.instancesDeviceAddress = VulkanResourceManager::GetBuffer(frameData.buffers.uiInstances)->GetDeviceAddress();
+    vkCmdPushConstants(commandBuffer, textBlitterPipeline->GetLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(UIPushConstant), &pushConstant);
 
 	for (int i = 0; i < RasterRenderer::instanceCount; i++) {
 		if (RasterRenderer::_UIToRender[i].destination == RasterRenderer::Destination::MAIN_UI) {
@@ -1208,6 +1215,11 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetHandle());
 			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 0, 1, &dynamicSet.handle, 0, nullptr);
 			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 1, 1, &staticSet.handle, 0, nullptr);
+
+            // Push constant
+            UIPushConstant pushConstant{};
+            pushConstant.instancesDeviceAddress = VulkanResourceManager::GetBuffer(frameData.buffers.uiInstances)->GetDeviceAddress();
+            vkCmdPushConstants(commandBuffer, textBlitterPipeline->GetLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(UIPushConstant), &pushConstant);
 
 			for (int i = 0; i < RasterRenderer::instanceCount; i++) {
 				if (RasterRenderer::_UIToRender[i].destination == RasterRenderer::Destination::LAPTOP_DISPLAY)

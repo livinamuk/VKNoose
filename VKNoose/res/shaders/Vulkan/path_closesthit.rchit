@@ -9,6 +9,7 @@
 #include "pbr_functions.glsl"
 #include "types.glsl"
 #include "constants.glsl"
+#include "push_constants.glsl"
 
 layout(location = 0) rayPayloadInEXT RayPayload rayPayload;
 layout(location = 1) rayPayloadEXT bool isShadowed;

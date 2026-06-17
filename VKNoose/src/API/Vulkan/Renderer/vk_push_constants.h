@@ -1,5 +1,5 @@
 #pragma once
-#include "API/Vulkan/vk_common.h"
+#include <cstdint>
 
 struct ScenePushConstants {
     uint64_t instancesDeviceAddress = 0;
@@ -11,4 +11,9 @@ struct ScenePushConstants {
     uint32_t padding1;
     uint32_t padding2;
     uint32_t padding3;
+};
+
+struct UIPushConstant {
+    uint64_t instancesDeviceAddress;
+    uint64_t padding0;
 };

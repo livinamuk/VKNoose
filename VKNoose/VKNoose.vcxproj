@@ -245,7 +245,6 @@
     <None Include="res\shaders\path_miss.rmiss" />
     <None Include="res\shaders\path_raygen.rgen" />
     <None Include="res\shaders\path_shadow.rmiss" />
-    <None Include="res\shaders\Vulkan\constants.glsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
