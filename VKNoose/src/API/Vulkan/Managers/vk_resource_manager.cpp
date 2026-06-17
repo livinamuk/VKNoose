@@ -166,4 +166,12 @@ namespace VulkanResourceManager {
     bool ShaderExists(const std::string& name) {
         return g_shaders.find(name) != g_shaders.end();
     }
+
+    void HotloadShaders() {
+        VkDevice device = VulkanDeviceManager::GetDevice();
+
+        for (auto& [name, shader] : g_shaders) {
+            shader.Hotload(device);
+        }
+    }
 }

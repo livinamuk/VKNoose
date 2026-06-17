@@ -83,7 +83,8 @@ namespace VulkanBackEnd {
 	void ToggleFullscreen();
 	bool ProgramIsMinimized();
 	void LoadNextItem();
-	void AddLoadingText(std::string text);
+    void AddLoadingText(const std::string& text);
+    void HotloadShaders();
 }
 
 
@@ -93,7 +94,6 @@ namespace VulkanBackEnd {
 	inline bool _loaded = false;
 
 	
-	void hotload_shaders();
 
 	void RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuffer);
 	void PrepareSwapchainForPresent(VkCommandBuffer commandBuffer, uint32_t swapchainImageIndex);

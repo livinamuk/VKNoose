@@ -18,7 +18,7 @@ namespace VulkanPipelineManager {
     void CreatePathRaytracingPipeline();
     void CreateMousePickRaytracingPipeline();
 
-    VulkanPipeline& CreatPipeline(const std::string& name);
+    VulkanPipeline& CreatePipeline(const std::string& name);
     VulkanRaytracingPipeline& CreateRaytracingPipeline(const std::string& name);
 
     bool Init() {
@@ -220,6 +220,7 @@ namespace VulkanPipelineManager {
 
     void ReloadAll() {
         std::cout << "[Pipeline Manager] Reloading all pipelines...\n";
+        Cleanup();
         Init();
     }
 }

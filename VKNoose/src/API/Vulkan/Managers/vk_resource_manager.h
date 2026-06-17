@@ -39,4 +39,5 @@ namespace VulkanResourceManager {
     VulkanShader& CreateShader(const std::string& name, const std::vector<std::string>& paths);
     VulkanShader* GetShader(const std::string& name);
     bool ShaderExists(const std::string& name);
+    void HotloadShaders();
 }

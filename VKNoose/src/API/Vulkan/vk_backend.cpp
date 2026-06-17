@@ -115,7 +115,7 @@ namespace VulkanBackEnd {
 #include <set>
 
 
-void VulkanBackEnd::AddLoadingText(std::string text) {
+void VulkanBackEnd::AddLoadingText(const std::string& text) {
 	_loadingText.push_back(text);
 }
 
@@ -485,11 +485,12 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 	Input::_mouseWheelValue = (int)yoffset;
 }
 
-void VulkanBackEnd::hotload_shaders() {
+void VulkanBackEnd::HotloadShaders() {
 	std::cout << "Hotloading shaders...\n";
 
 	vkDeviceWaitIdle(GetDevice());
 
+    VulkanResourceManager::HotloadShaders();
 	VulkanPipelineManager::ReloadAll();
 }
 
