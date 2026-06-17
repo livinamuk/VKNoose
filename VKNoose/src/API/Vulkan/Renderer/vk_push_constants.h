@@ -2,11 +2,13 @@
 #include "API/Vulkan/vk_common.h"
 
 struct ScenePushConstants {
-    VkDeviceAddress verticesPtr;
-    VkDeviceAddress indicesPtr;
-    VkDeviceAddress instancesPtr;
-    VkDeviceAddress lightsPtr;
-    VkDeviceAddress sceneDataPtr;
+    uint64_t instancesDeviceAddress = 0;
+    uint64_t lightsDeviceAddress = 0;
+    uint64_t cameraDeviceAddress = 0;
+    uint64_t padding0 = 0;
+
     uint32_t lightCount;
-    uint32_t padding0;
+    uint32_t padding1;
+    uint32_t padding2;
+    uint32_t padding3;
 };

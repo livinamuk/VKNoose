@@ -224,12 +224,12 @@ namespace VulkanRenderer {
 
 		DynamicDeviceAddresses addresses;
 		addresses.sceneCameraData = VulkanResourceManager::GetBuffer(frameData.buffers.sceneCameraData)->GetDeviceAddress();
-		addresses.sceneInstances = VulkanResourceManager::GetBuffer(frameData.buffers.sceneInstances)->GetDeviceAddress();
-		addresses.sceneLights = VulkanResourceManager::GetBuffer(frameData.buffers.sceneLights)->GetDeviceAddress();
+		//addresses.sceneInstances = VulkanResourceManager::GetBuffer(frameData.buffers.sceneInstances)->GetDeviceAddress();
+		//addresses.sceneLights = VulkanResourceManager::GetBuffer(frameData.buffers.sceneLights)->GetDeviceAddress();
 		addresses.inventoryCameraData = VulkanResourceManager::GetBuffer(frameData.buffers.inventoryCameraData)->GetDeviceAddress();
-		addresses.inventoryInstances = VulkanResourceManager::GetBuffer(frameData.buffers.inventoryInstances)->GetDeviceAddress();
-		addresses.inventoryLights = VulkanResourceManager::GetBuffer(frameData.buffers.inventoryLights)->GetDeviceAddress();
-		addresses.uiInstances = VulkanResourceManager::GetBuffer(frameData.buffers.uiInstances)->GetDeviceAddress();
+		//addresses.inventoryInstances = VulkanResourceManager::GetBuffer(frameData.buffers.inventoryInstances)->GetDeviceAddress();
+		//addresses.inventoryLights = VulkanResourceManager::GetBuffer(frameData.buffers.inventoryLights)->GetDeviceAddress();
+		//addresses.uiInstances = VulkanResourceManager::GetBuffer(frameData.buffers.uiInstances)->GetDeviceAddress();
 
 		VulkanBuffer* addressTableBuffer = VulkanResourceManager::GetBuffer(frameData.buffers.deviceAddressTable);
 		addressTableBuffer->UpdateData(&addresses, sizeof(DynamicDeviceAddresses));

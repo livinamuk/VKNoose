@@ -14,80 +14,18 @@ layout(location = 0) rayPayloadInEXT RayPayload rayPayload;
 layout(location = 1) rayPayloadEXT bool isShadowed;
 layout(location = 2) rayPayloadInEXT Payload payload;
 
-struct Vertex {
-	vec3 position;
-	float pad;
-	vec3 normal;
-	float pad2;
-	vec2 texCoord;
-	vec2 pad3;
-	vec3 tangent;
-	float pad4;
-};
+layout(push_constant, scalar) uniform PushConstants { 
+	ScenePushConstant scene; 
+} pushConstant;
 
-//TODO:
-struct SceneData {
-	int lightCount;
-};
-
-struct SceneDeviceAddresses {
-    uint64_t vertices;
-    uint64_t indices;
-    uint64_t instances;
-    uint64_t lights;
-    uint64_t tlas;
-    uint64_t sceneData;
-};
-// 
-
-struct Light {
-	vec4 position;
-	vec4 color;
-};
-
-struct MeshInstance {
-	mat4 worldMatrix;
-
-	uint64_t vertexBufferAddress;
-	uint64_t indexBufferAddress;
-	
-	uint vertexOffset;
-	uint indexOffset;
-	uint basecolorIndex;
-	uint normalIndex;
-	
-	uint rmaIndex;
-	uint materialType; // 0 standard, 1 mirror, 2 glass 
-	uint dummy1;
-	uint dummy2;
-};
-
-layout(buffer_reference, scalar) readonly buffer LightBuffer { Light arr[]; };
-layout(buffer_reference, scalar) readonly buffer SceneInstancesBuffer { MeshInstance arr[]; };
-
-layout(buffer_reference, scalar) readonly buffer                             VertexBuffer { Vertex v[]; };
-layout(buffer_reference, scalar, buffer_reference_align = 4) readonly buffer IndexBuffer { uint i[]; };
-
-struct DeviceAddresses {
-    uint64_t sceneCameraData;
-    uint64_t sceneInstances;
-    uint64_t sceneLights;
-    uint64_t inventoryCameraData;
-    uint64_t inventoryInstances;
-    uint64_t inventoryLights;
-    uint64_t uiInstances;
-};
+layout(buffer_reference, scalar) readonly buffer CameraDataBuffer { CameraData data; };
+layout(buffer_reference, scalar) readonly buffer Lights { Light data[]; };
+layout(buffer_reference, scalar) readonly buffer Instances { Instance data[]; };
+layout(buffer_reference, scalar) readonly buffer Vertices { Vertex data[]; };
+layout(buffer_reference, scalar, buffer_reference_align = 4) readonly buffer Indices { uint data[]; };
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
-layout(set = 0, binding = 1) uniform CameraData_ { CameraData data; } cam;
-
-layout(set = 0, binding = 2) buffer MeshInstances { MeshInstance i[]; } meshInstances;
-layout(set = 0, binding = 4) buffer Lights_ { Light i[]; } lights;
-
 layout(set = 2, binding = 7) uniform sampler2D laptop_render_texture;
-
-// Global Device addresses (TODO: split these into SceneDeviceAddresses)
-layout(set = 4, binding = 0) readonly buffer GlobalAddressTable { DeviceAddresses addresses; } table;
 
 // Static Descriptor set
 layout(set = 3, binding = DESC_IDX_SAMPLERS)                uniform sampler samplers[];
@@ -142,7 +80,7 @@ vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic,
 	finalColor = finalColor * doom;
 
 	// sample indirect direction	
-	//uint seed = uint(cam.data.frameIndex + worldPos.x + worldPos.y + worldPos.z + 6431);
+	//uint seed = uint(camera.frameIndex + worldPos.x + worldPos.y + worldPos.z + 6431);
 	///vec3 random = random_pcg3d(uvec3(gl_LaunchIDEXT.xy, rayPayload.bounce + seed * 6341));
 
 	
@@ -205,38 +143,32 @@ vec3 CalculatePBR (vec3 baseColor, vec3 normal, float roughness, float metallic,
 	return finalColor;
 }
 
-
-
 void main() {
-	uint64_t lightsAddress = table.addresses.sceneLights;
-	uint64_t sceneInstancesAddress = table.addresses.sceneInstances;
-	
-    LightBuffer lights = LightBuffer(lightsAddress);
-    SceneInstancesBuffer sceneInstances = SceneInstancesBuffer(sceneInstancesAddress);
+	CameraDataBuffer cameraBuffer = CameraDataBuffer(pushConstant.scene.cameraDeviceAddress);
+	CameraData camera = cameraBuffer.data;
 
-	// Retreive the index of the mesh hit
-    MeshInstance meshInstance = sceneInstances.arr[gl_InstanceCustomIndexEXT];
+	Lights lights = Lights(pushConstant.scene.lightsDeviceAddress);
+	Instances instances = Instances(pushConstant.scene.instancesDeviceAddress);
+
+    Instance instance = instances.data[gl_InstanceCustomIndexEXT];
+	mat4 worldMatrix = instance.worldMatrix;
+	uint vertexOffset = instance.vertexOffset;
+	uint indexOffset = instance.indexOffset;
+	uint materialType = instance.materialType;
     
-	//MeshInstance meshInstance = meshInstances.i[gl_InstanceCustomIndexEXT];
-	rayPayload.meshIndex = gl_InstanceCustomIndexEXT;
-	
-	mat4 worldMatrix = meshInstance.worldMatrix;
-	uint vertexOffset = meshInstance.vertexOffset;
-	uint indexOffset = meshInstance.indexOffset;
-	uint materialType = meshInstance.materialType;
-         
+	rayPayload.meshIndex = gl_InstanceCustomIndexEXT;     
     const vec3 barycentrics = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
 
-	VertexBuffer vertices = VertexBuffer(meshInstance.vertexBufferAddress);
-	IndexBuffer indices = IndexBuffer(meshInstance.indexBufferAddress);
+	Vertices vertices = Vertices(instance.vertexBufferAddress);
+	Indices indices = Indices(instance.indexBufferAddress);
 
-	uint index0 = indices.i[meshInstance.indexOffset + gl_PrimitiveID * 3 + 0];
-	uint index1 = indices.i[meshInstance.indexOffset + gl_PrimitiveID * 3 + 1];
-	uint index2 = indices.i[meshInstance.indexOffset + gl_PrimitiveID * 3 + 2];
+	uint index0 = indices.data[instance.indexOffset + gl_PrimitiveID * 3 + 0];
+	uint index1 = indices.data[instance.indexOffset + gl_PrimitiveID * 3 + 1];
+	uint index2 = indices.data[instance.indexOffset + gl_PrimitiveID * 3 + 2];
 
-	Vertex v0 = vertices.v[meshInstance.vertexOffset + index0];
-	Vertex v1 = vertices.v[meshInstance.vertexOffset + index1];
-	Vertex v2 = vertices.v[meshInstance.vertexOffset + index2];
+	Vertex v0 = vertices.data[instance.vertexOffset + index0];
+	Vertex v1 = vertices.data[instance.vertexOffset + index1];
+	Vertex v2 = vertices.data[instance.vertexOffset + index2];
 
 	const vec3 pos0 = v0.position.xyz;
 	const vec3 pos1 = v1.position.xyz;
@@ -252,9 +184,9 @@ void main() {
 	const vec4 tng2 = vec4(v2.tangent, 0);
 		
     vec2 texCoord = v0.texCoord * barycentrics.x + v1.texCoord * barycentrics.y + v2.texCoord * barycentrics.z;
-    vec4 baseColor = texture(sampler2D(textures[meshInstance.basecolorIndex], samplers[0]), texCoord).rgba;
-    vec3 rma = texture(sampler2D(textures[meshInstance.rmaIndex], samplers[0]), texCoord).rgb;	
-	vec3 normalMap = texture(sampler2D(textures[meshInstance.normalIndex], samplers[0]), texCoord).rgb;
+    vec4 baseColor = texture(sampler2D(textures[instance.basecolorIndex], samplers[0]), texCoord).rgba;
+    vec3 rma = texture(sampler2D(textures[instance.rmaIndex], samplers[0]), texCoord).rgb;	
+	vec3 normalMap = texture(sampler2D(textures[instance.normalIndex], samplers[0]), texCoord).rgb;
 
 	// Did the ray hit the laptop?
 	if (materialType == 3) {
@@ -296,7 +228,7 @@ void main() {
 	float roughness = rma.r;
 	float metallic = rma.g;
 	float ao = rma.b;
-    vec3 camPos = cam.data.viewPos.rgb;
+    vec3 camPos = camera.viewPos.rgb;
 		
     rayPayload.color = vec3(0);
 	rayPayload.normal = vec3(0);
@@ -309,15 +241,14 @@ void main() {
 
 	rayPayload.nextRayOrigin = worldPos;
 
-
 	// Bedroom light
-	Light light0 =  lights.arr[0];
+	Light light0 =  lights.data[0];
 	light0.color *= vec4(1,0.95,0.95,1);
 	light0.color *= 0.75 * 0.5;
 	vec3 directLighting = CalculatePBR(baseColor.rgb, normal, roughness, metallic, ao, worldPos, camPos, light0, materialType);
 
 	// Bathroom light
-	Light light1 =  lights.arr[1];
+	Light light1 =  lights.data[1];
 	light1.color *= vec4(1,0.8,0.8,1);
 	light1.color *= vec4(1,0.0,0.0,1);
 	light1.color *= 0.5 * 0.5;
@@ -345,7 +276,7 @@ void main() {
 	else if (materialType == 2) {
 		rayPayload.hitType = HIT_TYPE_GLASS;
 		float ratio = 1.00 / 1.52;
-		vec3 I = normalize(worldPos.xyz - cam.data.viewPos.xyz);
+		vec3 I = normalize(worldPos.xyz - camera.viewPos.xyz);
 		vec3 R = refract(I, normalize(normal.xyz), ratio);
 		rayPayload.nextRayDirection = R;
 		rayPayload.nextFactor = vec3(1);
@@ -356,7 +287,7 @@ void main() {
 		rayPayload.color = directLighting.rgb;
 	}
 
-	if (cam.data.inventoryOpen == 0) {
+	if (camera.inventoryOpen == 0) {
 		//rayPayload.color = vec3(1,0,0);
 	}
   
@@ -380,7 +311,7 @@ void main() {
 	*/
 
 	// Disable output of walls to the final image if in inventory
-	if (rayPayload.bounce == 0 && meshInstance.basecolorIndex == cam.data.wallpaperALBIndex) {
+	if (rayPayload.bounce == 0 && instance.basecolorIndex == camera.wallpaperALBIndex) {
 		rayPayload.writeToImageStore = 0;
 	}
 }

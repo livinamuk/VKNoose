@@ -1,17 +1,4 @@
-
 const float PI = 3.14159265359; 
-
-struct CameraData {
-	mat4 proj;
-	mat4 view;
-	mat4 projInverse;
-	mat4 viewInverse;
-	vec4 viewPos;	
-    int sizeOfVertex;
-	int frameIndex;
-	int inventoryOpen;
-	int wallpaperALBIndex;
-};
 
 #define HIT_TYPE_UNDEFINED      0
 #define HIT_TYPE_SOLID          1

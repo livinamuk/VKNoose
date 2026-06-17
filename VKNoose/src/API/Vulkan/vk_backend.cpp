@@ -26,6 +26,7 @@
 
 #include "API/Vulkan/Renderer/vk_descriptor_indices.h"
 #include "API/Vulkan/Renderer/vk_renderer.h"
+#include "API/Vulkan/Renderer/vk_push_constants.h"
 
 #include "BackEnd/GLFWIntegration.h"
 
@@ -78,7 +79,6 @@ namespace VulkanBackEnd {
 
 		VulkanSampler* linearSampler = VulkanResourceManager::GetSampler("Linear");
 		if (!linearSampler) return false;
-
 
 		VulkanDescriptorSet& bindlessSet = VulkanRenderer::GetStaticDescriptorSet();
 		HellDescriptorSet& legacySet = VulkanDescriptorManager::GetStaticDescriptorSet();
@@ -424,7 +424,6 @@ void VulkanBackEnd::RenderLoadingFrame() {
 	VulkanRenderer::IncrementFrame();
 }
 
-
 void VulkanBackEnd::RenderGameFrame() {
 	if (ProgramIsMinimized()) return;
 
@@ -737,23 +736,6 @@ void VulkanBackEnd::add_debug_name(VkDescriptorSetLayout descriptorSetLayout, co
 
 void VulkanBackEnd::create_rt_buffers() {
     Logging::Init() << "create_rt_buffers\n";
-
-	//const std::vector<Vertex>& vertices = AssetManager::GetVertices();
-	//const std::vector<uint32_t>& indices = AssetManager::GetIndices();
-	//
-	//VkBufferUsageFlags rtGeometryUsage = VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-	//	VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-	//	VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-	//	VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
-	//
-	//// Create the high-level VulkanBuffer objects via the resource manager
-	//// These are currently GPU_ONLY for traversal performance
-	//g_vertexBuffer = VulkanResourceManager::CreateBuffer(vertices.size() * sizeof(Vertex), rtGeometryUsage, VMA_MEMORY_USAGE_GPU_ONLY);
-	//g_indexBuffer = VulkanResourceManager::CreateBuffer(indices.size() * sizeof(uint32_t), rtGeometryUsage, VMA_MEMORY_USAGE_GPU_ONLY);
-	//
-	//// Upload the data using the internal staging logic
-	//VulkanResourceManager::UploadBufferData(g_vertexBuffer, vertices.data(), vertices.size() * sizeof(Vertex));
-	//VulkanResourceManager::UploadBufferData(g_indexBuffer, indices.data(), indices.size() * sizeof(uint32_t));
 
 	// Refactored Mouse Pick Buffers
 	VkDeviceSize pickBufferSize = sizeof(uint32_t) * 2;
@@ -1125,13 +1107,11 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 
 	VulkanDescriptorSet& staticDescriptorSet = VulkanRenderer::GetStaticDescriptorSet();
 
-
 	if (!linesPipeline) return;
 	if (!compositePipeline) return;
 
 	uint32_t currentWindowWidth = GLFWIntegration::GetCurrentWindowWidth();
 	uint32_t currentWindowHeight = GLFWIntegration::GetCurrentWindowHeight();
-
 
 	VK_CHECK(vkResetCommandBuffer(commandBuffer, 0));
 	VkCommandBufferBeginInfo cmdBufInfo = vkinit::command_buffer_begin_info();
@@ -1141,8 +1121,6 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 	HellDescriptorSet& dynamicSetInventory = VulkanDescriptorManager::GetDynamicInventoryDescriptorSet(frameIndex);
 	HellDescriptorSet& staticSet = VulkanDescriptorManager::GetStaticDescriptorSet();
 	HellDescriptorSet& samplerSet = VulkanDescriptorManager::GetSamplerDescriptorSet();
-
-
 
 	VulkanDescriptorSet& bindlessStaticSet = VulkanRenderer::GetStaticDescriptorSet();
 	VulkanDescriptorSet* dynamicDescriptorSet = VulkanResourceManager::GetDescriptorSet(frameData.dynamicDescriptorSet);
@@ -1156,20 +1134,28 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _raytracerPath.pipelineLayout, 3, 1, bindlessStaticSet.GetHandlePtr(), 0, nullptr);
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _raytracerPath.pipelineLayout, 4, 1, dynamicDescriptorSet->GetHandlePtr(), 0, nullptr);
 
-	// Transition RT images to GENERAL for storage write
-	//rtFirstHitColorAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-	//rtFirstHitNormalsAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-	//rtSecondHitColorAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-	//rtFirstHitBaseColorAllocatedImage->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-
 	rtFirstHitColorAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR);
 	rtFirstHitNormalsAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR);
 	rtSecondHitColorAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR);
 	rtFirstHitBaseColorAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR);
 
+    // Main scene push constant
+    ScenePushConstants pushConstant{};
+    pushConstant.instancesDeviceAddress = VulkanResourceManager::GetBuffer(frameData.buffers.sceneInstances)->GetDeviceAddress();
+    pushConstant.lightsDeviceAddress = VulkanResourceManager::GetBuffer(frameData.buffers.sceneLights)->GetDeviceAddress();
+    pushConstant.cameraDeviceAddress = VulkanResourceManager::GetBuffer(frameData.buffers.sceneCameraData)->GetDeviceAddress();
+    pushConstant.lightCount = 2;
+
+    vkCmdPushConstants(commandBuffer,_raytracerPath.pipelineLayout, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 0, sizeof(ScenePushConstants), &pushConstant);
 	vkCmdTraceRaysKHR(commandBuffer, &_raytracerPath.raygenShaderSbtEntry, &_raytracerPath.missShaderSbtEntry, &_raytracerPath.hitShaderSbtEntry, &_raytracerPath.callableShaderSbtEntry, rtFirstHitColorAllocatedImage->GetWidth(), rtFirstHitColorAllocatedImage->GetHeight(), 1);
 
 	if (GameData::inventoryOpen) {
+        ScenePushConstants pushConstant{};
+        pushConstant.instancesDeviceAddress = VulkanResourceManager::GetBuffer(frameData.buffers.inventoryInstances)->GetDeviceAddress();
+        pushConstant.lightsDeviceAddress = VulkanResourceManager::GetBuffer(frameData.buffers.inventoryInstances)->GetDeviceAddress();
+        pushConstant.cameraDeviceAddress = VulkanResourceManager::GetBuffer(frameData.buffers.inventoryCameraData)->GetDeviceAddress();
+        pushConstant.lightCount = 2;
+
 		cmd_BindRayTracingDescriptorSet(commandBuffer, _raytracerPath.pipelineLayout, 0, dynamicSetInventory);
 		vkCmdTraceRaysKHR(commandBuffer, &_raytracerPath.raygenShaderSbtEntry, &_raytracerPath.missShaderSbtEntry, &_raytracerPath.hitShaderSbtEntry, &_raytracerPath.callableShaderSbtEntry, rtFirstHitColorAllocatedImage->GetWidth(), rtFirstHitColorAllocatedImage->GetHeight(), 1);
 	}
