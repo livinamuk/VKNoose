@@ -219,26 +219,6 @@ namespace VulkanRenderer {
 		}
 	}
 
-	void UpdateDynamicDescriptorSet() {
-		VulkanFrameData& frameData = GetCurrentFrameData();
-
-		DynamicDeviceAddresses addresses;
-		addresses.sceneCameraData = VulkanResourceManager::GetBuffer(frameData.buffers.sceneCameraData)->GetDeviceAddress();
-		//addresses.sceneInstances = VulkanResourceManager::GetBuffer(frameData.buffers.sceneInstances)->GetDeviceAddress();
-		//addresses.sceneLights = VulkanResourceManager::GetBuffer(frameData.buffers.sceneLights)->GetDeviceAddress();
-		addresses.inventoryCameraData = VulkanResourceManager::GetBuffer(frameData.buffers.inventoryCameraData)->GetDeviceAddress();
-		//addresses.inventoryInstances = VulkanResourceManager::GetBuffer(frameData.buffers.inventoryInstances)->GetDeviceAddress();
-		//addresses.inventoryLights = VulkanResourceManager::GetBuffer(frameData.buffers.inventoryLights)->GetDeviceAddress();
-		//addresses.uiInstances = VulkanResourceManager::GetBuffer(frameData.buffers.uiInstances)->GetDeviceAddress();
-
-		VulkanBuffer* addressTableBuffer = VulkanResourceManager::GetBuffer(frameData.buffers.deviceAddressTable);
-		addressTableBuffer->UpdateData(&addresses, sizeof(DynamicDeviceAddresses));
-
-		VulkanDescriptorSet* dynamicDescriptorSet = VulkanResourceManager::GetDescriptorSet(frameData.dynamicDescriptorSet);
-		dynamicDescriptorSet->WriteBuffer(0, addressTableBuffer->GetBuffer(), sizeof(DynamicDeviceAddresses), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-		dynamicDescriptorSet->Update();
-	}
-
 	void Cleanup() {
 		// Manually cleanup the BLAS for each mesh because they aren't stored in the ResourceManager
 		for (Mesh& mesh : AssetManager::GetMeshes()) {

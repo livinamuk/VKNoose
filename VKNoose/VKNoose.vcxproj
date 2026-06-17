@@ -109,6 +109,7 @@
     <ClCompile Include="src\API\Vulkan\Types\vk_descriptor_set.cpp" />
     <ClCompile Include="src\API\Vulkan\Types\vk_mesh_buffer.cpp" />
     <ClCompile Include="src\API\Vulkan\Types\vk_pipeline.cpp" />
+    <ClCompile Include="src\API\Vulkan\Types\vk_raytracing_pipeline.cpp" />
     <ClCompile Include="src\API\Vulkan\Types\vk_sampler.cpp" />
     <ClCompile Include="src\API\Vulkan\Types\vk_shader.cpp" />
     <ClCompile Include="src\API\Vulkan\Renderer\vk_renderer.cpp" />
@@ -139,7 +140,6 @@
     <ClCompile Include="src\API\Vulkan\vk_backend.cpp" />
     <ClCompile Include="src\API\Vulkan\vk_initializers.cpp" />
     <ClCompile Include="src\API\Vulkan\vk_mesh.cpp" />
-    <ClCompile Include="src\API\Vulkan\vk_raytracing.cpp" />
     <ClCompile Include="src\API\Vulkan\vk_textures.cpp" />
     <ClCompile Include="src\API\Vulkan\vk_tools.cpp" />
     <ClCompile Include="src\API\Vulkan\vk_types.cpp" />
@@ -159,6 +159,7 @@
     <ClInclude Include="src\API\Vulkan\Renderer\vk_push_constants.h" />
     <ClInclude Include="src\API\Vulkan\Types\vk_descriptor_set.h" />
     <ClInclude Include="src\API\Vulkan\Types\vk_mesh_buffer.h" />
+    <ClInclude Include="src\API\Vulkan\Types\vk_raytracing_pipeline.h" />
     <ClInclude Include="src\API\Vulkan\Types\vk_sampler.h" />
     <ClInclude Include="src\API\Vulkan\Types\vk_vertex_descriptions.h" />
     <ClInclude Include="src\Hell\Constants.h" />
@@ -215,7 +216,6 @@
     <ClInclude Include="src\API\Vulkan\vk_backend.h" />
     <ClInclude Include="src\API\Vulkan\vk_initializers.h" />
     <ClInclude Include="src\API\Vulkan\vk_mesh.h" />
-    <ClInclude Include="src\API\Vulkan\vk_raytracing.h" />
     <ClInclude Include="src\API\Vulkan\vk_textures.h" />
     <ClInclude Include="src\API\Vulkan\vk_tools.h" />
     <ClInclude Include="src\API\Vulkan\vk_types.h" />

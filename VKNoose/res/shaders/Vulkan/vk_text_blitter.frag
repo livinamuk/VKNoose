@@ -1,19 +1,14 @@
 #version 450
 #extension GL_KHR_vulkan_glsl : enable
 
-layout (location = 0) in vec3 normal;
-layout (location = 1) in vec2 texCoord;
-layout (location = 2) in flat int textureIndex;
-layout (location = 3) in flat int colorIndex;
-layout (location = 4) in flat int xClipMin;
-layout (location = 5) in flat int xClipMax;
-layout (location = 6) in flat int yClipMin;
-layout (location = 7) in flat int yClipMax;
+layout (location = 0) in vec2 texCoord;
+layout (location = 1) in flat int textureIndex;
+layout (location = 2) in flat int colorIndex;
 
 layout (location = 0) out vec4 outFragColor;
 
-layout(set = 1, binding = 0) uniform sampler samp;
-layout(set = 1, binding = 1) uniform texture2D textures[91];
+layout(set = 0, binding = 0) uniform sampler samp;
+layout(set = 0, binding = 1) uniform texture2D textures[91];
 
 void main() {
     outFragColor = texture(sampler2D(textures[textureIndex], samp), texCoord).rgba;
@@ -26,17 +21,4 @@ void main() {
     }
     outFragColor.rgb *= color;
 
-  
-   /* if (gl_FragCoord.x < xClipMin)
-        outFragColor.a = 0;    
-    if (gl_FragCoord.x > xClipMax)
-        outFragColor.a = 0;
-    if (gl_FragCoord.y > 430 - yClipMin)
-        outFragColor.a = 0;
-    if (gl_FragCoord.y < 430 - yClipMax)
-        outFragColor.a = 0;*/
-        
-
-
-       // outFragColor.r = 1;
 }

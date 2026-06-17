@@ -3,8 +3,6 @@
 
 #include "vk_types.h"
 #include "vk_mesh.h"
-#include "vk_raytracing.h"
-
 
 #include "Types/vk_acceleration_structure.h" // remove me soon
 #include "Renderer/vk_frame_data.h" // remove me soon
@@ -95,8 +93,6 @@ namespace VulkanBackEnd {
 	inline bool _loaded = false;
 
 	
-	void LoadLegacyShaders();
-	
 	void hotload_shaders();
 
 	void RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuffer);
@@ -144,13 +140,7 @@ namespace VulkanBackEnd {
 	inline VkFormat _depthFormat;
 
 	
-	void init_raytracing();
-	
-
 	inline MeshOLD _lineListMesh;
-
-	inline HellRaytracer _raytracerPath;
-	inline HellRaytracer _raytracerMousePick;
 
 	inline bool _collisionEnabled = true;
 	inline bool _debugScene = false;
@@ -172,7 +162,6 @@ namespace VulkanBackEnd {
 	void upload_meshes();
 	void upload_mesh(MeshOLD& mesh);
 
-	void cleanup_raytracing();
 	void AddDebugText();
 	void add_debug_name(VkBuffer buffer, const char* name);
 	void add_debug_name(VkDescriptorSetLayout descriptorSetLayout, const char* name);

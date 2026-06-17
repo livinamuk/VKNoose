@@ -1,6 +1,7 @@
 #pragma once
 #include "API/Vulkan/vk_common.h"
 #include "API/Vulkan/Types/vk_pipeline.h"
+#include "API/Vulkan/Types/vk_raytracing_pipeline.h"
 
 #include <string>
 #include <unordered_map>
@@ -10,6 +11,7 @@ namespace VulkanPipelineManager {
     void Cleanup();
 
     VulkanPipeline* GetPipeline(const std::string& name);
+    VulkanRaytracingPipeline* GetRaytracingPipeline(const std::string& name);
 
     void ReloadAll();
 }

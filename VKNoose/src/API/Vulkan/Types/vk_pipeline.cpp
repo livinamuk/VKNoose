@@ -74,10 +74,13 @@ bool VulkanPipeline::Build(VkDevice device, VkShaderModule vertShader, VkShaderM
     // Vertex Input
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount = 1;
-    vertexInputInfo.pVertexBindingDescriptions = &m_bindingDescription;
-    vertexInputInfo.vertexAttributeDescriptionCount = (uint32_t)m_attributeDescriptions.size();
-    vertexInputInfo.pVertexAttributeDescriptions = m_attributeDescriptions.data();
+
+    if (m_attributeDescriptions.size()) {
+        vertexInputInfo.vertexBindingDescriptionCount = 1;
+        vertexInputInfo.pVertexBindingDescriptions = &m_bindingDescription;
+        vertexInputInfo.vertexAttributeDescriptionCount = (uint32_t)m_attributeDescriptions.size();
+        vertexInputInfo.pVertexAttributeDescriptions = m_attributeDescriptions.data();
+    }
 
     // Input Assembly
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
