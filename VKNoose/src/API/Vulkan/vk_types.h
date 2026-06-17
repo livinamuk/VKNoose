@@ -1,8 +1,11 @@
 #pragma once
 #include "API/Vulkan/vk_common.h"
+#include "Hell/Types.h"
 
 #include <iostream>
 #include <vector>
+
+//#include "Common.h"
 
 inline void VK_CHECK(VkResult err) {
 	if (err) {
@@ -35,7 +38,7 @@ struct AllocatedImageOLD {
 	VmaAllocation _allocation;
 };
 
-struct Texture {
+struct TextureOLD {
 	AllocatedImageOLD image;
 	VkImageView imageView;
 	int _width = 0;
@@ -43,6 +46,8 @@ struct Texture {
 	int _channelCount = 0;
 	uint32_t _mipLevels = 1;
 	std::string _filename;
+	FileInfo fileInfo;
+	bool loaded = false;
 
 	VkImageLayout _currentLayout = VK_IMAGE_LAYOUT_GENERAL;// VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	VkAccessFlags _currentAccessMask = VK_ACCESS_MEMORY_READ_BIT;// VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;

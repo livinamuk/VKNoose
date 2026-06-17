@@ -5,14 +5,13 @@
 #include "../../Renderer/Material.hpp"
 
 struct Wall {
-	// methods
-	Wall() {}
-	Wall(glm::vec3 begin, glm::vec3 end, std::string materialName);
-	// fields
+	Wall() = default;
+	Wall(const glm::vec3& begin, const glm::vec3& end, const std::string& materialName);
+
 	int _meshIndex = 0;
-	Material* _material = nullptr;
-	glm::vec3 _begin;
-	glm::vec3 _end;
+	glm::vec3 m_begin;
+	glm::vec3 m_end;
+	std::string m_materialName;
 
 	std::vector<Vertex> m_vertices;
 	std::vector<uint32_t> m_indices;

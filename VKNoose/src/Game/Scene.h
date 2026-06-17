@@ -43,7 +43,6 @@ namespace Scene {
 	void UpdateInventoryScene(float deltaTime);
 	std::vector<VkAccelerationStructureInstanceKHR> GetMeshInstancesForSceneAccelerationStructure();
 	std::vector<VkAccelerationStructureInstanceKHR> GetMeshInstancesForInventoryAccelerationStructure();
-	std::vector<MeshOLD*> GetSceneMeshes(bool debugScene);
 
 	void StoreMousePickResult(int instanceIndex, int primitiveIndex);
 	GameObject* GetGameObjectByName(std::string);

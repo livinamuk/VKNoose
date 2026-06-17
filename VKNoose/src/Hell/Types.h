@@ -1,6 +1,7 @@
 #pragma once
 #include <glm/glm.hpp>
 #include "glm/gtx/hash.hpp"
+#include <string>
 
 struct Vertex {
 	glm::vec3 position = glm::vec3(0);
@@ -45,4 +46,11 @@ struct VertexDebug {
 struct LightRenderInfo {
 	glm::vec4 position;
 	glm::vec4 color;
+};
+
+struct FileInfo {
+    std::string path;
+    std::string name;
+    std::string ext;
+    std::string dir;
 };

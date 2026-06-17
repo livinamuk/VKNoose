@@ -48,11 +48,11 @@ namespace RasterRenderer {
 		float quadHeight = ySize;
 
 		if (xSize == -1) {
-			quadWidth = AssetManager::GetTexture(textureName)->_width;
+			quadWidth = AssetManager::GetTextureByNameOLD(textureName)->_width;
 		}
 
 		if (ySize == -1) {
-			quadHeight = AssetManager::GetTexture(textureName)->_height;
+			quadHeight = AssetManager::GetTextureByNameOLD(textureName)->_height;
 		}
 		
 		if (centered) {

@@ -27,6 +27,7 @@
 #include "API/Vulkan/Managers/vk_command_manager.h"
 #include "API/Vulkan/Renderer/vk_renderer.h"
 
+#include "Game/Scene.h" // for Scene::CeateWalls(). FIX ME SO THAT THE WALLS JUST HAVE A MESH INDEX AND A NAME YOU CAN SET THEM BY
 
 namespace AssetManager {
 	std::vector<Mesh> g_meshes;
@@ -43,7 +44,7 @@ namespace AssetManager {
 	//std::unordered_map<std::string, Material> _materials;
 	std::vector<MeshOLD> _meshes;
 	std::vector<Material> _materials;
-	std::vector<Texture> _textures;
+	std::vector<TextureOLD> _textures;
 	std::vector<Vertex> _verticesOLD;		// ALL of em
 	std::vector<uint32_t> _indicesOLD;		// ALL of em
 	uint32_t _vertexOffset = 0;			// insert index for next mesh
@@ -61,12 +62,43 @@ namespace AssetManager {
 		return g_loadingComplete;
 	}
 
+    enum struct MaterialType {
+        ALB, // RGB: Base color
+        NRM, // RGB: Normal map
+        RMA, // R:   Roughness G: metallic B: ao
+        EMI, // RGB: Emissive
+        OPA, // RGB: Opacity
+        HAR, // RG:  flow map  G: strand   B: root factor
+        UNDEFINED
+    };
+
+    MaterialType GetMaterialType(const std::string& textureName) {
+        if (textureName.size() < 3) return MaterialType::UNDEFINED;
+
+        std::string_view suffix(textureName.data() + textureName.size() - 3, 3);
+
+        if (suffix == "ALB") return MaterialType::ALB;
+        if (suffix == "NRM") return MaterialType::NRM;
+        if (suffix == "RMA") return MaterialType::RMA;
+        if (suffix == "EMI") return MaterialType::EMI;
+        if (suffix == "OPA") return MaterialType::OPA;
+        if (suffix == "HAR") return MaterialType::HAR;
+
+        return MaterialType::UNDEFINED;
+    }
+
+
 	void FindAssetPaths() {
 		for (FileInfo fileInfo : Util::IterateDirectory("res/models", {"obj"})) {
 			Model& model = g_models.emplace_back();
 			model.SetFileInfo(fileInfo);
 			model.SetName(fileInfo.name);
 		}
+
+        for (FileInfo fileInfo : Util::IterateDirectory("res/textures", { "tga", "jpg", "png"})) {
+			//Texture& texture = _textures.emplace_back();
+			//texture.fileInfo = fileInfo;
+        }
 	}
 
 	void UpdateLoading() {
@@ -86,6 +118,8 @@ namespace AssetManager {
 
 		if (LoadingComplete()) {
             CreateHouseGeometry();
+            Scene::CreateWalls();
+
             BakeModels();
 
             VulkanRenderer::UploadGlobalGeometry();
@@ -138,6 +172,93 @@ namespace AssetManager {
 	}
 }
 
+
+
+
+bool AssetManager::LoadNextTexture() {
+
+	//for (Texture& texture : _textures) {
+	//	if (texture.loaded) continue;
+	//
+    //    std::string_view materialSuffix(texture.fileInfo.name.data() + texture.fileInfo.name.size() - 3, 3);
+    //    bool isOS = texture.fileInfo.name.substr(0, 2) == "OS";
+	//
+    //    VkFormat imageFormat = VK_FORMAT_R8G8B8A8_UNORM;// VK_FORMAT_R8G8B8A8_SRGB;
+    //    if (materialSuffix == "ALB" || isOS) {
+    //        imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
+    //    }
+	//
+    //    load_image_from_file(texture.fileInfo.path.c_str(), texture, imageFormat, false); // no mips
+	//
+	//	texture.loaded = true;
+	//
+	//	return true;
+	//}
+
+	//for (FileInfo fileInfo : Util::IterateDirectory("res/textures", { "tga", "jpg", "png" })) {
+	//
+    //    if (!TextureExists(fileInfo.name)) {
+	//
+    //        Texture& texture = _textures.emplace_back();
+    //        texture.fileInfo = fileInfo;
+	//
+    //        std::string_view materialSuffix(texture.fileInfo.name.data() + texture.fileInfo.name.size() - 3, 3);
+	//		bool isOS = texture.fileInfo.name.substr(0, 2) == "OS";            
+	//
+    //        VkFormat imageFormat = VK_FORMAT_R8G8B8A8_UNORM;
+	//
+    //        if (materialSuffix == "ALB" || isOS) {
+    //            imageFormat = VK_FORMAT_R8G8B8A8_SRGB;			
+    //        }
+	//
+	//		load_image_from_file(fileInfo.path.c_str(), texture, imageFormat, false); // no mips
+	//		texture._filename = fileInfo.name;
+	//
+    //        VulkanBackEnd::AddLoadingText(fileInfo.path);
+	//
+    //        return true;
+    //    }
+	//}
+
+
+    static auto allFiles = std::filesystem::directory_iterator("res/textures/");
+    
+    for (const auto& entry : allFiles) {
+        FileInfoOLD info = Util::GetFileInfo(entry);
+        if (info.filetype == "png" || info.filetype == "tga" || info.filetype == "jpg") {
+    
+            if (!TextureExists(info.filename)) {
+    
+                TextureOLD& texture = _textures.emplace_back();
+                //texture.fileInfo = fileInfo;
+    
+                VkFormat imageFormat = VK_FORMAT_R8G8B8A8_UNORM;// VK_FORMAT_R8G8B8A8_SRGB;
+                if (info.materialType == "ALB" || info.filename.substr(0, 2) == "OS") {
+                    imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
+                }
+                load_image_from_file(info.fullpath.c_str(), texture, imageFormat, false); // no mips
+                
+                VulkanBackEnd::AddLoadingText(info.fullpath);
+                return true;
+            }
+        }
+    }
+    
+	// Everything is loaded
+    return false;
+}
+
+void AssetManager::BuildMaterials() {
+    for (auto& texture : _textures) {
+        if (texture._filename.substr(texture._filename.length() - 3) == "ALB") {
+            Material& material = _materials.emplace_back(Material());
+            material._name = texture._filename.substr(0, texture._filename.length() - 4);
+            material._basecolor = GetTextureIndex(material._name + "_ALB");
+            material._normal = GetTextureIndex(material._name + "_NRM");
+            material._rma = GetTextureIndex(material._name + "_RMA");
+        }
+    }
+}
 
 
 
@@ -425,7 +546,7 @@ MeshOLD* AssetManager::GetMeshByIndexOLD(int index) {
 		return nullptr;
 }
 
-bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, VkFormat imageFormat, bool generateMips)
+bool AssetManager::load_image_from_file(const char* file, TextureOLD& outTexture, VkFormat imageFormat, bool generateMips)
 {
 	FileInfoOLD info = Util::GetFileInfo(file);
 	std::string assetPath = "res/assets/" + info.filename + ".tex";
@@ -815,12 +936,12 @@ bool AssetManager::load_image_from_file(const char* file, Texture& outTexture, V
 	}
 }
 
-Texture* AssetManager::GetTexture(int index) {
+TextureOLD* AssetManager::GetTextureByIndexOLD(int index) {
 	return &_textures[index];
 }
 
-Texture* AssetManager::GetTexture(const std::string& filename) {
-	for (Texture& texture : _textures) {
+TextureOLD* AssetManager::GetTextureByNameOLD(const std::string& filename) {
+	for (TextureOLD& texture : _textures) {
 		if (texture._filename == filename)
 			return &texture;
 	}
@@ -853,7 +974,7 @@ int AssetManager::GetNumberOfTextures() {
 	return (int)_textures.size();
 }
 
-void AssetManager::AddTexture(Texture& texture) {
+void AssetManager::AddTextureOLD(TextureOLD& texture) {
 	_textures.push_back(texture);
 }
 
@@ -866,15 +987,15 @@ void AssetManager::LoadFont() {
 	TextBlitter::_charExtents.clear();
 	for (int i = 1; i <= 90; i++) {
 		std::string filepath = "res/textures/char_" + std::to_string(i) + ".png";
-		Texture texture;
+		TextureOLD texture;
 		AssetManager::load_image_from_file(filepath.c_str(), texture, VkFormat::VK_FORMAT_R8G8B8A8_UNORM, true); // NO MIPS = false
-		AssetManager::AddTexture(texture);
-		TextBlitter::_charExtents.push_back({ AssetManager::GetTexture(i - 1)->_width, AssetManager::GetTexture(i - 1)->_height });
+		AssetManager::AddTextureOLD(texture);
+		TextBlitter::_charExtents.push_back({ AssetManager::GetTextureByIndexOLD(i - 1)->_width, AssetManager::GetTextureByIndexOLD(i - 1)->_height });
 	}
 }
 
 bool AssetManager::TextureExists(const std::string& filename) {
-	for (Texture& texture : _textures)
+	for (TextureOLD& texture : _textures)
 		if (texture._filename == filename) 
 			return true;
 	return false;
@@ -900,43 +1021,6 @@ void AssetManager::SaveImageDataU8(std::string path, int width, int height, int 
 
 	//stbi_write_png(path.c_str(), width, height, channels, data, width * channels);
 }
-
-bool AssetManager::LoadNextTexture() {
-
-	static auto allFiles = std::filesystem::directory_iterator("res/textures/");
-
-	for (const auto& entry : allFiles) {
-		FileInfoOLD info = Util::GetFileInfo(entry);
-		if (info.filetype == "png" || info.filetype == "tga" || info.filetype == "jpg") {
-			if (!TextureExists(info.filename)) {
-				Texture texture;
-				VkFormat imageFormat = VK_FORMAT_R8G8B8A8_UNORM;// VK_FORMAT_R8G8B8A8_SRGB;
-				if (info.materialType == "ALB" || info.filename.substr(0, 2) == "OS") {
-					imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
-				}
-				load_image_from_file(info.fullpath.c_str(), texture, imageFormat, false); // no mips
-				AddTexture(texture);
-				VulkanBackEnd::AddLoadingText(info.fullpath);
-				return true;
-			}
-		}
-	}
-	// Everything is loaded
-	return false;
-}
-
-void AssetManager::BuildMaterials() {
-	for (auto& texture : _textures) {
-		if (texture._filename.substr(texture._filename.length() - 3) == "ALB") {
-			Material& material = _materials.emplace_back(Material());
-			material._name = texture._filename.substr(0, texture._filename.length() - 4);
-			material._basecolor = GetTextureIndex(material._name + "_ALB");
-			material._normal = GetTextureIndex(material._name + "_NRM");
-			material._rma = GetTextureIndex(material._name + "_RMA");
-		}
-	}
-}
-
 
 
 bool AssetManager::LoadNextModel() {

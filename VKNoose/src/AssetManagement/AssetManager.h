@@ -96,18 +96,11 @@ namespace AssetManager  {
 	int CreateMesh(const std::string& name, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 	int GetMeshIndexByName(const std::string& name);
 	int GetMeshIndexByName(const std::string& name);
-	//int GetQuadZFacingMeshIndex();
 	Mesh* GetMeshByName(const std::string& name);
 	Mesh* GetMeshByIndex(int index);
-	//Mesh* GetCubeMesh();
-	//Mesh* GetQuadZFacingMesh();
-	//Mesh* GetMeshByModelNameMeshName(const std::string& modelName, const std::string& meshName);
-	//Mesh* GetMeshByModelNameMeshIndex(const std::string& modelName, uint32_t meshIndex);
-	//int GetMeshIndexByModelNameMeshName(const std::string& modelName, const std::string& meshName);
-	//std::vector<Vertex> GetMeshVertices(Mesh* mesh);
+
 	std::span<Vertex> GetMeshVerticesSpan(Mesh* mesh);
 	std::span<uint32_t> GetMeshIndicesSpan(Mesh* mesh);
-	//void CreateMeshBvhs();
 	const std::string& GetMeshNameByMeshIndex(int index);
 
 	std::unordered_map<std::string, ModelOLD>& GetModelsOLD();
@@ -163,20 +156,19 @@ namespace AssetManager  {
 	//std::vector<uint32_t>& GetIndices_TEMPORARY();
 
 	//int CreateModel(std::vector<int> meshIndices);
-	void AddTexture(Texture& texture);
+	void AddTextureOLD(TextureOLD& texture);
 	int GetTextureIndex(const std::string& name);
 	int GetMaterialIndex(const std::string& name);
 	MeshOLD* GetMeshByIndexOLD(int index);
-	Texture* GetTexture(int index);
-	Texture* GetTexture(const std::string& filename);
+	TextureOLD* GetTextureByIndexOLD(int index);
+	TextureOLD* GetTextureByNameOLD(const std::string& filename);
 	Material* GetMaterial(int index);
 	Material* GetMaterial(const std::string& filename);
 	ModelOLD* GetModelByNameOLD(const std::string& name);
-	//std::vector<Model*> GetAllModels();
 
 	std::vector<MeshOLD>& GetMeshList();
 
-	bool load_image_from_file(const char* file, Texture& outTexture, VkFormat imageFormat, bool generateMips = false);
+	bool load_image_from_file(const char* file, TextureOLD& outTexture, VkFormat imageFormat, bool generateMips = false);
 
 	int GetNumberOfTextures();
 	bool TextureExists(const std::string& name);

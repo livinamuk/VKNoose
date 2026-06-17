@@ -108,7 +108,7 @@ namespace VulkanBackEnd {
 		// All textures
 		VkDescriptorImageInfo textureImageInfo[TEXTURE_ARRAY_SIZE];
 		for (uint32_t i = 0; i < TEXTURE_ARRAY_SIZE; ++i) {
-			VkImageView imageView = (i < AssetManager::GetNumberOfTextures()) ? AssetManager::GetTexture(i)->imageView : AssetManager::GetTexture(0)->imageView;
+			VkImageView imageView = (i < AssetManager::GetNumberOfTextures()) ? AssetManager::GetTextureByIndexOLD(i)->imageView : AssetManager::GetTextureByIndexOLD(0)->imageView;
 
 			textureImageInfo[i].sampler = nullptr;
 			textureImageInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -204,7 +204,7 @@ void VulkanBackEnd::Cleanup() {
 
 	// Cleanup textures properly
 	for (int i = 0; i < AssetManager::GetNumberOfTextures(); i++) {
-		Texture* tex = AssetManager::GetTexture(i);
+		TextureOLD* tex = AssetManager::GetTextureByIndexOLD(i);
 		if (tex) {
 			if (tex->imageView != VK_NULL_HANDLE) {
 				vkDestroyImageView(GetDevice(), tex->imageView, nullptr);
@@ -855,7 +855,6 @@ void VulkanBackEnd::UpdateBuffers2D() {
 
 	if (VulkanBuffer* buffer = VulkanResourceManager::GetBuffer(frameData.buffers.uiInstances)) {
 		size_t instanceCount = RasterRenderer::instanceCount;
-		std::vector<MeshInstance> meshInstances = Scene::GetSceneMeshInstances(_debugScene);
 		buffer->UpdateData(RasterRenderer::_instanceData2D, sizeof(GPUObjectData2D) * instanceCount);
 	}
 }
@@ -951,7 +950,7 @@ void VulkanBackEnd::update_static_descriptor_set_old() {
 	// Binding 1: All Textures
 	VkDescriptorImageInfo textureImageInfo[TEXTURE_ARRAY_SIZE];
 	for (uint32_t i = 0; i < TEXTURE_ARRAY_SIZE; ++i) {
-		VkImageView view = (i < AssetManager::GetNumberOfTextures()) ? AssetManager::GetTexture(i)->imageView : AssetManager::GetTexture(0)->imageView;
+		VkImageView view = (i < AssetManager::GetNumberOfTextures()) ? AssetManager::GetTextureByIndexOLD(i)->imageView : AssetManager::GetTextureByIndexOLD(0)->imageView;
 		textureImageInfo[i].sampler = nullptr;
 		textureImageInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 		textureImageInfo[i].imageView = view;
@@ -1050,7 +1049,7 @@ void VulkanBackEnd::UpdateStaticDescriptorSet() {
 	// // Textures
 	uint32_t assetTextureCount = AssetManager::GetNumberOfTextures();
 	for (uint32_t i = 0; i < assetTextureCount; ++i) {
-		VkImageView view = AssetManager::GetTexture(i)->imageView;
+		VkImageView view = AssetManager::GetTextureByIndexOLD(i)->imageView;
 		staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, view, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, i);
 	}
 
@@ -1251,7 +1250,7 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 
 	// Laptop display rendering
 	{
-		Texture* bg_texture = AssetManager::GetTexture("OS_bg");
+		TextureOLD* bg_texture = AssetManager::GetTextureByNameOLD("OS_bg");
 		if (bg_texture) {
 			// Sync laptopDisplayAllocatedImage for WRITING (it's the destination of the blit)
 			laptopDisplayAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT);

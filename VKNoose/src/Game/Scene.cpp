@@ -27,8 +27,6 @@ namespace Scene {
 
     void Init() {
 		Logging::Init() << "Scene::Init()\n";
-
-        CreateWalls();
         CreateGameObjects();
     }
 
@@ -55,21 +53,28 @@ namespace Scene {
 
 		// Main room
 		Wall& wallA = _walls.emplace_back(glm::vec3(HOUSE_BEDROOM_X_MAX, 0, HOUSE_BEDROOM_Z_MAX), glm::vec3(HOUSE_BATHROOM_DOOR_X + DOOR_WIDTH / 2, 0, HOUSE_BEDROOM_Z_MAX), "WallPaper");
-		wallA._material = AssetManager::GetMaterial("Green");
+		wallA.m_materialName ="Green";
+
 		Wall& wallH = _walls.emplace_back(glm::vec3(HOUSE_BATHROOM_DOOR_X - DOOR_WIDTH / 2, 0, HOUSE_BEDROOM_Z_MAX), glm::vec3(HOUSE_BEDROOM_X_MIN, 0, HOUSE_BEDROOM_Z_MAX), "WallPaper");
-		wallH._material = AssetManager::GetMaterial("Green");
+		wallH.m_materialName = "Green";
+
 		Wall& wallAboveBathroomDoor = _walls.emplace_back(glm::vec3(HOUSE_BATHROOM_DOOR_X + DOOR_WIDTH / 2, 2, HOUSE_BEDROOM_Z_MAX), glm::vec3(HOUSE_BATHROOM_DOOR_X - DOOR_WIDTH / 2, 2, HOUSE_BEDROOM_Z_MAX), "WallPaper");
-		wallAboveBathroomDoor._material = AssetManager::GetMaterial("Green");
+		wallAboveBathroomDoor.m_materialName = "Green";
+
 		Wall& wallB = _walls.emplace_back(glm::vec3(HOUSE_BEDROOM_X_MIN, 0, HOUSE_BEDROOM_Z_MIN), glm::vec3(HOUSE_HALL_DOOR_X - DOOR_WIDTH / 2, 0, -HOUSE_BEDROOM_Z_MAX), "WallPaper");
-		wallB._material = AssetManager::GetMaterial("Red");
+		wallB.m_materialName = "Red";
+
 		Wall& wallB2 = _walls.emplace_back(glm::vec3(HOUSE_HALL_DOOR_X + DOOR_WIDTH / 2, 0, HOUSE_BEDROOM_Z_MIN), glm::vec3(HOUSE_BEDROOM_X_MAX, 0, HOUSE_BEDROOM_Z_MIN), "WallPaper");
-		wallB2._material = AssetManager::GetMaterial("Red");
+		wallB2.m_materialName = "Red";
+
 		Wall& wallBC = _walls.emplace_back(glm::vec3(HOUSE_HALL_DOOR_X - DOOR_WIDTH / 2, 2, -HOUSE_BEDROOM_Z_MAX), glm::vec3(HOUSE_HALL_DOOR_X + DOOR_WIDTH / 2, 2, HOUSE_BEDROOM_Z_MIN), "WallPaper");
-		wallBC._material = AssetManager::GetMaterial("Red");
+		wallBC.m_materialName = "Red";
+
 		Wall& wallC = _walls.emplace_back(glm::vec3(HOUSE_BEDROOM_X_MAX, 0, HOUSE_BEDROOM_Z_MIN), glm::vec3(HOUSE_BEDROOM_X_MAX, 0, HOUSE_BEDROOM_Z_MAX), "WallPaper");
-		wallC._material = AssetManager::GetMaterial("White");
+		wallC.m_materialName = "White";
+
 		Wall& wallD = _walls.emplace_back(glm::vec3(HOUSE_BEDROOM_X_MIN, 0, HOUSE_BEDROOM_Z_MAX), glm::vec3(HOUSE_BEDROOM_X_MIN, 0, HOUSE_BEDROOM_Z_MIN), "WallPaper");
-		wallD._material = AssetManager::GetMaterial("White");
+		wallD.m_materialName = "White";
 
 		// Bathroom
 		Wall& wallE = _walls.emplace_back(glm::vec3(HOUSE_BATHROOM_X_MAX, 0, HOUSE_BATHROOM_Z_MIN), glm::vec3(HOUSE_BATHROOM_X_MAX, 0, HOUSE_BATHROOM_Z_MAX), "BathroomWall");
@@ -291,14 +296,12 @@ namespace Scene {
 		door1.SetAudioOnClose("Door_Open.wav", DOOR_VOLUME);
 		door1.SetOpenAxis(OpenAxis::ROTATION_NEG_Y);
 
-
 		GameObject& doorFrame1 = _gameObjects.emplace_back(GameObject());
 		doorFrame1.SetModel("DoorFrame");
 		doorFrame1.SetName("DoorFrame");
 		doorFrame1.SetMeshMaterial("Door");
 		doorFrame1.SetRotationY(-NOOSE_HALF_PI);
 		doorFrame1.SetPosition(HOUSE_BATHROOM_DOOR_X, 0, HOUSE_BATHROOM_Z_MIN - 0.05f);
-
 
 		GameObject& lightSwitch = _gameObjects.emplace_back(GameObject());
 		lightSwitch.SetModel("LightSwitchOn");
@@ -672,9 +675,9 @@ namespace Scene {
 
 		for (auto& wall : _walls) {
 			GameObject& trim = _gameObjects.emplace_back(GameObject());
-			trim.SetPosition(wall._begin.x, CEILING_HEIGHT - 2.4f, wall._begin.z);
-			trim.SetRotationY(Util::YRotationBetweenTwoPoints(wall._begin, wall._end));
-			trim.SetScaleX(glm::distance(wall._end, wall._begin));
+			trim.SetPosition(wall.m_begin.x, CEILING_HEIGHT - 2.4f, wall.m_begin.z);
+			trim.SetRotationY(Util::YRotationBetweenTwoPoints(wall.m_begin, wall.m_end));
+			trim.SetScaleX(glm::distance(wall.m_end, wall.m_begin));
 			trim.SetModel("TrimCeiling");
 			trim.SetMeshMaterial("Trims");
 		}
@@ -698,10 +701,12 @@ void Scene::UpdateInventoryScene(float deltaTime) {
 
 	//Pathtrace world
 	_inventoryGameObjects.clear();
+
 	GameObject& floor = _inventoryGameObjects.emplace_back(GameObject());
 	floor.SetModel("floor");
 	floor.SetPositionY(-1.2);
 	floor.SetMeshMaterial("FloorBoards");
+
 	GameObject& ceiling = _inventoryGameObjects.emplace_back(GameObject());
 	ceiling.SetModel("ceiling");
 	ceiling.SetPositionY(-1.2);
@@ -777,7 +782,7 @@ void Scene::UpdateInventoryScene(float deltaTime) {
 				if (GameData::GetInventoryItemNameByIndex(i) == GameData::_inventoryItemDataContainer[j].name) {
 					auto itemData = GameData::_inventoryItemDataContainer[j];
 					GameObject& item = _inventoryGameObjects.emplace_back(GameObject());
-					item._modelOLD = itemData.model;
+					item.SetModel(itemData.modelName);
 
 					Transform trans = itemData.transform;
 					trans.position.x += i - camXOffset;
@@ -786,8 +791,8 @@ void Scene::UpdateInventoryScene(float deltaTime) {
 					//item.SetModelMatrix(translateYPos.to_mat4() * GameData::_inventoryExamineMatrix * trans.to_mat4());
 					item.SetModelMatrixTransformOverride(translateYPos.to_mat4() * trans.to_mat4());
 
-					item._meshMaterialIndices.resize(item._modelOLD->m_meshIndices.size());
-					item._meshMaterialTypes.resize(item._modelOLD->m_meshIndices.size());
+					item._meshMaterialIndices.resize(item.m_model->GetMeshCount());
+					item._meshMaterialTypes.resize(item.m_model->GetMeshCount());
 					item.SetMeshMaterial(itemData.material->_name.c_str());
 				}
 			}
@@ -857,25 +862,18 @@ void Scene::UpdateInventoryScene(float deltaTime) {
 				GameData::_inventoryExamineMatrix = transform.to_mat4() * GameData::_inventoryExamineMatrix;
 			}
 
-			// Build the game objects vector						
+			// Build the game objects vector
 			GameObject& item = _inventoryGameObjects.emplace_back(GameObject());
-			item._modelOLD = inventoryItemData->model;
+            item.SetModel(inventoryItemData->modelName);
 
 			Transform trans = inventoryItemData->transform;
 			trans.position.x += _selectedInventoryItemIndex - camXOffset;
 			trans.position.y +=  0;
 			item.SetModelMatrixTransformOverride(translateYPos.to_mat4() * GameData::_inventoryExamineMatrix * trans.to_mat4());
 
-			item._meshMaterialIndices.resize(item._modelOLD->m_meshIndices.size());
-			item._meshMaterialTypes.resize(item._modelOLD->m_meshIndices.size());
+			item._meshMaterialIndices.resize(item.m_model->GetMeshCount());
+			item._meshMaterialTypes.resize(item.m_model->GetMeshCount());
 			item.SetMeshMaterial(inventoryItemData->material->_name.c_str());
-
-			
-			//}
-			//_inventoryItemShader.use();
-			//_inventoryItemShader.setMat4("model", GameData::_inventoryExamineMatrix * inventoryItemData->transform.to_mat4());
-			//inventoryItemData->material->Bind();
-			//inventoryItemData->model->Draw();
 
 			std::string text = "ROTATE: L Mouse    ZOOM: Wheel    BACK: R Mouse";
 			TextBlitter::BlitAtPosition(text, _renderWidth / 2, 20, true);
@@ -1166,12 +1164,16 @@ std::vector<MeshInstance> Scene::GetSceneMeshInstances(bool debugScene) {
 			instances.push_back(instance);
 		}
 	}
+
 	for (Wall& wall : _walls) {
 		MeshOLD* mesh = AssetManager::GetMeshByIndexOLD(wall._meshIndex);
-		Material* material = wall._material;
-		if (!debugScene && material != AssetManager::GetMaterial("BathroomWall")) {
+
+		Material* material = AssetManager::GetMaterial(wall.m_materialName);;
+
+		if (!debugScene && wall.m_materialName != "BathroomWall") {
 			material = AssetManager::GetMaterial("WallPaper");
 		}
+
 		MeshInstance instance;
 		instance.worldMatrix = glm::mat4(1);
 		instance.basecolorIndex = material->_basecolor;
@@ -1207,10 +1209,13 @@ std::vector<MeshInstance> Scene::GetInventoryMeshInstances(bool debugScene)
 	}
 	for (Wall& wall : _inventoryWalls) {
 		Mesh* mesh = AssetManager::GetMeshByIndex(wall._meshIndex);
-		Material* material = wall._material;
+		
+		Material* material = AssetManager::GetMaterial(wall.m_materialName);
+		
 		if (!debugScene && material != AssetManager::GetMaterial("BathroomWall")) {
 			material = AssetManager::GetMaterial("WallPaper");
 		}
+
 		MeshInstance instance;
 		instance.worldMatrix = glm::mat4(1);
 		instance.basecolorIndex = material->_basecolor;
@@ -1232,27 +1237,34 @@ std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForInvent
 
 	for (GameObject& gameObject : _inventoryGameObjects) {
 		for (auto meshIndex : gameObject.m_model->GetMeshIndices()) {
-			MeshOLD* mesh = AssetManager::GetMeshByIndexOLD(meshIndex);
+			Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
+
 			VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
 			instance.transform = gameObject.GetVkTransformMatrixKHR();
 			instance.instanceCustomIndex = instanceCustomIndex++;
 			instance.mask = 0xFF;
 			instance.instanceShaderBindingTableRecordOffset = 0;
 			instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FRONT_COUNTERCLOCKWISE_BIT_KHR;
-			instance.accelerationStructureReference = mesh->GetVulkanAccelerationStructureDeviceAddress();
+
+            VulkanAccelerationStructure* accelerationStructure = VulkanResourceManager::GetAccelerationStructure(mesh->m_vulkanAccelerationStructureId);
+            instance.accelerationStructureReference = accelerationStructure->GetDeviceAddress();
 		}
 	}
 
 	for (Wall& wall : _inventoryWalls) {
-		MeshOLD* mesh = AssetManager::GetMeshByIndexOLD(wall._meshIndex);
+		Mesh* mesh = AssetManager::GetMeshByIndex(wall._meshIndex);
+
 		VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
 		instance.transform = Util::GetIdentiyVkTransformMatrixKHR();
 		instance.instanceCustomIndex = instanceCustomIndex++;
 		instance.mask = 0xFF;
 		instance.instanceShaderBindingTableRecordOffset = 0;
 		instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FRONT_COUNTERCLOCKWISE_BIT_KHR;
-		instance.accelerationStructureReference = mesh->GetVulkanAccelerationStructureDeviceAddress();
+
+        VulkanAccelerationStructure* accelerationStructure = VulkanResourceManager::GetAccelerationStructure(mesh->m_vulkanAccelerationStructureId);
+        instance.accelerationStructureReference = accelerationStructure->GetDeviceAddress();
 	}
+
 	return instances;
 }
 
@@ -1275,58 +1287,20 @@ std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForSceneA
         }
     }
 
-    //for (Wall& wall : _walls) {
-    //    Mesh* mesh = AssetManager::GetMeshByIndex(wall._meshIndex);
-    //    VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
-    //    instance.transform = Util::GetIdentiyVkTransformMatrixKHR();
-    //    instance.instanceCustomIndex = instanceCustomIndex++;
-    //    instance.mask = 0xFF;
-    //    instance.instanceShaderBindingTableRecordOffset = 0;
-    //    instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FRONT_COUNTERCLOCKWISE_BIT_KHR;
-	//
-    //    VulkanAccelerationStructure* accelerationStructure = VulkanResourceManager::GetAccelerationStructure(mesh->m_vulkanAccelerationStructureId);
-    //    instance.accelerationStructureReference = accelerationStructure->GetDeviceAddress();
-    //}
-
-	//for (GameObject& gameObject : _gameObjects) {
-	//	for (auto meshIndex : gameObject._modelOLD->m_meshIndices) {
-	//		MeshOLD* mesh = AssetManager::GetMeshByIndexOLD(meshIndex);
-	//		VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
-	//		instance.transform = gameObject.GetVkTransformMatrixKHR();
-	//		instance.instanceCustomIndex = instanceCustomIndex++;
-	//		instance.mask = 0xFF;
-	//		instance.instanceShaderBindingTableRecordOffset = 0;
-	//		instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FRONT_COUNTERCLOCKWISE_BIT_KHR;
-	//		instance.accelerationStructureReference = mesh->GetVulkanAccelerationStructureDeviceAddress();
-	//	}
-	//}
-
-	for (Wall& wall : _walls) {
-		MeshOLD* mesh = AssetManager::GetMeshByIndexOLD(wall._meshIndex);
-		VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
-		instance.transform = Util::GetIdentiyVkTransformMatrixKHR();
-		instance.instanceCustomIndex = instanceCustomIndex++;
-		instance.mask = 0xFF;
-		instance.instanceShaderBindingTableRecordOffset = 0;
-		instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FRONT_COUNTERCLOCKWISE_BIT_KHR;
-		instance.accelerationStructureReference = mesh->GetVulkanAccelerationStructureDeviceAddress();
-	}
+    for (Wall& wall : _walls) {
+        Mesh* mesh = AssetManager::GetMeshByIndex(wall._meshIndex);
+        VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
+        instance.transform = Util::GetIdentiyVkTransformMatrixKHR();
+        instance.instanceCustomIndex = instanceCustomIndex++;
+        instance.mask = 0xFF;
+        instance.instanceShaderBindingTableRecordOffset = 0;
+        instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FRONT_COUNTERCLOCKWISE_BIT_KHR;
+	
+        VulkanAccelerationStructure* accelerationStructure = VulkanResourceManager::GetAccelerationStructure(mesh->m_vulkanAccelerationStructureId);
+        instance.accelerationStructureReference = accelerationStructure->GetDeviceAddress();
+    }
 
 	return instances;
-}
-
-std::vector<MeshOLD*> Scene::GetSceneMeshes(bool debugScene)
-{
-	std::vector<MeshOLD*> meshes;
-	for (GameObject& gameObject : _gameObjects) {
-		for (auto meshIndex : gameObject._modelOLD->m_meshIndices) {
-			meshes.push_back(AssetManager::GetMeshByIndexOLD(meshIndex));
-		}
-	}
-	for (Wall& wall : _walls) {
-		meshes.push_back(AssetManager::GetMeshByIndexOLD(wall._meshIndex));
-	}
-	return meshes;
 }
 
 void Scene::StoreMousePickResult(int instanceIndex, int primitiveIndex)
@@ -1341,26 +1315,38 @@ void Scene::StoreMousePickResult(int instanceIndex, int primitiveIndex)
 	_hoveredGameObject = nullptr;
 
 	// First populate a vector with the info you need
-	struct MeshHitInfo {
-		ModelOLD* model = nullptr;
-		MeshOLD* mesh = nullptr;
+    struct MeshHitInfo {
+		std::string modelName;
+		int indexOffset = 0;
+		int vertexOffset = 0;
 		void* parent = nullptr;
 	};
+
 	std::vector<MeshHitInfo> infos;
 
 	for (GameObject& gameObject : _gameObjects) {
-		for (auto meshIndex : gameObject._modelOLD->m_meshIndices) {
-			MeshHitInfo& info = infos.emplace_back(MeshHitInfo());
-			info.model = gameObject._modelOLD;
-			info.mesh = AssetManager::GetMeshByIndexOLD(meshIndex);
-			info.parent = &gameObject;
-		}
+
+        for (auto meshIndex : gameObject.m_model->GetMeshIndices()) {
+			Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
+			if (!mesh) continue;
+
+            MeshHitInfo& info = infos.emplace_back(MeshHitInfo());
+            info.vertexOffset = mesh->GetBaseVertex();
+            info.indexOffset = mesh->GetBaseIndex();
+            info.modelName = gameObject.m_model->GetName();
+            info.parent = &gameObject;
+        }
 	}
-	for (Wall& wall : _walls) {
-		MeshHitInfo& info = infos.emplace_back(MeshHitInfo());
-		info.model = nullptr;
-		info.mesh = AssetManager::GetMeshByIndexOLD(wall._meshIndex);
-		info.parent = &wall;
+
+    for (Wall& wall : _walls) {
+        Mesh* mesh = AssetManager::GetMeshByIndex(wall._meshIndex);
+        if (!mesh) continue;
+
+        MeshHitInfo& info = infos.emplace_back(MeshHitInfo());
+        info.vertexOffset = mesh->GetBaseVertex();
+        info.indexOffset = mesh->GetBaseIndex();
+        info.modelName = "Wall";
+        info.parent = &wall;
 	}
 
 	// Retrieve the hit
@@ -1375,15 +1361,13 @@ void Scene::StoreMousePickResult(int instanceIndex, int primitiveIndex)
 	// Find the vertices
 	for (GameObject& gameObject : _gameObjects) {
 		if (&gameObject == hitInfo.parent) {
-			_hitModelName = gameObject._modelOLD->m_filename;
-			int indexOffset = hitInfo.mesh->m_indexOffset;
-			int vertexOffset = hitInfo.mesh->m_vertexOffset;
-			int index0 = AssetManager::GetIndex(3 * primitiveIndex + 0 + indexOffset);
-			int index1 = AssetManager::GetIndex(3 * primitiveIndex + 1 + indexOffset);
-			int index2 = AssetManager::GetIndex(3 * primitiveIndex + 2 + indexOffset);
-			Vertex v0 = AssetManager::GetVertex(index0 + vertexOffset);
-			Vertex v1 = AssetManager::GetVertex(index1 + vertexOffset);
-			Vertex v2 = AssetManager::GetVertex(index2 + vertexOffset);
+			_hitModelName = hitInfo.modelName;
+			int index0 = AssetManager::GetIndex(3 * primitiveIndex + 0 + hitInfo.indexOffset);
+			int index1 = AssetManager::GetIndex(3 * primitiveIndex + 1 + hitInfo.indexOffset);
+			int index2 = AssetManager::GetIndex(3 * primitiveIndex + 2 + hitInfo.indexOffset);
+			Vertex v0 = AssetManager::GetVertex(index0 + hitInfo.vertexOffset);
+			Vertex v1 = AssetManager::GetVertex(index1 + hitInfo.vertexOffset);
+			Vertex v2 = AssetManager::GetVertex(index2 + hitInfo.vertexOffset);
 			v0.position = gameObject.GetModelMatrix() * glm::vec4(v0.position, 1.0);
 			v1.position = gameObject.GetModelMatrix() * glm::vec4(v1.position, 1.0);
 			v2.position = gameObject.GetModelMatrix() * glm::vec4(v2.position, 1.0);
@@ -1393,18 +1377,17 @@ void Scene::StoreMousePickResult(int instanceIndex, int primitiveIndex)
 			_hoveredGameObject = &gameObject;
 		}
 	}
+
 	for (Wall& wall : _walls) {
-		if (&wall == hitInfo.parent) {
-			_hitModelName = "Wall";
+        if (&wall == hitInfo.parent) {
+            _hitModelName = hitInfo.modelName;
 			MeshOLD* mesh = AssetManager::GetMeshByIndexOLD(wall._meshIndex);
-			int indexOffset = hitInfo.mesh->m_indexOffset;
-			int vertexOffset = hitInfo.mesh->m_vertexOffset;
-			int index0 = AssetManager::GetIndex(3 * primitiveIndex + 0 + indexOffset);
-			int index1 = AssetManager::GetIndex(3 * primitiveIndex + 1 + indexOffset);
-			int index2 = AssetManager::GetIndex(3 * primitiveIndex + 2 + indexOffset);
-			Vertex v0 = AssetManager::GetVertex(index0 + vertexOffset);
-			Vertex v1 = AssetManager::GetVertex(index1 + vertexOffset);
-			Vertex v2 = AssetManager::GetVertex(index2 + vertexOffset);
+			int index0 = AssetManager::GetIndex(3 * primitiveIndex + 0 + hitInfo.indexOffset);
+			int index1 = AssetManager::GetIndex(3 * primitiveIndex + 1 + hitInfo.indexOffset);
+			int index2 = AssetManager::GetIndex(3 * primitiveIndex + 2 + hitInfo.indexOffset);
+			Vertex v0 = AssetManager::GetVertex(index0 + hitInfo.vertexOffset);
+			Vertex v1 = AssetManager::GetVertex(index1 + hitInfo.vertexOffset);
+			Vertex v2 = AssetManager::GetVertex(index2 + hitInfo.vertexOffset);
 			_hitTriangleVertices.push_back(v0);
 			_hitTriangleVertices.push_back(v1);
 			_hitTriangleVertices.push_back(v2);
@@ -1416,9 +1399,9 @@ std::vector<Vertex> Scene::GetCollisionLineVertices() {
 
 	std::vector<Vertex> vertices;
 	for (Wall& wall : _walls) {
-		if (wall._begin.y < 1) {
-			vertices.push_back(Vertex(wall._begin));
-			vertices.push_back(Vertex(wall._end));
+		if (wall.m_begin.y < 1) {
+			vertices.push_back(Vertex(wall.m_begin));
+			vertices.push_back(Vertex(wall.m_end));
 		}
 	}
 	for (GameObject& gameObject : _gameObjects) {

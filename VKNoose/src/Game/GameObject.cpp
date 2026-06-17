@@ -342,8 +342,6 @@ void GameObject::SetModel(const std::string& name){
     else {
         std::cout << "Failed to set model '" << name << "', it does not exist.\n";
     }
-
-	_modelOLD = AssetManager::GetModelByNameOLD(name); // REMOVE ME
 }
 
 VkTransformMatrixKHR GameObject::GetVkTransformMatrixKHR() {

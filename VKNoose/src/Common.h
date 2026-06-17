@@ -60,15 +60,8 @@ struct InventoryItemData {
 	std::string name;
 	std::vector<std::string> menu;
 	Material* material = nullptr;
-	ModelOLD* model = nullptr;
+	std::string modelName = "";
 	Transform transform;
-};
-
-struct FileInfo {
-	std::string path;
-	std::string name;
-	std::string ext;
-	std::string dir;
 };
 
 struct FileInfoOLD {

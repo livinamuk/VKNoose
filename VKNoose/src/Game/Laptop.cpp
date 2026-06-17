@@ -176,10 +176,10 @@ int Window::GetRightEdge() {
 }
 
 int Window::GetMenuHeight() {
-	return AssetManager::GetTexture("OS_window_mainbar")->_height;
+	return AssetManager::GetTextureByNameOLD("OS_window_mainbar")->_height;
 }
 int Window::GetRightEdgeOfMenuButtons() {
-	return GetLeftEdge() + AssetManager::GetTexture("OS_buttons_default")->_width;
+	return GetLeftEdge() + AssetManager::GetTextureByNameOLD("OS_buttons_default")->_width;
 }
 int Window::GetCenterYPos()
 {
@@ -356,10 +356,10 @@ bool Laptop::AFileIsBeingDragged() {
 
 
 int File::GetWidth() {
-	return AssetManager::GetTexture(textureName)->_width;
+	return AssetManager::GetTextureByNameOLD(textureName)->_width;
 }	
 int File::GetHeight() {
-	return AssetManager::GetTexture(textureName)->_height;
+	return AssetManager::GetTextureByNameOLD(textureName)->_height;
 }
 bool File::CursorIsOverlapping(int cursorX, int cursorY) {
 	if (cursorX > GetGlobalXPosition() && cursorX < GetGlobalXPosition() + GetWidth() && cursorY > GetGlobalYPosition() && cursorY < GetGlobalYPosition() + GetHeight()) {
@@ -977,15 +977,15 @@ void Laptop::PrepareUIForRaster()
 			float xmargin = 100;
 			float ymargin = 50;
 			float x = window.GetLeftEdge() + xmargin;
-			float y = window.GetTopEdge() - AssetManager::GetTexture("OS_window_mainbar_text_chrome_right")->_height - ymargin - AssetManager::GetTexture("OS_chrome_no_internet")->_height;
+			float y = window.GetTopEdge() - AssetManager::GetTextureByNameOLD("OS_window_mainbar_text_chrome_right")->_height - ymargin - AssetManager::GetTextureByNameOLD("OS_chrome_no_internet")->_height;
 			RasterRenderer::DrawQuad("OS_chrome_no_internet", x, y, RasterRenderer::Destination::LAPTOP_DISPLAY);
-			RasterRenderer::DrawQuad("OS_window_mainbar_text_chrome_right", window.GetRightEdge() - AssetManager::GetTexture("OS_window_mainbar_text_chrome_right")->_width, window.GetTopEdge() - AssetManager::GetTexture("OS_window_mainbar_text_chrome_right")->_height, RasterRenderer::Destination::LAPTOP_DISPLAY);
-			RasterRenderer::DrawQuad("OS_window_mainbar_text_chrome_left", window.GetLeftEdge() , window.GetTopEdge() - AssetManager::GetTexture("OS_window_mainbar_text_chrome_left")->_height, RasterRenderer::Destination::LAPTOP_DISPLAY);
+			RasterRenderer::DrawQuad("OS_window_mainbar_text_chrome_right", window.GetRightEdge() - AssetManager::GetTextureByNameOLD("OS_window_mainbar_text_chrome_right")->_width, window.GetTopEdge() - AssetManager::GetTextureByNameOLD("OS_window_mainbar_text_chrome_right")->_height, RasterRenderer::Destination::LAPTOP_DISPLAY);
+			RasterRenderer::DrawQuad("OS_window_mainbar_text_chrome_left", window.GetLeftEdge() , window.GetTopEdge() - AssetManager::GetTextureByNameOLD("OS_window_mainbar_text_chrome_left")->_height, RasterRenderer::Destination::LAPTOP_DISPLAY);
 		}
 		// Menu bar text
 		if (!window.minimizing) {
 			if (window.mainbarTextTexture != "") {
-				RasterRenderer::DrawQuad(window.mainbarTextTexture, window.GetLeftEdge(), window.GetTopEdge() - AssetManager::GetTexture(window.mainbarTextTexture)->_height, RasterRenderer::Destination::LAPTOP_DISPLAY);
+				RasterRenderer::DrawQuad(window.mainbarTextTexture, window.GetLeftEdge(), window.GetTopEdge() - AssetManager::GetTextureByNameOLD(window.mainbarTextTexture)->_height, RasterRenderer::Destination::LAPTOP_DISPLAY);
 			}
 		}
 		// Buttons
@@ -1117,7 +1117,7 @@ void Laptop::PrepareUIForRaster()
 	}
 
 	int x = _cursorX + offsetX;
-	int y = _cursorY - AssetManager::GetTexture(cursorName)->_height + offsetY;
+	int y = _cursorY - AssetManager::GetTextureByNameOLD(cursorName)->_height + offsetY;
 	RasterRenderer::DrawQuad(cursorName, x, y, RasterRenderer::Destination::LAPTOP_DISPLAY);
 }
 

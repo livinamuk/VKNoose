@@ -1,15 +1,13 @@
 #include "Wall.h"
 #include "AssetManagement/AssetManager.h"
 
-Wall::Wall(glm::vec3 begin, glm::vec3 end, std::string materialName) {
+Wall::Wall(const glm::vec3& begin, const glm::vec3& end, const std::string& materialName) {
 	m_vertices.clear();
 	m_indices.clear();
+	m_materialName = materialName;
 
-	_material = AssetManager::GetMaterial(materialName);
-
-	_begin = begin;
-	_end = end;
-
+	m_begin = begin;
+	m_end = end;
 
 	Vertex vert0;
 	Vertex vert1;
@@ -50,14 +48,4 @@ Wall::Wall(glm::vec3 begin, glm::vec3 end, std::string materialName) {
     m_indices = { 0, 1, 2, 0, 2, 3 };
 
 	Util::SetTangentsFromVertices(m_vertices, m_indices);
-
-
-	/*std::cout << "\nnew wall\n";
-	for (auto index : indices) {
-		Vertex v = vertices[index];
-		//std::cout << v.position.x << ", " << v.position.y << ", " << v.position.z << "\n";
-	}
-	for (auto v : vertices) {
-		std::cout << v.position.x << ", " << v.position.y << ", " << v.position.z << "\n";
-	}*/
 }
