@@ -334,11 +334,13 @@ void GameObject::SetOpenState(OpenState openState, float speed, float min, float
 
 void GameObject::SetModel(const std::string& name){
     m_model = AssetManager::GetModelByName(name);
+
     if (m_model) {
         _meshMaterialIndices.resize(m_model->GetMeshCount());
         _meshMaterialTypes.resize(m_model->GetMeshCount());
         _meshTransforms.resize(m_model->GetMeshCount());
     }
+
     else {
         std::cout << "Failed to set model '" << name << "', it does not exist.\n";
     }

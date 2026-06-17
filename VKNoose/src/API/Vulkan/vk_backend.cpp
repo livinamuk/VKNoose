@@ -55,9 +55,6 @@ namespace VulkanBackEnd {
 // Will become VulkanRenderer:
 namespace VulkanBackEnd {
 	void BlitAllocatedImageToSwapchain(VkCommandBuffer cmd, AllocatedImage& srcImage, uint32_t swapchainIndex);
-
-	uint64_t g_vertexBuffer = 0;
-	uint64_t g_indexBuffer = 0;
 	uint64_t g_mousePickBufferCPU = 0;
 	uint64_t g_mousePickBufferGPU = 0;
 }
@@ -78,19 +75,6 @@ namespace VulkanBackEnd {
 		AssetManager::Init();
 		AssetManager::LoadFont();
 		AssetManager::LoadHardcodedMesh();
-
-		//upload_meshes();
-
-		// Upload but don't create a BLAS
-        std::vector<MeshOLD>& meshes = AssetManager::GetMeshList();
-        for (int i = 0; i < meshes.size(); i++) {
-            MeshOLD& mesh = meshes[i];
-            if (!mesh.m_uploadedToGPU) {
-                upload_mesh(mesh);
-                //mesh.m_vulkanAccelerationStructure = VulkanResourceManager::CreateAccelerationStructure();
-                //VulkanRaytracingManager::CreateBottomLevelAS(mesh.m_vulkanAccelerationStructure, &mesh);
-            }
-        }
 
 		VulkanSampler* linearSampler = VulkanResourceManager::GetSampler("Linear");
 		if (!linearSampler) return false;
@@ -179,18 +163,6 @@ void VulkanBackEnd::LoadNextItem() {
 		Input::SetMousePos(_windowedModeExtent.width / 2, _windowedModeExtent.height / 2);
 	}
 
-	static bool meshUploaded = false;
-	static bool meshUploadedMSG = false;
-	if (!meshUploadedMSG) {
-		meshUploadedMSG = true;
-		AddLoadingText("Uploading mesh...");
-		return;
-	}
-	if (!meshUploaded) {
-		meshUploaded = true;
-		upload_meshes();
-	}
-
 	_loaded = true;
 	TextBlitter::ResetDebugText();
 }
@@ -218,16 +190,6 @@ void VulkanBackEnd::Cleanup() {
 
 	cleanup_raytracing();
 
-	// Cleanup Mesh Buffers
-	for (MeshOLD& mesh : AssetManager::GetMeshList()) {
-		vmaDestroyBuffer(GetAllocator(), mesh.m_transformBufferOLD.m_buffer, mesh.m_transformBufferOLD.m_allocation);
-		vmaDestroyBuffer(GetAllocator(), mesh.m_vertexBufferOLD.m_buffer, mesh.m_vertexBufferOLD.m_allocation);
-		if (mesh.m_indexCount > 0) {
-			vmaDestroyBuffer(GetAllocator(), mesh.m_indexBufferOLD.m_buffer, mesh.m_indexBufferOLD.m_allocation);
-		}
-
-		//mesh.m_accelerationStructure.Cleanup();
-	}
 	vmaDestroyBuffer(GetAllocator(), _lineListMesh.m_vertexBufferOLD.m_buffer, _lineListMesh.m_vertexBufferOLD.m_allocation);
 
 	VulkanDescriptorManager::Cleanup();
@@ -591,23 +553,6 @@ void VulkanBackEnd::LoadLegacyShaders() {
 	_raytracerMousePick.SetShaders("Mouse_RayGen", {"Mouse_Miss"}, {"Mouse_Hit"});
 }
 
-
-void VulkanBackEnd::upload_meshes() {
-	Logging::Init() << "upload_meshes\n";
-
-	std::vector<MeshOLD>& meshes = AssetManager::GetMeshList();
-
-	for (int i = 0; i < meshes.size(); i++) {
-		MeshOLD& mesh = meshes[i];
-	
-		if (!mesh.m_uploadedToGPU) {
-			upload_mesh(mesh);
-			mesh.m_vulkanAccelerationStructure = VulkanResourceManager::CreateAccelerationStructure();
-			VulkanRaytracingManager::CreateBottomLevelASOLD(mesh.m_vulkanAccelerationStructure , &mesh);
-		}
-	}
-}
-
 void VulkanBackEnd::upload_mesh(MeshOLD& mesh)
 {
 	// Vertices
@@ -793,22 +738,22 @@ void VulkanBackEnd::add_debug_name(VkDescriptorSetLayout descriptorSetLayout, co
 void VulkanBackEnd::create_rt_buffers() {
     Logging::Init() << "create_rt_buffers\n";
 
-	const std::vector<Vertex>& vertices = AssetManager::GetVertices();
-	const std::vector<uint32_t>& indices = AssetManager::GetIndices();
-
-	VkBufferUsageFlags rtGeometryUsage = VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-		VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-		VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
-
-	// Create the high-level VulkanBuffer objects via the resource manager
-	// These are currently GPU_ONLY for traversal performance
-	g_vertexBuffer = VulkanResourceManager::CreateBuffer(vertices.size() * sizeof(Vertex), rtGeometryUsage, VMA_MEMORY_USAGE_GPU_ONLY);
-	g_indexBuffer = VulkanResourceManager::CreateBuffer(indices.size() * sizeof(uint32_t), rtGeometryUsage, VMA_MEMORY_USAGE_GPU_ONLY);
-
-	// Upload the data using the internal staging logic
-	VulkanResourceManager::UploadBufferData(g_vertexBuffer, vertices.data(), vertices.size() * sizeof(Vertex));
-	VulkanResourceManager::UploadBufferData(g_indexBuffer, indices.data(), indices.size() * sizeof(uint32_t));
+	//const std::vector<Vertex>& vertices = AssetManager::GetVertices();
+	//const std::vector<uint32_t>& indices = AssetManager::GetIndices();
+	//
+	//VkBufferUsageFlags rtGeometryUsage = VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+	//	VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+	//	VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+	//	VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+	//
+	//// Create the high-level VulkanBuffer objects via the resource manager
+	//// These are currently GPU_ONLY for traversal performance
+	//g_vertexBuffer = VulkanResourceManager::CreateBuffer(vertices.size() * sizeof(Vertex), rtGeometryUsage, VMA_MEMORY_USAGE_GPU_ONLY);
+	//g_indexBuffer = VulkanResourceManager::CreateBuffer(indices.size() * sizeof(uint32_t), rtGeometryUsage, VMA_MEMORY_USAGE_GPU_ONLY);
+	//
+	//// Upload the data using the internal staging logic
+	//VulkanResourceManager::UploadBufferData(g_vertexBuffer, vertices.data(), vertices.size() * sizeof(Vertex));
+	//VulkanResourceManager::UploadBufferData(g_indexBuffer, indices.data(), indices.size() * sizeof(uint32_t));
 
 	// Refactored Mouse Pick Buffers
 	VkDeviceSize pickBufferSize = sizeof(uint32_t) * 2;
@@ -957,8 +902,10 @@ void VulkanBackEnd::update_static_descriptor_set_old() {
 	}
 	legacySet.Update(GetDevice(), 1, TEXTURE_ARRAY_SIZE, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, textureImageInfo);
 
-	VulkanBuffer* vertexBuffer = VulkanResourceManager::GetBuffer(g_vertexBuffer);
-	VulkanBuffer* indexBuffer = VulkanResourceManager::GetBuffer(g_indexBuffer);
+    //VulkanBuffer* vertexBuffer = VulkanResourceManager::GetBuffer(g_vertexBuffer);
+    //VulkanBuffer* indexBuffer = VulkanResourceManager::GetBuffer(g_indexBuffer);
+    VulkanBuffer* vertexBuffer = VulkanRenderer::GetVertexBuffer();
+    VulkanBuffer* indexBuffer = VulkanRenderer::GetIndexBuffer();
 
 	legacySet.Update(GetDevice(), 2, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, vertexBuffer->GetBuffer());
 	legacySet.Update(GetDevice(), 3, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, indexBuffer->GetBuffer());
@@ -1082,9 +1029,9 @@ void VulkanBackEnd::UpdateStaticDescriptorSet() {
 	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, laptopDisplay->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_LAPTOP);
 	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, composite->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_COMPOSITE);
 
-	// REMOVE ME WHEN YOU CAN!!! or maybe Keep me in here??? and only use the SceneData variant for raytracing shaders.. but why else would u ever want to access these?
-	VulkanBuffer* vertexBuffer = VulkanResourceManager::GetBuffer(g_vertexBuffer);
-	VulkanBuffer* indexBuffer = VulkanResourceManager::GetBuffer(g_indexBuffer);
+    VulkanBuffer* vertexBuffer = VulkanRenderer::GetVertexBuffer();
+    VulkanBuffer* indexBuffer = VulkanRenderer::GetIndexBuffer();
+
 	if (vertexBuffer && indexBuffer) {
 		staticDescriptorSet.WriteBuffer(DESC_IDX_VERTICES, vertexBuffer->GetBuffer(), vertexBuffer->GetSize(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
 		staticDescriptorSet.WriteBuffer(DESC_IDX_INDICES, indexBuffer->GetBuffer(), indexBuffer->GetSize(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);

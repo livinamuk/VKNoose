@@ -103,8 +103,6 @@ namespace AssetManager  {
 	std::span<uint32_t> GetMeshIndicesSpan(Mesh* mesh);
 	const std::string& GetMeshNameByMeshIndex(int index);
 
-	std::unordered_map<std::string, ModelOLD>& GetModelsOLD();
-
 	// Models
 	std::vector<Model>& GetModels();
 	Model& CreateModel(const std::string& name);
@@ -144,9 +142,6 @@ namespace AssetManager  {
     void CreateHouseGeometry();
 	void BuildMaterials();
 
-	//int CreateMesh(); 
-	int CreateMeshOLD(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, const std::string meshName);
-
 	void* GetVertexPointer(int offset);
 	void* GetIndexPointer(int offset);
 	Vertex GetVertex(int offset);
@@ -159,14 +154,10 @@ namespace AssetManager  {
 	void AddTextureOLD(TextureOLD& texture);
 	int GetTextureIndex(const std::string& name);
 	int GetMaterialIndex(const std::string& name);
-	MeshOLD* GetMeshByIndexOLD(int index);
 	TextureOLD* GetTextureByIndexOLD(int index);
 	TextureOLD* GetTextureByNameOLD(const std::string& filename);
 	Material* GetMaterial(int index);
 	Material* GetMaterial(const std::string& filename);
-	ModelOLD* GetModelByNameOLD(const std::string& name);
-
-	std::vector<MeshOLD>& GetMeshList();
 
 	bool load_image_from_file(const char* file, TextureOLD& outTexture, VkFormat imageFormat, bool generateMips = false);
 

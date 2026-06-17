@@ -38,15 +38,10 @@ namespace AssetManager {
 	std::vector<std::string> g_loadLog;
 	bool g_loadingComplete = false;
 
-	std::unordered_map<std::string, ModelOLD> _models;
-	std::unordered_map<std::string, ModelOLD>& GetModelsOLD() { return _models; }
-
 	//std::unordered_map<std::string, Material> _materials;
 	std::vector<MeshOLD> _meshes;
 	std::vector<Material> _materials;
 	std::vector<TextureOLD> _textures;
-	std::vector<Vertex> _verticesOLD;		// ALL of em
-	std::vector<uint32_t> _indicesOLD;		// ALL of em
 	uint32_t _vertexOffset = 0;			// insert index for next mesh
 	uint32_t _indexOffset = 0;			// insert index for next mesh
 	std::string _loadLog;
@@ -61,32 +56,6 @@ namespace AssetManager {
 	bool LoadingComplete() {
 		return g_loadingComplete;
 	}
-
-    enum struct MaterialType {
-        ALB, // RGB: Base color
-        NRM, // RGB: Normal map
-        RMA, // R:   Roughness G: metallic B: ao
-        EMI, // RGB: Emissive
-        OPA, // RGB: Opacity
-        HAR, // RG:  flow map  G: strand   B: root factor
-        UNDEFINED
-    };
-
-    MaterialType GetMaterialType(const std::string& textureName) {
-        if (textureName.size() < 3) return MaterialType::UNDEFINED;
-
-        std::string_view suffix(textureName.data() + textureName.size() - 3, 3);
-
-        if (suffix == "ALB") return MaterialType::ALB;
-        if (suffix == "NRM") return MaterialType::NRM;
-        if (suffix == "RMA") return MaterialType::RMA;
-        if (suffix == "EMI") return MaterialType::EMI;
-        if (suffix == "OPA") return MaterialType::OPA;
-        if (suffix == "HAR") return MaterialType::HAR;
-
-        return MaterialType::UNDEFINED;
-    }
-
 
 	void FindAssetPaths() {
 		for (FileInfo fileInfo : Util::IterateDirectory("res/models", {"obj"})) {
@@ -490,60 +459,19 @@ AssetFile AssetManager::pack_mesh(MeshInfo* info, char* vertexData, char* indexD
 }
 
 void* AssetManager::GetVertexPointer(int offset) {
-	return &_verticesOLD[offset];
+	return &g_vertices[offset];
 }
 
 Vertex AssetManager::GetVertex(int offset) {
-	return _verticesOLD[offset];
+	return g_vertices[offset];
 }
 
 void* AssetManager::GetIndexPointer(int offset) {
-	return &_indicesOLD[offset];
+	return &g_indices[offset];
 }
 
 uint32_t AssetManager::GetIndex(int offset) {
-	return _indicesOLD[offset];
-}
-
-std::vector<MeshOLD>& AssetManager::GetMeshList() {
-	return _meshes;
-}
-
-int AssetManager::CreateMeshOLD(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, const std::string meshName) {
-
-	MeshOLD& mesh = _meshes.emplace_back(MeshOLD());
-	mesh.m_vertexCount = (uint32_t)vertices.size();
-	mesh.m_indexCount = (uint32_t)indices.size();
-	mesh.m_vertexOffset = _vertexOffset;
-	mesh.m_indexOffset = _indexOffset;
-	mesh.m_name = meshName;
-
-	for (int i = 0; i < vertices.size(); i++)
-		_verticesOLD.push_back(vertices[i]);
-	for (int i = 0; i < indices.size(); i++)
-		_indicesOLD.push_back(indices[i]);
-
-	/*for (int i = 0; i < vertices.size(); i++)
-		_vertices[_vertexOffset + i] = vertices[i];
-	for (int i = 0; i < indices.size(); i++)
-		_indices[_indexOffset + i] = indices[i];*/
-
-	_vertexOffset += (uint32_t)vertices.size();
-	_indexOffset += (uint32_t)indices.size();
-	return (int)_meshes.size() - 1;
-}
-
-
-/*
-int AssetManager::CreateModel(std::vector<int> meshIndices) {
-
-}*/
-
-MeshOLD* AssetManager::GetMeshByIndexOLD(int index) {
-	if (index >= 0 && index < _meshes.size())
-		return &_meshes[index];
-	else
-		return nullptr;
+	return g_indices[offset];
 }
 
 bool AssetManager::load_image_from_file(const char* file, TextureOLD& outTexture, VkFormat imageFormat, bool generateMips)
@@ -1025,37 +953,10 @@ void AssetManager::SaveImageDataU8(std::string path, int width, int height, int 
 
 bool AssetManager::LoadNextModel() {
 
-	static auto allFiles = std::filesystem::directory_iterator("res/models/");
-
-	for (const auto& entry : allFiles) {
-		FileInfoOLD info = Util::GetFileInfo(entry);
-		if (info.filetype == "obj") {
-
-			// If model doesn't exist, then create it
-			if (_models.find(info.filename) != _models.end()) {
-			}
-			else {
-				_models[info.filename] = ModelOLD(info.fullpath.c_str());
-				VulkanBackEnd::AddLoadingText(info.fullpath);
-				return true;
-			}
-		}
-	}
-	// Everything is loaded
+	// TODO: REMOVE ME
 	return false;	
 }
 
-
-ModelOLD* AssetManager::GetModelByNameOLD(const std::string & name) {
-	auto it = _models.find(name);
-	if (it == _models.end()) {
-		std::cout << "GetModel() failed coz " << name << " was not found\n";
-		return nullptr;
-	}
-	else {
-		return &(*it).second;
-	}
-}
 
 Material* AssetManager::GetMaterial(const std::string& name) {
 	for (int i = 0; i < _materials.size(); i++) {

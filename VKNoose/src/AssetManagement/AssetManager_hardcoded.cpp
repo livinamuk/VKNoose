@@ -31,19 +31,12 @@ namespace AssetManager {
 
         std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
 
-        ModelOLD model;
-        model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices, "fullscreen_quad_mesh"));
-        std::unordered_map<std::string, ModelOLD>& _models = GetModelsOLD();
-        _models["fullscreen_quad"] = model;
-
         Model& model2 = AssetManager::CreateModel("fullscreen_quad");
         model2.AddMeshIndex(AssetManager::CreateMesh("fullscreen_quad_mesh", vertices, indices));
         model2.SetLoadingState(LoadingState::Value::LOADING_COMPLETE);
     }
 
     void CreateHouseGeometry() {
-        std::unordered_map<std::string, ModelOLD>& _models = GetModelsOLD();
-
         {
             // Floor 
             Vertex vert0, vert1, vert2, vert3;
@@ -70,10 +63,6 @@ namespace AssetManager {
             //std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
             std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
             Util::SetTangentsFromVertices(vertices, indices);
-            ModelOLD model;
-            model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices, "floor_mesh"));
-            model.m_filename = "Floor";
-            _models["floor"] = model;
 
             Model& model2 = AssetManager::CreateModel("floor");
             model2.AddMeshIndex(AssetManager::CreateMesh("floor_mesh", vertices, indices));
@@ -111,10 +100,6 @@ namespace AssetManager {
             //std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
             std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
             Util::SetTangentsFromVertices(vertices, indices);
-            ModelOLD model;
-            model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices, "bathroom_floor_mesh"));
-            model.m_filename = "bathroom_floor";
-            _models["bathroom_floor"] = model;
 
             Model& model2 = AssetManager::CreateModel("bathroom_floor");
             model2.AddMeshIndex(AssetManager::CreateMesh("bathroom_floor_mesh", vertices, indices));
@@ -152,10 +137,6 @@ namespace AssetManager {
             //std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
             std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
             Util::SetTangentsFromVertices(vertices, indices);
-            ModelOLD model;
-            model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices, "bathroom_ceiling_mesh"));
-            model.m_filename = "bathroom_ceiling";
-            _models["bathroom_ceiling"] = model;
 
             Model& model2 = AssetManager::CreateModel("bathroom_ceiling");
             model2.AddMeshIndex(AssetManager::CreateMesh("bathroom_ceiling_mesh", vertices, indices));
@@ -195,9 +176,6 @@ namespace AssetManager {
             vertices.push_back(vert3);
             std::vector<uint32_t> indices = { 2, 1, 0, 3, 2, 0 };
             Util::SetTangentsFromVertices(vertices, indices);
-            ModelOLD model;
-            model.m_meshIndices.push_back(CreateMeshOLD(vertices, indices, "ceiling_mesh"));
-            _models["ceiling"] = model;
 
             Model& model2 = AssetManager::CreateModel("ceiling");
             model2.AddMeshIndex(AssetManager::CreateMesh("ceiling_mesh", vertices, indices));

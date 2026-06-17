@@ -87,12 +87,11 @@ namespace Scene {
         // Create mesh
         Model& model = AssetManager::CreateModel("Walls");
 		for (Wall& wall : _walls) {
-			// Old
-			wall._meshIndex = AssetManager::CreateMeshOLD(wall.m_vertices, wall.m_indices, "Wall");
-
-			// New
-            model.AddMeshIndex(AssetManager::CreateMesh("Wall", wall.m_vertices, wall.m_indices));
+			uint32_t meshIndex = AssetManager::CreateMesh("Wall", wall.m_vertices, wall.m_indices);
+            model.AddMeshIndex(meshIndex);
             model.SetLoadingState(LoadingState::Value::LOADING_COMPLETE);
+
+			wall._meshIndex = meshIndex;
 		}
 	}
 
@@ -1165,8 +1164,8 @@ std::vector<MeshInstance> Scene::GetSceneMeshInstances(bool debugScene) {
 		}
 	}
 
-	for (Wall& wall : _walls) {
-		MeshOLD* mesh = AssetManager::GetMeshByIndexOLD(wall._meshIndex);
+    for (Wall& wall : _walls) {
+        Mesh* mesh = AssetManager::GetMeshByIndex(wall._meshIndex);
 
 		Material* material = AssetManager::GetMaterial(wall.m_materialName);;
 
@@ -1179,8 +1178,8 @@ std::vector<MeshInstance> Scene::GetSceneMeshInstances(bool debugScene) {
 		instance.basecolorIndex = material->_basecolor;
 		instance.normalIndex = material->_normal;
 		instance.rmaIndex = material->_rma;
-		instance.vertexOffset = mesh->m_vertexOffset;
-		instance.indexOffset = mesh->m_indexOffset;
+		instance.vertexOffset = mesh->GetBaseVertex();
+		instance.indexOffset = mesh->GetBaseIndex();
 		instance.materialType = (int)MaterialType::DEFAULT;
 		instances.push_back(instance);
 	}
@@ -1381,7 +1380,6 @@ void Scene::StoreMousePickResult(int instanceIndex, int primitiveIndex)
 	for (Wall& wall : _walls) {
         if (&wall == hitInfo.parent) {
             _hitModelName = hitInfo.modelName;
-			MeshOLD* mesh = AssetManager::GetMeshByIndexOLD(wall._meshIndex);
 			int index0 = AssetManager::GetIndex(3 * primitiveIndex + 0 + hitInfo.indexOffset);
 			int index1 = AssetManager::GetIndex(3 * primitiveIndex + 1 + hitInfo.indexOffset);
 			int index2 = AssetManager::GetIndex(3 * primitiveIndex + 2 + hitInfo.indexOffset);
