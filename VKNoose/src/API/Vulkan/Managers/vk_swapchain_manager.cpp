@@ -1,40 +1,43 @@
 #include "vk_swapchain_manager.h"
 #include "vk_device_manager.h"
 #include "vk_instance_manager.h"
+
 #include "BackEnd/GLFWIntegration.h"
+#include "Hell/Core/Logging.h"
 
 #include <algorithm>
 #include <iostream>
 
 namespace VulkanSwapchainManager {
-VkSwapchainKHR g_swapchain = VK_NULL_HANDLE;
-VkFormat g_swachainImageFormat;
-std::vector<VkImage> g_swapchainImages;
-std::vector<VkImageView> g_swapchainImageViews;
+    VkSwapchainKHR g_swapchain = VK_NULL_HANDLE;
+    VkFormat g_swachainImageFormat;
+    std::vector<VkImage> g_swapchainImages;
+    std::vector<VkImageView> g_swapchainImageViews;
 
-bool Init() {
-	CreateSwapchain();
-	std::cout << "VulkanSwapchainManager::Init()\n";
-	return true;
-}
+    bool Init() {
+	    CreateSwapchain();
+        Logging::Init() << "VulkanSwapchainManager::Init()\n";
+	    return true;
+    }
 
-void RecreateSwapchain() {
-	GLFWIntegration::WaitUntilNotMinimized();
-	vkDeviceWaitIdle(VulkanDeviceManager::GetDevice());
+    void RecreateSwapchain() {
+	    GLFWIntegration::WaitUntilNotMinimized();
 
-	// Clean up old resources
-	for (int i = 0; i < g_swapchainImages.size(); i++) {
-		vkDestroyImageView(VulkanDeviceManager::GetDevice(), g_swapchainImageViews[i], nullptr);
-	}
+	    vkDeviceWaitIdle(VulkanDeviceManager::GetDevice());
 
-	if (g_swapchain != VK_NULL_HANDLE) {
-		vkDestroySwapchainKHR(VulkanDeviceManager::GetDevice(), g_swapchain, nullptr);
-	}
+	    // Clean up old resources
+	    for (int i = 0; i < g_swapchainImages.size(); i++) {
+		    vkDestroyImageView(VulkanDeviceManager::GetDevice(), g_swapchainImageViews[i], nullptr);
+	    }
 
-	// Recreate
-	CreateSwapchain();
-	std::cout << "VulkanSwapchainManager::RecreateSwapchain()\n";
-}
+	    if (g_swapchain != VK_NULL_HANDLE) {
+		    vkDestroySwapchainKHR(VulkanDeviceManager::GetDevice(), g_swapchain, nullptr);
+	    }
+
+	    // Recreate
+        CreateSwapchain();
+        Logging::Init() << "VulkanSwapchainManager::RecreateSwapchain()\n";
+    }
 
     void CreateSwapchain() {
         VkDevice device = VulkanDeviceManager::GetDevice();

@@ -4,15 +4,16 @@
 #include "API/Vulkan/Managers/vk_resource_manager.h"
 #include "API/Vulkan/Renderer/vk_descriptor_indices.h"
 #include "API/Vulkan/Renderer/vk_push_constants.h"
+#include "API/Vulkan/Renderer/vk_renderer_constants.h"
 
 namespace VulkanRenderer {
-
     void CreateFrameData();
     void CreatePipelines();
     void CreateRenderTargets();
     void CreateSamplers();
     void CreateStaticDescriptorSet();
     void CreateTlasDescriptorSets();
+    void LoadShaders();
 
     bool Init() {
         LoadShaders();
@@ -25,6 +26,32 @@ namespace VulkanRenderer {
         UpdateBindlessTexturesDescriptorSets();
 
         return true;
+    }
+
+    void CreateFrameData() {
+        for (int i = 0; i < FRAME_OVERLAP; i++) {
+            VulkanFrameData& frameData = GetFrameDataByIndex(i);
+
+            VkBufferUsageFlags usageUniform = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+            VkBufferUsageFlags usageStorage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+            VmaMemoryUsage vmaUsage = VMA_MEMORY_USAGE_AUTO;
+            VmaAllocationCreateFlags vmaFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+            // Buffers
+            frameData.buffers.sceneCameraData = VulkanResourceManager::CreateBuffer(sizeof(CameraData), usageUniform, vmaUsage, vmaFlags);
+            frameData.buffers.inventoryCameraData = VulkanResourceManager::CreateBuffer(sizeof(CameraData), usageUniform, vmaUsage, vmaFlags);
+            frameData.buffers.uiInstances = VulkanResourceManager::CreateBuffer(sizeof(GPUObjectData2D) * MAX_RENDER_OBJECTS_2D, usageStorage, vmaUsage, vmaFlags);
+            frameData.buffers.sceneInstances = VulkanResourceManager::CreateBuffer(sizeof(GPUObjectData) * MAX_RENDER_OBJECTS_2D, usageStorage, vmaUsage, vmaFlags);
+            frameData.buffers.inventoryInstances = VulkanResourceManager::CreateBuffer(sizeof(GPUObjectData) * MAX_RENDER_OBJECTS_2D, usageStorage, vmaUsage, vmaFlags);
+            frameData.buffers.sceneLights = VulkanResourceManager::CreateBuffer(sizeof(LightRenderInfo) * MAX_LIGHTS, usageStorage, vmaUsage, vmaFlags);
+            frameData.buffers.inventoryLights = VulkanResourceManager::CreateBuffer(sizeof(LightRenderInfo) * 2, usageStorage, vmaUsage, vmaFlags);
+            frameData.buffers.mousePickBufferGPU = VulkanResourceManager::CreateBuffer(sizeof(uint32_t) * 2, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_AUTO);
+            frameData.buffers.mousePickBufferCPU = VulkanResourceManager::CreateBuffer(sizeof(uint32_t) * 2, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO, VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+
+            // TLAS
+            frameData.tlas.scene = VulkanResourceManager::CreateAccelerationStructure();
+            frameData.tlas.inventory = VulkanResourceManager::CreateAccelerationStructure();
+        }
     }
 
     void CreatePipelines() {

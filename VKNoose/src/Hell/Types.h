@@ -54,3 +54,15 @@ struct FileInfo {
     std::string ext;
     std::string dir;
 };
+
+struct CameraData {
+    glm::mat4 proj;
+    glm::mat4 view;
+    glm::mat4 projInverse;
+    glm::mat4 viewInverse;
+    glm::vec4 viewPos;
+    int32_t vertexSize;
+    int32_t frameIndex;
+    int32_t inventoryOpen;
+    int32_t wallPaperALBIndex;
+};

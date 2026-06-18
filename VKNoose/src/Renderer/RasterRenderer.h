@@ -4,6 +4,7 @@
 #include "Material.hpp"
 
 #include "API/Vulkan/Renderer/vk_renderer.h"
+#include "API/Vulkan/Renderer/vk_renderer_constants.h"
 
 namespace RasterRenderer {
 

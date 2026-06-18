@@ -8,8 +8,6 @@ namespace AssetManager {
 
     void LoadHardcodedMesh() {
         CreateFullscreenQuad();
-
-        std::cout << "AssetManager::LoadHardcodedMesh()\n";
     }
 
     void CreateFullscreenQuad() {

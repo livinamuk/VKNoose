@@ -416,6 +416,9 @@
     <ClInclude Include="src\API\Vulkan\Types\vk_raytracing_pipeline.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\API\Vulkan\Renderer\vk_renderer_constants.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="res\shaders\gbuffer.frag" />

@@ -4,6 +4,7 @@
 
 #include "API/Vulkan/vk_backend.h"
 #include "API/Vulkan/vk_initializers.h"
+#include "Hell/Core/Logging.h"
 
 #include <iostream>
 
@@ -27,11 +28,13 @@ namespace VulkanCommandManager {
 
         for (int i = 0; i < FRAME_OVERLAP; i++) {
             if (vkCreateCommandPool(device, &poolInfo, nullptr, &g_frames[i].graphicsPool) != VK_SUCCESS) {
+                Logging::Fatal() << "VulkanCommandManager::Init() failed to create command pool\n";
                 return false;
             }
 
             VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(g_frames[i].graphicsPool, 1);
             if (vkAllocateCommandBuffers(device, &cmdAllocInfo, &g_frames[i].graphicsBuffer) != VK_SUCCESS) {
+                Logging::Fatal() << "VulkanCommandManager::Init() failed to create command buffers\n";
                 return false;
             }
         }
@@ -39,15 +42,17 @@ namespace VulkanCommandManager {
         // Create upload context pool and buffer
         VkCommandPoolCreateInfo uploadPoolInfo = vkinit::command_pool_create_info(graphicsFamily);
         if (vkCreateCommandPool(device, &uploadPoolInfo, nullptr, &g_uploadPool) != VK_SUCCESS) {
+            Logging::Fatal() << "VulkanCommandManager::Init() failed to create command pool\n";
             return false;
         }
 
         VkCommandBufferAllocateInfo uploadCmdAllocInfo = vkinit::command_buffer_allocate_info(g_uploadPool, 1);
         if (vkAllocateCommandBuffers(device, &uploadCmdAllocInfo, &g_uploadBuffer) != VK_SUCCESS) {
+            Logging::Fatal() << "VulkanCommandManager::Init() failed to allocate command buffers\n";
             return false;
         }
 
-        std::cout << "VulkanCommandManager::Init()\n";
+        Logging::Init() << "VulkanCommandManager::Init()\n";
         return true;
     }
 

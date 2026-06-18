@@ -7,14 +7,8 @@
 namespace VulkanRenderer {
     bool Init();
 
-    void LoadShaders();
     void RecreatePipelines();
     void UploadGlobalGeometry();
-
-    VulkanBuffer* GetVertexBuffer();
-    VulkanBuffer* GetIndexBuffer();
-    uint64_t GetVertexBufferAddress();
-    uint64_t GetIndexBufferAddress();
 
     // Frame data
     VulkanFrameData& GetCurrentFrameData();
@@ -31,4 +25,10 @@ namespace VulkanRenderer {
     void BlitAllocatedImageToSwapchain(VkCommandBuffer cmd, AllocatedImage& srcImage, uint32_t swapchainIndex);
     void BuildAllBLAS();
     void HotloadShaders();
+
+    // Vertex/index buffers
+    VulkanBuffer* GetVertexBuffer();
+    VulkanBuffer* GetIndexBuffer();
+    uint64_t GetVertexBufferAddress();
+    uint64_t GetIndexBufferAddress();
 }

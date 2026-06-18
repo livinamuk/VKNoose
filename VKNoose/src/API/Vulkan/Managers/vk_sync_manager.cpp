@@ -1,7 +1,10 @@
 #include "vk_sync_manager.h"
 #include "vk_device_manager.h"
 #include "vk_swapchain_manager.h"
+
 #include "API/Vulkan/vk_backend.h"
+#include "Hell/Core/Logging.h"
+
 #include <iostream>
 
 namespace VulkanSyncManager {
@@ -26,12 +29,14 @@ namespace VulkanSyncManager {
         for (uint32_t i = 0; i < FRAME_OVERLAP; i++) {
             if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &g_frames[i].presentSemaphore) != VK_SUCCESS ||
                 vkCreateFence(device, &signaledFenceInfo, nullptr, &g_frames[i].renderFence) != VK_SUCCESS) {
+                Logging::Fatal() << "VulkanSyncManager::Init() failed to create semaphore\n";
                 return false;
             }
 
             g_frames[i].renderFinishedSemaphores.resize(swapchainImageCount);
             for (uint32_t j = 0; j < swapchainImageCount; j++) {
                 if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &g_frames[i].renderFinishedSemaphores[j]) != VK_SUCCESS) {
+                    Logging::Fatal() << "VulkanSyncManager::Init() failed to create semaphore\n";
                     return false;
                 }
             }
@@ -39,10 +44,11 @@ namespace VulkanSyncManager {
 
         // IMPORTANT: Create upload fence signaled so the first immediate_submit wait doesn't fail
         if (vkCreateFence(device, &signaledFenceInfo, nullptr, &g_uploadFence) != VK_SUCCESS) {
+            Logging::Fatal() << "VulkanSyncManager::Init() failed to create fence\n";
             return false;
         }
 
-        std::cout << "VulkanSyncManager::Init()\n";
+        Logging::Init() << "VulkanSyncManager::Init()\n";
         return true;
     }
 

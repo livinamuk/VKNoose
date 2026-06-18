@@ -1,6 +1,8 @@
 #include "vk_device_manager.h"
 #include "vk_instance_manager.h"
 
+#include "Hell/Core/Logging.h"
+
 #include <vector>
 #include <set>
 #include <cstring>
@@ -198,11 +200,11 @@ namespace VulkanDeviceManager {
 
             volkLoadDevice(GetDevice());
 
-            std::cout << "VulkanDeviceManager::Init()\n";
+            Logging::Init() << "VulkanDeviceManager::Init()\n";
             return true; // Done, first suitable device
         }
 
-        std::cout << "No suitable Vulkan device found\n";
+        Logging::Fatal() << "VulkanDeviceManager::Init() No suitable Vulkan device found\n";
         return false;
     }
 

@@ -158,6 +158,7 @@
     <ClInclude Include="src\API\Vulkan\Renderer\vk_device_addresses.h" />
     <ClInclude Include="src\API\Vulkan\Renderer\vk_frame_data.h" />
     <ClInclude Include="src\API\Vulkan\Renderer\vk_push_constants.h" />
+    <ClInclude Include="src\API\Vulkan\Renderer\vk_renderer_constants.h" />
     <ClInclude Include="src\API\Vulkan\Types\vk_descriptor_set.h" />
     <ClInclude Include="src\API\Vulkan\Types\vk_mesh_buffer.h" />
     <ClInclude Include="src\API\Vulkan\Types\vk_raytracing_pipeline.h" />

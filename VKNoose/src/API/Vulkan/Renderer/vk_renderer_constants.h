@@ -1,0 +1,6 @@
+#pragma once
+
+#define TEXTURE_ARRAY_SIZE 256
+#define MAX_RENDER_OBJECTS_3D 1000
+#define MAX_RENDER_OBJECTS_2D 5000
+#define MAX_LIGHTS 16

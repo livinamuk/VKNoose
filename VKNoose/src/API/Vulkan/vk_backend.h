@@ -26,17 +26,7 @@
 
 #include "Renderer/Pipeline.hpp"
 
-struct CameraData {
-	glm::mat4 proj;
-	glm::mat4 view;
-	glm::mat4 projInverse;
-	glm::mat4 viewInverse;
-	glm::vec4 viewPos;
-	int32_t vertexSize;
-	int32_t frameIndex;
-	int32_t inventoryOpen;
-	int32_t wallPaperALBIndex;
-};
+
 
 struct MeshPushConstants {
 	glm::vec4 data;
@@ -53,10 +43,7 @@ struct RenderObject {
 	bool spin = false;
 };
 
-#define TEXTURE_ARRAY_SIZE 256
-#define MAX_RENDER_OBJECTS_3D 1000
-#define MAX_RENDER_OBJECTS_2D 5000
-#define MAX_LIGHTS 16
+
 
 
 
