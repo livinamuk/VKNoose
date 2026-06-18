@@ -26,8 +26,6 @@
 
 #include "Renderer/Pipeline.hpp"
 
-
-
 struct CameraData {
 	glm::mat4 proj;
 	glm::mat4 view;
@@ -84,7 +82,6 @@ namespace VulkanBackEnd {
 	bool ProgramIsMinimized();
 	void LoadNextItem();
     void AddLoadingText(const std::string& text);
-    void HotloadShaders();
 }
 
 
@@ -142,7 +139,6 @@ namespace VulkanBackEnd {
 	inline bool _renderGBuffer = false;// true;
 
 	
-			void create_rt_buffers();
 			void build_rt_command_buffers(int swapchainIndex);
 			inline uint32_t _rtIndexCount;
 

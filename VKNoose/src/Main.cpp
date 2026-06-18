@@ -1,4 +1,5 @@
 #include "API/Vulkan/vk_backend.h"
+#include "API/Vulkan/Renderer/vk_renderer.h"
 #include "BackEnd/BackEnd.h"
 #define NOMINMAX
 #include "Windows.h"
@@ -76,7 +77,7 @@ void LazyKeyPresses() {
         Audio::PlayAudio("RE_bleep.wav", 0.5f);
     }
     if (Input::KeyPressed(HELL_KEY_H)) {
-        VulkanBackEnd::HotloadShaders();
+        VulkanRenderer::HotloadShaders();
     }
     if (Input::KeyPressed(HELL_KEY_Y)) {
         VulkanBackEnd::_debugScene = !VulkanBackEnd::_debugScene;

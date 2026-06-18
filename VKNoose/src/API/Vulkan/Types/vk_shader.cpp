@@ -104,9 +104,24 @@ void VulkanShaderModule::Cleanup() {
     }
 }
 
-void VulkanShaderModule::Hotload() {
+bool VulkanShaderModule::Hotload() {
+    VkShaderModule newModule = VK_NULL_HANDLE;
+    if (!CreateModule(newModule)) {
+        return false;
+    }
+
+    Cleanup();
+    m_module = newModule;
+    return true;
+}
+
+bool VulkanShaderModule::CreateModule(VkShaderModule& module) const {
+    module = VK_NULL_HANDLE;
+
     std::vector<uint32_t> spirv = CompileGLSL(m_path, m_stage);
-    if (spirv.empty()) return;
+    if (spirv.empty()) {
+        return false;
+    }
 
     VkDevice device = VulkanDeviceManager::GetDevice();
 
@@ -114,17 +129,18 @@ void VulkanShaderModule::Hotload() {
     createInfo.codeSize = spirv.size() * sizeof(uint32_t);
     createInfo.pCode = spirv.data();
 
-    VkShaderModule newModule;
-    if (vkCreateShaderModule(device, &createInfo, nullptr, &newModule) == VK_SUCCESS) {
-        Cleanup();
-        m_module = newModule;
-
-        VkDebugUtilsObjectNameInfoEXT nameInfo = { VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
-        nameInfo.objectType = VK_OBJECT_TYPE_SHADER_MODULE;
-        nameInfo.objectHandle = (uint64_t)m_module;
-        nameInfo.pObjectName = m_path.c_str();
-        vkSetDebugUtilsObjectNameEXT(device, &nameInfo);
+    if (vkCreateShaderModule(device, &createInfo, nullptr, &module) != VK_SUCCESS) {
+        std::cerr << "Failed to create shader module: " << m_path << "\n";
+        return false;
     }
+
+    VkDebugUtilsObjectNameInfoEXT nameInfo = { VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
+    nameInfo.objectType = VK_OBJECT_TYPE_SHADER_MODULE;
+    nameInfo.objectHandle = (uint64_t)module;
+    nameInfo.pObjectName = m_path.c_str();
+    vkSetDebugUtilsObjectNameEXT(device, &nameInfo);
+
+    return true;
 }
 
 VulkanShader::VulkanShader(const std::vector<std::string>& filenames) {
@@ -206,10 +222,30 @@ void VulkanShader::Cleanup() {
     m_modules.clear();
 }
 
-void VulkanShader::Hotload() {
-    for (auto& module : m_modules) {
-        module.Hotload();
+bool VulkanShader::Hotload() {
+    std::vector<VkShaderModule> newModules;
+    newModules.reserve(m_modules.size());
+
+    for (const VulkanShaderModule& module : m_modules) {
+        VkShaderModule newModule = VK_NULL_HANDLE;
+
+        if (!module.CreateModule(newModule)) {
+            VkDevice device = VulkanDeviceManager::GetDevice();
+            for (VkShaderModule createdModule : newModules) {
+                vkDestroyShaderModule(device, createdModule, nullptr);
+            }
+            return false;
+        }
+
+        newModules.push_back(newModule);
     }
+
+    for (size_t i = 0; i < m_modules.size(); i++) {
+        m_modules[i].Cleanup();
+        m_modules[i].m_module = newModules[i];
+    }
+
+    return true;
 }
 
 VkShaderModule VulkanShader::GetVertexShader() {

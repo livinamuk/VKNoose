@@ -22,7 +22,7 @@ namespace VulkanRenderer {
         CreateTlasDescriptorSets();
         CreatePipelines();
         CreateFrameData();
-        UpdateStaticDescriptorSet();
+        UpdateBindlessTexturesDescriptorSets();
 
         return true;
     }

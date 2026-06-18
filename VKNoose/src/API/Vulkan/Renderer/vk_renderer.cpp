@@ -44,13 +44,7 @@ namespace VulkanRenderer {
 		VulkanResourceManager::UploadBufferData(g_indexBuffer, indices.data(), indices.size() * sizeof(uint32_t));
 	}
 
-	void BuildAllBLAS() {
-		Logging::Init() << "BuildAllBLAS\n";
 
-		for (Mesh& mesh : AssetManager::GetMeshes()) {
-			mesh.m_vulkanAccelerationStructureId = VulkanRaytracingManager::CreateBottomLevelAS(&mesh);
-		}
-	}
 
 	void CreateFrameData() {
 		for (int i = 0; i < FRAME_OVERLAP; i++) {
@@ -69,21 +63,12 @@ namespace VulkanRenderer {
 			frameData.buffers.inventoryInstances = VulkanResourceManager::CreateBuffer(sizeof(GPUObjectData) * MAX_RENDER_OBJECTS_2D, usageStorage, vmaUsage, vmaFlags);
 			frameData.buffers.sceneLights = VulkanResourceManager::CreateBuffer(sizeof(LightRenderInfo) * MAX_LIGHTS, usageStorage, vmaUsage, vmaFlags);
 			frameData.buffers.inventoryLights = VulkanResourceManager::CreateBuffer(sizeof(LightRenderInfo) * 2, usageStorage, vmaUsage, vmaFlags);
-		
+			frameData.buffers.mousePickBufferGPU = VulkanResourceManager::CreateBuffer(sizeof(uint32_t) * 2, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_AUTO);
+			frameData.buffers.mousePickBufferCPU = VulkanResourceManager::CreateBuffer(sizeof(uint32_t) * 2, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO, VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+
 			// TLAS
 			frameData.tlas.scene = VulkanResourceManager::CreateAccelerationStructure();
 			frameData.tlas.inventory = VulkanResourceManager::CreateAccelerationStructure();
-		}
-	}
-
-	void Cleanup() {
-		// Manually cleanup the BLAS for each mesh because they aren't stored in the ResourceManager
-		for (Mesh& mesh : AssetManager::GetMeshes()) {
-
-			// Or are they?
-			
-			//VulkanResourceManager::
-			//mesh.m_vulkanAccelerationStructure.Cleanup();
 		}
 	}
 

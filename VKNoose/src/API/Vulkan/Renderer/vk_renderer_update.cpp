@@ -7,7 +7,30 @@
 
 namespace VulkanRenderer {
 
-    void UpdateStaticDescriptorSet() {
+    void UpdateBindlessTexturesDescriptorSets() {
+        VulkanDescriptorSet* staticDescriptorSet = VulkanResourceManager::GetDescriptorSet("StaticDescriptorSet");
+        VulkanSampler* linearSampler = VulkanResourceManager::GetSampler("Linear");
+
+        if (!staticDescriptorSet) return;
+        if (!linearSampler) return;
+
+        // Samplers
+        staticDescriptorSet->WriteImage(DESC_IDX_SAMPLERS, VK_NULL_HANDLE, linearSampler->GetSampler(), VK_IMAGE_LAYOUT_UNDEFINED, VK_DESCRIPTOR_TYPE_SAMPLER);
+
+        // // Textures
+        for (uint32_t i = 0; i < AssetManager::GetNumberOfTextures(); ++i) {
+            VkImageView view = AssetManager::GetTextureByIndexOLD(i)->imageView;
+            staticDescriptorSet->WriteImage(DESC_IDX_TEXTURES, view, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, i);
+        }
+
+        // Finalize all writes
+        staticDescriptorSet->Update();
+    }
+
+    void UpdateRenderTargetsDescriptorSets() {
+        VulkanDescriptorSet* staticDescriptorSet = VulkanResourceManager::GetDescriptorSet("StaticDescriptorSet");
+        if (!staticDescriptorSet) return;
+
         AllocatedImage* rtFirstHitColor = VulkanResourceManager::GetAllocatedImage("RT_FirstHit_Color");
         AllocatedImage* rtFirstHitNormals = VulkanResourceManager::GetAllocatedImage("RT_FirstHit_Normals");
         AllocatedImage* rtFirstHitBaseColor = VulkanResourceManager::GetAllocatedImage("RT_FirstHit_BaseColor");
@@ -21,22 +44,6 @@ namespace VulkanRenderer {
         AllocatedImage* loadingScreen = VulkanResourceManager::GetAllocatedImage("LoadingScreen");
         AllocatedImage* depthPresent = VulkanResourceManager::GetAllocatedImage("Depth_Present");
         AllocatedImage* depthGBuffer = VulkanResourceManager::GetAllocatedImage("Depth_GBuffer");
-
-        VulkanDescriptorSet* staticDescriptorSet = VulkanResourceManager::GetDescriptorSet("StaticDescriptorSet");
-        VulkanSampler* linearSampler = VulkanResourceManager::GetSampler("Linear");
-
-        if (!staticDescriptorSet) return;
-        if (!linearSampler) return;
-
-        // Samplers
-        staticDescriptorSet->WriteImage(DESC_IDX_SAMPLERS, VK_NULL_HANDLE, linearSampler->GetSampler(), VK_IMAGE_LAYOUT_UNDEFINED, VK_DESCRIPTOR_TYPE_SAMPLER);
-
-        // // Textures
-        uint32_t assetTextureCount = AssetManager::GetNumberOfTextures();
-        for (uint32_t i = 0; i < assetTextureCount; ++i) {
-            VkImageView view = AssetManager::GetTextureByIndexOLD(i)->imageView;
-            staticDescriptorSet->WriteImage(DESC_IDX_TEXTURES, view, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, i);
-        }
 
         // Render Targets
         staticDescriptorSet->WriteImage(DESC_IDX_TEXTURES, rtFirstHitColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_FIRST_HIT_COLOR);

@@ -13,13 +13,17 @@ struct VulkanShaderModule {
     VulkanShaderModule& operator=(VulkanShaderModule&& other) noexcept;
 
     void Cleanup();
-    void Hotload();
+    bool Hotload();
 
     VkShaderModule GetModule() const { return m_module; }
     VkShaderStageFlagBits GetStage() const { return m_stage; }
     const std::string& GetPath() const { return m_path; }
 
 private:
+    bool CreateModule(VkShaderModule& module) const;
+
+    friend struct VulkanShader;
+
     VkShaderModule m_module = VK_NULL_HANDLE;
     VkShaderStageFlagBits m_stage = VK_SHADER_STAGE_ALL;
     std::string m_path;
@@ -36,7 +40,7 @@ struct VulkanShader {
     std::vector<VkPipelineShaderStageCreateInfo> GetStageCreateInfos() const;
     VkPipelineShaderStageCreateInfo GetStageCreateInfo(VkShaderStageFlagBits stage) const;
     void Cleanup();
-    void Hotload();
+    bool Hotload();
     VkShaderModule GetVertexShader();
     VkShaderModule GetFragmentShader();
     VkShaderModule GetComputeShader();

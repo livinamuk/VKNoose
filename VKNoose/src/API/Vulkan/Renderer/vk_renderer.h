@@ -1,18 +1,15 @@
 #pragma once
 #include "API/Vulkan/Renderer/vk_frame_data.h"
-#include "API/Vulkan/Types/vk_descriptor_set.h"
+#include "API/Vulkan/Types/vk_allocated_image.h"
 #include "API/Vulkan/Types/vk_buffer.h"
+#include "API/Vulkan/Types/vk_descriptor_set.h"
 
 namespace VulkanRenderer {
     bool Init();
-    void Cleanup();
-
-    void RecreatePipelines();
 
     void LoadShaders();
-    
+    void RecreatePipelines();
     void UploadGlobalGeometry();
-    void BuildAllBLAS();
 
     VulkanBuffer* GetVertexBuffer();
     VulkanBuffer* GetIndexBuffer();
@@ -26,6 +23,12 @@ namespace VulkanRenderer {
     void IncrementFrame();
 
     // Update
-    void UpdateStaticDescriptorSet();
+    void UpdateBindlessTexturesDescriptorSets();
+    void UpdateRenderTargetsDescriptorSets();
     void UpdateTLASDescriptorSets();
+
+    // Util
+    void BlitAllocatedImageToSwapchain(VkCommandBuffer cmd, AllocatedImage& srcImage, uint32_t swapchainIndex);
+    void BuildAllBLAS();
+    void HotloadShaders();
 }

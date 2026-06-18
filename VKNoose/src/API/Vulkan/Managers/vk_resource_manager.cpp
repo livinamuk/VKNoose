@@ -1,7 +1,8 @@
 #include "vk_resource_manager.h"
-#include "API/Vulkan/Managers/vk_device_manager.h"
-#include "AssetManagement/AssetManager.h"
 
+#include "API/Vulkan/Managers/vk_device_manager.h"
+
+#include "AssetManagement/AssetManager.h"
 #include "Hell/Core/Logging.h"
 #include "Hell/Core/UniqueID.h"
 #include "Hell/Containers/SlotMap.h"
@@ -392,9 +393,15 @@ namespace VulkanResourceManager {
         return g_shaders.find(name) != g_shaders.end();
     }
 
-    void HotloadShaders() {
+    bool HotloadShaders() {
+        bool success = true;
+
         for (auto& [name, shader] : g_shaders) {
-            shader.Hotload();
+            if (!shader.Hotload()) {
+                success = false;
+            }
         }
+
+        return success;
     }
 }

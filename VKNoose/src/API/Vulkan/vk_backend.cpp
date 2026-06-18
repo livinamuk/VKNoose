@@ -51,57 +51,25 @@ namespace VulkanBackEnd {
 	VkFormat GetSwapchainImageFormat() { return VulkanSwapchainManager::GetSwapchainImageFormat(); }
 }
 
-// Will become VulkanRenderer:
-namespace VulkanBackEnd {
-	void BlitAllocatedImageToSwapchain(VkCommandBuffer cmd, AllocatedImage& srcImage, uint32_t swapchainIndex);
-	uint64_t g_mousePickBufferCPU = 0;
-	uint64_t g_mousePickBufferGPU = 0;
-}
-
 namespace VulkanBackEnd {
 
 	bool VulkanBackEnd::InitMinimum() {
-		if (!VulkanInstanceManager::Init()) return false;
-		if (!VulkanDeviceManager::Init()) return false;
-		if (!VulkanMemoryManager::Init()) return false;
+		if (!VulkanInstanceManager::Init())  return false;
+		if (!VulkanDeviceManager::Init())    return false;
+		if (!VulkanMemoryManager::Init())    return false;
 		if (!VulkanSwapchainManager::Init()) return false;
-		if (!VulkanSyncManager::Init()) return false;
-		if (!VulkanCommandManager::Init()) return false;
-		if (!VulkanRenderer::Init()) return false;
+		if (!VulkanSyncManager::Init())      return false;
+		if (!VulkanCommandManager::Init())   return false;
+		if (!VulkanRenderer::Init())         return false;
 
 		AssetManager::Init();
 		AssetManager::LoadFont();
 		AssetManager::LoadHardcodedMesh();
 
-        VulkanDescriptorSet* staticSet = VulkanResourceManager::GetDescriptorSet("StaticDescriptorSet");
-		VulkanSampler* linearSampler = VulkanResourceManager::GetSampler("Linear");
-
-        if (!staticSet) return false;
-        if (!linearSampler) return false;
-
-
-		VkDescriptorImageInfo samplerImageInfo = {};
-		samplerImageInfo.sampler = linearSampler->GetSampler();
-
-		staticSet->WriteImage(0, VK_NULL_HANDLE, linearSampler->GetSampler(), VK_IMAGE_LAYOUT_UNDEFINED, VK_DESCRIPTOR_TYPE_SAMPLER);
-
-		// All textures
-		VkDescriptorImageInfo textureImageInfo[TEXTURE_ARRAY_SIZE];
-		for (uint32_t i = 0; i < TEXTURE_ARRAY_SIZE; ++i) {
-			VkImageView imageView = (i < AssetManager::GetNumberOfTextures()) ? AssetManager::GetTextureByIndexOLD(i)->imageView : AssetManager::GetTextureByIndexOLD(0)->imageView;
-
-			textureImageInfo[i].sampler = nullptr;
-			textureImageInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-			textureImageInfo[i].imageView = imageView;
-		
-			staticSet->WriteImage(1, imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, i);
-		}
-
-		staticSet->Update();
-
+		VulkanRenderer::UpdateBindlessTexturesDescriptorSets();
 		VulkanBackEnd::ToggleFullscreen();
 
-		std::cout << "Init::Minimum() complete\n";
+		Logging::Init() << "VulkanBackEnd::InitMinimum()\n";
 		return true;
 	}
 }
@@ -129,7 +97,7 @@ void VulkanBackEnd::LoadNextItem() {
 	static bool rtSetupMSG = false;
 	if (!rtSetupMSG) {
 		rtSetupMSG = true;
-		AddLoadingText("Initilizing raytracing...");
+		AddLoadingText("Initializing raytracing...");
 		return;
 	}
 	if (!rtSetup) {
@@ -137,12 +105,13 @@ void VulkanBackEnd::LoadNextItem() {
 		AssetManager::BuildMaterials();
 		Laptop::Init();
 		Audio::Init();
-		Scene::Init();						// Scene::Init creates wall geometry, and thus must run before upload_meshes
-		create_rt_buffers();
+		Scene::Init();
 
         vkDeviceWaitIdle(GetDevice());
 
-        VulkanRenderer::UpdateStaticDescriptorSet();
+        VulkanRenderer::UpdateBindlessTexturesDescriptorSets();
+        VulkanRenderer::UpdateRenderTargetsDescriptorSets();
+
 		Input::SetMousePos(_windowedModeExtent.width / 2, _windowedModeExtent.height / 2);
 	}
 
@@ -243,9 +212,6 @@ void VulkanBackEnd::RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuff
 	vkCmdEndRendering(commandBuffer);
 }
 
-
-
-
 void VulkanBackEnd::PrepareSwapchainForPresent(VkCommandBuffer commandBuffer, uint32_t swapchainImageIndex) {
 	VkImageSubresourceRange range;
 	range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -253,6 +219,7 @@ void VulkanBackEnd::PrepareSwapchainForPresent(VkCommandBuffer commandBuffer, ui
 	range.levelCount = 1;
 	range.baseArrayLayer = 0;
 	range.layerCount = 1;
+
 	VkImageMemoryBarrier swapChainBarrier = {};
 	swapChainBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	swapChainBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -261,40 +228,8 @@ void VulkanBackEnd::PrepareSwapchainForPresent(VkCommandBuffer commandBuffer, ui
 	swapChainBarrier.subresourceRange = range;
 	swapChainBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 	swapChainBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+
 	vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &swapChainBarrier);
-}
-
-void VulkanBackEnd::BlitAllocatedImageToSwapchain(VkCommandBuffer cmd, AllocatedImage& srcImage, uint32_t swapchainIndex) {
-	int32_t windowWidth = GLFWIntegration::GetCurrentWindowWidth();
-	int32_t windowHeight = GLFWIntegration::GetCurrentWindowHeight();
-
-	srcImage.Sync(cmd, VK_ACCESS_2_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT);
-
-	VkImage swapchainImage = GetSwapchainImages()[swapchainIndex];
-
-	VkImageMemoryBarrier2 swapchainBarrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
-	swapchainBarrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-	swapchainBarrier.srcAccessMask = 0;
-	swapchainBarrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-	swapchainBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-	swapchainBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	swapchainBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	swapchainBarrier.image = swapchainImage;
-	swapchainBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-
-	VkDependencyInfo depInfo{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
-	depInfo.imageMemoryBarrierCount = 1;
-	depInfo.pImageMemoryBarriers = &swapchainBarrier;
-
-	vkCmdPipelineBarrier2(cmd, &depInfo);
-
-	VkImageBlit blitRegion = {};
-	blitRegion.srcOffsets[1] = { srcImage.GetWidth(), srcImage.GetHeight(), 1 };
-	blitRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-	blitRegion.dstOffsets[1] = { windowWidth, windowHeight, 1 };
-	blitRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-
-	vkCmdBlitImage(cmd, srcImage.GetImage(), VK_IMAGE_LAYOUT_GENERAL, swapchainImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blitRegion, VK_FILTER_LINEAR);
 }
 
 void VulkanBackEnd::RenderLoadingFrame() {
@@ -341,7 +276,7 @@ void VulkanBackEnd::RenderLoadingFrame() {
 	RecordAssetLoadingRenderCommands(commandBuffer);
 
 	// Blit the loading target and prepare for present
-	BlitAllocatedImageToSwapchain(commandBuffer, *loadingTarget, swapchainImageIndex);
+	VulkanRenderer::BlitAllocatedImageToSwapchain(commandBuffer, *loadingTarget, swapchainImageIndex);
 	PrepareSwapchainForPresent(commandBuffer, swapchainImageIndex);
 
 	VK_CHECK(vkEndCommandBuffer(commandBuffer));
@@ -446,7 +381,7 @@ void VulkanBackEnd::RenderGameFrame() {
 	}
 
 	if (!GameData::inventoryOpen) {
-		VulkanBuffer* buffer = VulkanResourceManager::GetBuffer(g_mousePickBufferCPU);
+		VulkanBuffer* buffer = VulkanResourceManager::GetBuffer(frameData.buffers.mousePickBufferCPU);
 		if (buffer) {
 			uint32_t mousePickResult[2];
 			void* mappedData;
@@ -479,15 +414,6 @@ bool VulkanBackEnd::ProgramIsMinimized() {
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 	Input::_mouseWheelValue = (int)yoffset;
-}
-
-void VulkanBackEnd::HotloadShaders() {
-	std::cout << "Hotloading shaders...\n";
-
-	vkDeviceWaitIdle(GetDevice());
-
-    VulkanResourceManager::HotloadShaders();
-	VulkanRenderer::RecreatePipelines();
 }
 
 void VulkanBackEnd::upload_mesh(MeshOLD& mesh)
@@ -626,16 +552,13 @@ void VulkanBackEnd::upload_mesh(MeshOLD& mesh)
 	mesh.m_uploadedToGPU = true;
 }
 
-AllocatedBufferOLD VulkanBackEnd::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags requiredFlags)
-{
+AllocatedBufferOLD VulkanBackEnd::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags requiredFlags) {
 	//allocate vertex buffer
 	VkBufferCreateInfo bufferInfo = {};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bufferInfo.pNext = nullptr;
 	bufferInfo.size = allocSize;
-
 	bufferInfo.usage = usage;
-
 
 	//let the VMA library know that this data should be writeable by CPU, but also readable by GPU
 	VmaAllocationCreateInfo vmaallocInfo = {};
@@ -670,23 +593,6 @@ void VulkanBackEnd::add_debug_name(VkDescriptorSetLayout descriptorSetLayout, co
 	nameInfo.pObjectName = name;
 	vkSetDebugUtilsObjectNameEXT(GetDevice(), &nameInfo);
 }
-
-
-void VulkanBackEnd::create_rt_buffers() {
-    Logging::Init() << "create_rt_buffers\n";
-
-	// Refactored Mouse Pick Buffers
-	VkDeviceSize pickBufferSize = sizeof(uint32_t) * 2;
-
-	// GPU buffer for the raytracing shader to write into
-	g_mousePickBufferGPU = VulkanResourceManager::CreateBuffer(pickBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_AUTO);
-   
-	// CPU buffer for the backend to read from
-	// MAPPED and HOST_ACCESS_SEQUENTIAL_WRITE to keep the pointer valid permanently
-	g_mousePickBufferCPU = VulkanResourceManager::CreateBuffer(pickBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO, VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
-
-}
-
 
 void VulkanBackEnd::UpdateBuffers2D() {
 
@@ -909,7 +815,7 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 	{
         MousePickPushConstants pushConstant{};
         pushConstant.cameraDeviceAddress = VulkanResourceManager::GetBuffer(frameData.buffers.sceneCameraData)->GetDeviceAddress();
-        pushConstant.mousePickBufferAddress = VulkanResourceManager::GetBuffer(g_mousePickBufferGPU)->GetDeviceAddress();
+        pushConstant.mousePickBufferAddress = VulkanResourceManager::GetBuffer(frameData.buffers.mousePickBufferGPU)->GetDeviceAddress();
         vkCmdPushConstants(commandBuffer, mousePickPipeline->GetLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(MousePickPushConstants), &pushConstant);
 
         cmd_BindRayTracingPipeline(commandBuffer, mousePickPipeline->GetHandle());
@@ -1125,8 +1031,8 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 	}
 
 	if (!GameData::inventoryOpen) {
-		VulkanBuffer* gpuBuffer = VulkanResourceManager::GetBuffer(g_mousePickBufferGPU);
-		VulkanBuffer* cpuBuffer = VulkanResourceManager::GetBuffer(g_mousePickBufferCPU);
+		VulkanBuffer* gpuBuffer = VulkanResourceManager::GetBuffer(frameData.buffers.mousePickBufferGPU);
+		VulkanBuffer* cpuBuffer = VulkanResourceManager::GetBuffer(frameData.buffers.mousePickBufferCPU);
 
 		VkBufferCopy pickCopy = { 0, 0, sizeof(uint32_t) * 2 };
 		vkCmdCopyBuffer(commandBuffer, gpuBuffer->GetBuffer(), cpuBuffer->GetBuffer(), 1, &pickCopy);
@@ -1136,7 +1042,6 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 }
 
 void VulkanBackEnd::AddDebugText() {
-
 
 	TextBlitter::ResetDebugText();
 
@@ -1166,15 +1071,14 @@ void VulkanBackEnd::AddDebugText() {
 		TextBlitter::AddDebugText("Collision world");
 	}
 	else if (false) {
-		//return;
 		TextBlitter::AddDebugText("Inventory");
-		for (int i=0; i < GameData::GetInventoryItemCount(); i++)
+		for (int i=0; i < GameData::GetInventoryItemCount(); i++) {
 			TextBlitter::AddDebugText("[g]" + GameData::GetInventoryItemNameByIndex(i, true) + "[w]");
+		}
 	}
 }
 
 void VulkanBackEnd::get_required_lines() {
-
 	// Generate buffer shit
 	static bool runOnce = true;
 	if (runOnce) {

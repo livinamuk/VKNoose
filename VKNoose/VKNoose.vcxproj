@@ -102,6 +102,7 @@
     <ClCompile Include="src\API\Vulkan\Managers\vk_swapchain_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_sync_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Renderer\vk_renderer_init.cpp" />
+    <ClCompile Include="src\API\Vulkan\Renderer\vk_renderer_uitl.cpp" />
     <ClCompile Include="src\API\Vulkan\Renderer\vk_renderer_update.cpp" />
     <ClCompile Include="src\API\Vulkan\Types\vk_acceleration_structure.cpp" />
     <ClCompile Include="src\API\Vulkan\Types\vk_allocated_image.cpp" />

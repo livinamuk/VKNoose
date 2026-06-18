@@ -23,6 +23,6 @@ void main() {
         //FragColor.a = 0.75;
         outFragColor.rgb += vec3(0.05);
     }
-    outFragColor.rgb *= color;
 
+    outFragColor.rgb *= color;
 }

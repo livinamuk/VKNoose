@@ -85,11 +85,11 @@ namespace AssetManager {
 			}
 		}
 
-		if (LoadingComplete()) {
-            CreateHouseGeometry();
-            Scene::CreateWalls();
-
+        if (LoadingComplete()) {
             BakeModels();
+            CreateHouseGeometry();
+
+            Scene::CreateWalls();
 
             VulkanRenderer::UploadGlobalGeometry();
 			VulkanRenderer::BuildAllBLAS();	

@@ -10,6 +10,8 @@ struct VulkanFrameData {
 		uint64_t sceneInstances = 0;
 		uint64_t sceneLights = 0;
 		uint64_t uiInstances = 0;
+        uint64_t mousePickBufferCPU = 0;
+        uint64_t mousePickBufferGPU = 0;
 	} buffers;
 
 	struct TLAS {
