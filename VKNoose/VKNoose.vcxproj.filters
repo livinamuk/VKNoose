@@ -156,9 +156,6 @@
     <ClCompile Include="src\Types\Mesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\API\Vulkan\Managers\vk_pipeline_manager.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\API\Vulkan\Types\vk_pipeline.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -369,9 +366,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\Hell\Types.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\API\Vulkan\Managers\vk_pipeline_manager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\API\Vulkan\Types\vk_pipeline.h">

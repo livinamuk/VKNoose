@@ -124,14 +124,4 @@ namespace VulkanRenderer {
 	void IncrementFrame() {
 		g_frameNumber++;
 	}
-
-    //VulkanDescriptorSet& GetStaticDescriptorSet() {
-    //	if (VulkanDescriptorSet* descriptorSet = VulkanResourceManager::GetDescriptorSet(g_staticDescriptorSet)) {
-    //		return *descriptorSet;
-    //	}
-    //	else {
-    //		VulkanDescriptorSet invalid;
-    //		Logging::Error() << "VulkanRenderer::GetStaticDescriptorSet() failed because the VulkanDescriptorSet does not exist\n";
-    //	}
-    //}
 }

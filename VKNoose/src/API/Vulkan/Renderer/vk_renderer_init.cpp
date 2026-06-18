@@ -1,7 +1,10 @@
 #include "vk_renderer.h"
+
 #include "API/Vulkan/Managers/vk_device_manager.h" // Refactor so I'm not needed here
 #include "API/Vulkan/Managers/vk_resource_manager.h"
+
 #include "API/Vulkan/Renderer/vk_descriptor_indices.h"
+#include "API/Vulkan/Renderer/vk_push_constants.h"
 
 namespace VulkanRenderer {
 
@@ -12,16 +15,31 @@ namespace VulkanRenderer {
     void CreateStaticDescriptorSet();
     void CreateTlasDescriptorSets();
 
+    void CreateTextBlitterPipeline();          // put me in the single function above
+    void CreateLinesPipeline();                // put me in the single function above
+    void CreateCompositePipeline();            // put me in the single function above
+    void CreatePathRaytracingPipeline();       // put me in the single function above
+    void CreateMousePickRaytracingPipeline();  // put me in the single function above
+
     bool Init() {
         LoadShaders();
         CreateSamplers();
         CreateRenderTargets();
-        CreatePipelines();
         CreateStaticDescriptorSet();
         CreateTlasDescriptorSets();
+        CreatePipelines();
         CreateFrameData();
         UpdateStaticDescriptorSet();
+
         return true;
+    }
+
+    void CreatePipelines() {
+        CreateTextBlitterPipeline();
+        CreateLinesPipeline();
+        CreateCompositePipeline();
+        CreatePathRaytracingPipeline();
+        CreateMousePickRaytracingPipeline();
     }
 
     void LoadShaders() {
@@ -52,11 +70,11 @@ namespace VulkanRenderer {
     }
 
     void CreateRenderTargets() {
-        // Present resoltion
+        // Present resolution
         uint32_t width = PRESENT_WIDTH;
         uint32_t height = PRESENT_HEIGHT;
 
-        // Raytrace resolution
+        // Raytracing resolution
         int scale = 2;
         uint32_t rtWidth = PRESENT_WIDTH * scale;
         uint32_t rtHeight = PRESENT_HEIGHT * scale;
@@ -84,10 +102,6 @@ namespace VulkanRenderer {
         VkImageUsageFlags depthUsage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
         VulkanResourceManager::CreateAllocatedImage("Depth_Present", width, height, VK_FORMAT_D32_SFLOAT, depthUsage);
         VulkanResourceManager::CreateAllocatedImage("Depth_GBuffer", rtWidth, rtHeight, VK_FORMAT_D32_SFLOAT, depthUsage);
-    }
-
-    void CreatePipelines() {
-        VkDevice device = VulkanDeviceManager::GetDevice();
     }
 
     void CreateStaticDescriptorSet() {
@@ -134,5 +148,114 @@ namespace VulkanRenderer {
 
         VulkanResourceManager::CreateDescriptorSet("SceneTLASDescriptorSet", layoutInfo, DescriptorSetLifetime::PER_FRAME);
         VulkanResourceManager::CreateDescriptorSet("InventoryTLASDescriptorSet", layoutInfo, DescriptorSetLifetime::PER_FRAME);
+    }
+
+    void CreateTextBlitterPipeline() {
+        VkDevice device = VulkanDeviceManager::GetDevice();
+
+        VulkanShader* shader = VulkanResourceManager::GetShader("TextBlitter");
+        if (!shader) return;
+
+        VulkanPipeline& pipeline = VulkanResourceManager::CreatePipeline("TextBlitter");
+        pipeline.Cleanup(device);
+        pipeline.PushDescriptorSetLayout(VulkanResourceManager::GetDescriptorSetLayout("StaticDescriptorSet"));
+        pipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+        pipeline.SetCullMode(VK_CULL_MODE_NONE);
+        pipeline.SetFrontFace(VK_FRONT_FACE_COUNTER_CLOCKWISE);
+        pipeline.SetColorBlending(true);
+        pipeline.SetDepthTest(false);
+        pipeline.SetPushConstant(sizeof(UIPushConstant), VK_SHADER_STAGE_VERTEX_BIT);
+        pipeline.Build(device, shader->GetVertexShader(), shader->GetFragmentShader(), 1, VK_FORMAT_R8G8B8A8_UNORM);
+    }
+
+    void CreateLinesPipeline() {
+        VkDevice device = VulkanDeviceManager::GetDevice();
+
+        VulkanShader* shader = VulkanResourceManager::GetShader("SolidColor");
+        if (!shader) return;
+
+        VulkanPipeline& pipeline = VulkanResourceManager::CreatePipeline("Lines");
+        pipeline.Cleanup(device);
+
+        pipeline.PushDescriptorSetLayout(VulkanResourceManager::GetDescriptorSetLayout("SceneTLASDescriptorSet"));
+        pipeline.PushDescriptorSetLayout(VulkanResourceManager::GetDescriptorSetLayout("StaticDescriptorSet"));
+        pipeline.SetPushConstant(64, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+        pipeline.SetVertexDescription<VertexDebug>();
+        pipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
+        pipeline.SetCullMode(VK_CULL_MODE_NONE);
+        pipeline.SetFrontFace(VK_FRONT_FACE_COUNTER_CLOCKWISE);
+        pipeline.SetColorBlending(false);
+        pipeline.SetDepthTest(false);
+
+        pipeline.Build(device, shader->GetVertexShader(), shader->GetFragmentShader(), 1, VK_FORMAT_R8G8B8A8_UNORM);
+    }
+
+    void CreateCompositePipeline() {
+        VkDevice device = VulkanDeviceManager::GetDevice();
+
+        VulkanShader* shader = VulkanResourceManager::GetShader("Composite");
+        if (!shader) return;
+
+        VulkanPipeline& pipeline = VulkanResourceManager::CreatePipeline("Composite");
+        pipeline.Cleanup(device);
+        pipeline.PushDescriptorSetLayout(VulkanResourceManager::GetDescriptorSetLayout("StaticDescriptorSet"));
+        pipeline.SetVertexDescription<Vertex>();
+        pipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+        pipeline.SetCullMode(VK_CULL_MODE_NONE);
+        pipeline.SetFrontFace(VK_FRONT_FACE_COUNTER_CLOCKWISE);
+        pipeline.SetColorBlending(false);
+        pipeline.SetDepthTest(false);
+
+        pipeline.Build(device, shader->GetVertexShader(), shader->GetFragmentShader(), 1, VK_FORMAT_R8G8B8A8_UNORM);
+    }
+
+    void CreatePathRaytracingPipeline() {
+        std::vector<VkDescriptorSetLayout> layouts = {
+            VulkanResourceManager::GetDescriptorSetLayout("SceneTLASDescriptorSet"),
+            VulkanResourceManager::GetDescriptorSetLayout("StaticDescriptorSet")
+        };
+
+        std::vector<VkPushConstantRange> pushConstantRanges;
+        VkPushConstantRange& pushConstantRange = pushConstantRanges.emplace_back();
+        pushConstantRange = {};
+        pushConstantRange.offset = 0;
+        pushConstantRange.size = sizeof(ScenePushConstants);
+        pushConstantRange.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+
+        uint32_t maxRecursionDepth = 5;
+
+        VulkanRaytracingPipeline& pipeline = VulkanResourceManager::CreateRaytracingPipeline("PathTrace");
+        pipeline.AddRayGen("Path_RayGen");
+        pipeline.AddMiss("Path_Miss");
+        pipeline.AddMiss("Path_Shadow");
+        pipeline.AddClosestHit("Path_Hit");
+        pipeline.Build(layouts, pushConstantRanges, maxRecursionDepth);
+    }
+
+    void CreateMousePickRaytracingPipeline() {
+        std::vector<VkDescriptorSetLayout> layouts = {
+            VulkanResourceManager::GetDescriptorSetLayout("SceneTLASDescriptorSet"),
+            VulkanResourceManager::GetDescriptorSetLayout("StaticDescriptorSet")
+        };
+
+        std::vector<VkPushConstantRange> pushConstantRanges;
+        VkPushConstantRange& pushConstantRange = pushConstantRanges.emplace_back();
+        pushConstantRange = {};
+        pushConstantRange.offset = 0;
+        pushConstantRange.size = sizeof(MousePickPushConstants);
+        pushConstantRange.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+
+        uint32_t maxRecursionDepth = 5;
+
+        VulkanRaytracingPipeline& pipeline = VulkanResourceManager::CreateRaytracingPipeline("MousePick");
+        pipeline.AddRayGen("Mouse_RayGen");
+        pipeline.AddMiss("Mouse_Miss");
+        pipeline.AddClosestHit("Mouse_Hit");
+        pipeline.Build(layouts, pushConstantRanges, maxRecursionDepth);
+    }
+
+    void RecreatePipelines() {
+        VulkanResourceManager::CleanUpPipelines();
+        CreatePipelines();
     }
 }

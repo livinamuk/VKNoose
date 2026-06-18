@@ -7,6 +7,8 @@ namespace VulkanRenderer {
     bool Init();
     void Cleanup();
 
+    void RecreatePipelines();
+
     void LoadShaders();
     
     void UploadGlobalGeometry();
@@ -16,8 +18,6 @@ namespace VulkanRenderer {
     VulkanBuffer* GetIndexBuffer();
     uint64_t GetVertexBufferAddress();
     uint64_t GetIndexBufferAddress();
-
-    //VulkanDescriptorSet& GetStaticDescriptorSet();
 
     // Frame data
     VulkanFrameData& GetCurrentFrameData();

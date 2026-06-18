@@ -4,6 +4,8 @@
 #include "API/Vulkan/Types/vk_allocated_image.h"
 #include "API/Vulkan/Types/vk_buffer.h"
 #include "API/Vulkan/Types/vk_descriptor_set.h"
+#include "API/Vulkan/Types/vk_pipeline.h"
+#include "API/Vulkan/Types/vk_raytracing_pipeline.h"
 #include "API/Vulkan/Types/vk_sampler.h"
 #include "API/Vulkan/Types/vk_shader.h"
 #include <unordered_map>
@@ -31,6 +33,13 @@ namespace VulkanResourceManager {
     VulkanDescriptorSetResource* GetDescriptorSetResource(const std::string& name);
     VulkanDescriptorSet* GetDescriptorSet(const std::string& name);
     VkDescriptorSetLayout GetDescriptorSetLayout(const std::string& name);
+
+    // Pipelines
+    VulkanPipeline& CreatePipeline(const std::string& name);
+    VulkanPipeline* GetPipeline(const std::string& name);
+    VulkanRaytracingPipeline& CreateRaytracingPipeline(const std::string& name);
+    VulkanRaytracingPipeline* GetRaytracingPipeline(const std::string& name);
+    void CleanUpPipelines();
 
     // Samplers
     VulkanSampler& CreateSampler(const std::string& name, VkFilter magFilter, VkFilter minFilter, VkSamplerAddressMode addressMode, float maxAnisotropy = 1.0f);

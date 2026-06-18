@@ -97,7 +97,6 @@
     <ClCompile Include="src\API\Vulkan\Managers\vk_device_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_instance_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_memory_manager.cpp" />
-    <ClCompile Include="src\API\Vulkan\Managers\vk_pipeline_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_raytracing_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_resource_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_swapchain_manager.cpp" />
@@ -173,7 +172,6 @@
     <ClInclude Include="src\API\Vulkan\Managers\vk_device_manager.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_instance_manager.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_memory_manager.h" />
-    <ClInclude Include="src\API\Vulkan\Managers\vk_pipeline_manager.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_raytracing_manager.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_resource_manager.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_swapchain_manager.h" />

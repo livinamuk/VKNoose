@@ -12,6 +12,8 @@
 namespace VulkanResourceManager {
     std::unordered_map<std::string, AllocatedImage> g_allocatedImages;
     std::unordered_map<std::string, VulkanDescriptorSetResource> g_descriptorSets;
+    std::unordered_map<std::string, VulkanPipeline> g_pipelines;
+    std::unordered_map<std::string, VulkanRaytracingPipeline> g_raytracingPipelines;
     std::unordered_map<std::string, VulkanSampler> g_samplers;
     std::unordered_map<std::string, VulkanShader> g_shaders;
 
@@ -22,24 +24,30 @@ namespace VulkanResourceManager {
         VkDevice device = VulkanDeviceManager::GetDevice();
         VmaAllocator allocator = VulkanMemoryManager::GetAllocator();
 
-        for (auto& object : g_accelerationStructures)  { object.Cleanup(); } g_accelerationStructures.clear();
-        for (auto& object : g_buffers)                 { object.Cleanup(); } g_buffers.clear();
-        for (auto& [name, object] : g_descriptorSets)  { object.Cleanup(); } g_descriptorSets.clear();
-        for (auto& [name, object] : g_allocatedImages) { object.Cleanup(device, allocator); } g_allocatedImages.clear();
-        for (auto& [name, object] : g_samplers)        { object.Cleanup(); } g_samplers.clear();
-        for (auto& [name, shader] : g_shaders)         { shader.Cleanup(device); } g_shaders.clear();
+        for (auto& object : g_accelerationStructures)      { object.Cleanup(); } g_accelerationStructures.clear();
+        for (auto& object : g_buffers)                     { object.Cleanup(); } g_buffers.clear();
+        for (auto& [name, object] : g_descriptorSets)      { object.Cleanup(); } g_descriptorSets.clear();
+        for (auto& [name, object] : g_allocatedImages)     { object.Cleanup(device, allocator); } g_allocatedImages.clear();
+        for (auto& [name, object] : g_samplers)            { object.Cleanup(); }       g_samplers.clear();
+        for (auto& [name, shader] : g_shaders)             { shader.Cleanup(device); } g_shaders.clear();
 
-        std::cout << "VulkanResourceManager::Cleanup()\n";
+        CleanUpPipelines();
     }
 
-                                                                                              
+    void CleanUpPipelines() {
+        VkDevice device = VulkanDeviceManager::GetDevice();
+        for (auto& [name, object] : g_pipelines) { object.Cleanup(device); } g_pipelines.clear();
+        for (auto& [name, object] : g_raytracingPipelines) { object.Cleanup(); }       g_raytracingPipelines.clear();
+    }
+
+                                                                                         
      /*  ▄▄                       ▄▄                                          ▄▄▄▄▄
        ▄█▀▀█▄                      ██                   █▄                   ██▀▀▀▀█▄  █▄                    █▄                         
        ██  ██                      ██       ▄          ▄██▄ ▀▀       ▄       ▀██▄  ▄▀ ▄██▄ ▄                ▄██▄       ▄                
        ██▀▀██   ▄███▀ ▄███▀ ▄█▀█▄  ██ ▄█▀█▄ ████▄ ▄▀▀█▄ ██  ██ ▄███▄ ████▄     ▀██▄▄   ██  ████▄ ██ ██ ▄███▀ ██  ██ ██ ████▄ ▄█▀█▄ ▄██▀█
      ▄ ██  ██   ██    ██    ██▄█▀  ██ ██▄█▀ ██    ▄█▀██ ██  ██ ██ ██ ██ ██   ▄   ▀██▄  ██  ██    ██ ██ ██    ██  ██ ██ ██    ██▄█▀ ▀███▄
-     ▀██▀  ▀█▄█▄▀███▄▄▀███▄▄▀█▄▄▄ ▄██▄▀█▄▄▄▄█▀   ▄▀█▄██▄██ ▄██▄▀███▀▄██ ▀█   ▀██████▀ ▄██ ▄█▀   ▄▀██▀█▄▀███▄▄██ ▄▀██▀█▄█▀   ▄▀█▄▄▄█▄▄██▀ */
-                                                            
+     ▀██▀  ▀█▄█▄▀███▄▄▀███▄▄▀█▄▄▄ ▄██▄▀█▄▄▄▄█▀   ▄▀█▄██▄██ ▄██▄▀███▀▄██ ▀█   ▀██████▀ ▄██ ▄█▀   ▄▀██▀█▄▀███▄▄██ ▄▀██▀█▄█▀   ▄▀█▄▄▄█▄▄██▀
+                                                                                                                                        */
                                                                         
     uint64_t CreateAccelerationStructure() {
         const uint64_t id = UniqueID::GetNextObjectId(ObjectType::VK_ACCELERATION_STRUCTURE);
@@ -59,7 +67,7 @@ namespace VulkanResourceManager {
      ▄ ██  ██    ██  ██ ██ ██ ██    ▄█▀██ ██  ██▄█▀ ██ ██      ██   ██ ██ ██ ▄█▀██ ██ ██ ██▄█▀ ▀███▄
      ▀██▀  ▀█▄█ ▄██ ▄██▄▀███▀▄▀███▄▄▀█▄██▄██ ▄▀█▄▄▄▄█▀███    ▄▄██▄▄▄██ ██ ▀█▄▀█▄██▄▀████▄▀█▄▄▄█▄▄██▀
                                                                                       ██            
-                                                                                    ▀▀▀  */           
+                                                                                    ▀▀▀             */           
     AllocatedImage& CreateAllocatedImage(const std::string& name, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage) {
         if (width == 0 || height == 0) {
             std::cerr << "VulkanResourceManager Error: Zero dimension image '" << name << "' requested.\n";
@@ -101,7 +109,7 @@ namespace VulkanResourceManager {
      ▄ ██  ▄█  ██ ██ ██  ██  ██▄█▀ ██    ▀███▄
      ▀██████▀ ▄▀██▀█▄██ ▄██ ▄▀█▄▄▄▄█▀   █▄▄██▀ 
                      ██  ██                   
-                    ▀▀  ▀▀  */                  
+                    ▀▀  ▀▀                    */                  
 
     uint64_t CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VmaAllocationCreateFlags vmaFlags) {
         const uint64_t id = UniqueID::GetNextObjectId(ObjectType::VK_BUFFER);
@@ -123,14 +131,14 @@ namespace VulkanResourceManager {
     }
 
                                                                                   
-    /*▄▄▄▄▄▄                                                        ▄▄▄▄▄
+  /*  ▄▄▄▄▄▄                                                        ▄▄▄▄▄
      █▀██▀▀██                                    █▄                ██▀▀▀▀█▄        █▄       
        ██   ██                    ▄     ▀▀      ▄██▄       ▄       ▀██▄  ▄▀       ▄██▄      
        ██   ██  ▄█▀█▄ ▄██▀█ ▄███▀ ████▄ ██ ████▄ ██  ▄███▄ ████▄     ▀██▄▄   ▄█▀█▄ ██  ▄██▀█
      ▄ ██   ██  ██▄█▀ ▀███▄ ██    ██    ██ ██ ██ ██  ██ ██ ██      ▄   ▀██▄  ██▄█▀ ██  ▀███▄
      ▀██▀███▀  ▄▀█▄▄▄█▄▄██▀▄▀███▄▄█▀   ▄██▄████▀▄██ ▄▀███▀▄█▀      ▀██████▀ ▄▀█▄▄▄▄██ █▄▄██▀
                                            ██                                               
-                                           ▀  */                                              
+                                           ▀                                                */                                              
     VulkanDescriptorSetResource& CreateDescriptorSet(const std::string& name, VkDescriptorSetLayoutCreateInfo layoutInfo, DescriptorSetLifetime lifetime) {
         auto [it, inserted] = g_descriptorSets.try_emplace(name);
 
@@ -172,15 +180,64 @@ namespace VulkanResourceManager {
         return resource->GetLayout();
     }
     
-                                                     
-    /*▄▄▄▄▄                         ▄▄
+                                                   
+  /*  ▄▄▄▄▄▄                   ▄▄
+     █▀██▀▀▀█▄                  ██                     
+       ██▄▄▄█▀  ▀▀              ██ ▀▀ ▄                
+       ██▀▀▀    ██ ████▄ ▄█▀█▄  ██ ██ ████▄ ▄█▀█▄ ▄██▀█
+     ▄ ██       ██ ██ ██ ██▄█▀  ██ ██ ██ ██ ██▄█▀ ▀███▄
+     ▀██▀      ▄██▄████▀▄▀█▄▄▄ ▄██▄██▄██ ▀█▄▀█▄▄▄█▄▄██▀
+                   ██                                  
+                   ▀                                    */                                 
+    VulkanPipeline& CreatePipeline(const std::string& name) {
+        VkDevice device = VulkanDeviceManager::GetDevice();
+
+        auto it = g_pipelines.find(name);
+        if (it != g_pipelines.end()) {
+            it->second.Cleanup(device);
+            g_pipelines.erase(it);
+        }
+
+        return g_pipelines[name];
+    }
+
+    VulkanRaytracingPipeline& CreateRaytracingPipeline(const std::string& name) {
+        auto it = g_raytracingPipelines.find(name);
+        if (it != g_raytracingPipelines.end()) {
+            it->second.Cleanup();
+            g_raytracingPipelines.erase(it);
+        }
+
+        return g_raytracingPipelines[name];
+    }
+
+    VulkanPipeline* GetPipeline(const std::string& name) {
+        auto it = g_pipelines.find(name);
+        if (it != g_pipelines.end()) {
+            return &it->second;
+        }
+        std::cout << "VulkanPipelineManager::GetPipeline(..) failed to get '" << name << "'\n";
+        return nullptr;
+    }
+
+    VulkanRaytracingPipeline* GetRaytracingPipeline(const std::string& name) {
+        auto it = g_raytracingPipelines.find(name);
+        if (it != g_raytracingPipelines.end()) {
+            return &it->second;
+        }
+        std::cout << "VulkanPipelineManager::GetRaytracingPipeline(..) failed to get '" << name << "'\n";
+        return nullptr;
+    }
+
+
+  /*  ▄▄▄▄▄                         ▄▄
      ██▀▀▀▀█▄                        ██                  
      ▀██▄  ▄▀        ▄               ██       ▄          
        ▀██▄▄   ▄▀▀█▄ ███▄███▄ ████▄  ██ ▄█▀█▄ ████▄ ▄██▀█
      ▄   ▀██▄  ▄█▀██ ██ ██ ██ ██ ██  ██ ██▄█▀ ██    ▀███▄
      ▀██████▀ ▄▀█▄██▄██ ██ ▀█▄████▀ ▄██▄▀█▄▄▄▄█▀   █▄▄██▀
                               ██                         
-                              ▀  */                         
+                              ▀                          */                         
     VulkanSampler& CreateSampler(const std::string& name, VkFilter magFilter, VkFilter minFilter, VkSamplerAddressMode addressMode, float maxAnisotropy) {
         // Get iterator to the new or existing element
         auto [it, inserted] = g_samplers.try_emplace(name);
@@ -209,13 +266,13 @@ namespace VulkanResourceManager {
     }
 
 
-    /*▄▄▄▄▄
+  /*  ▄▄▄▄▄
      ██▀▀▀▀█▄  █▄             █▄
      ▀██▄  ▄▀  ██             ██       ▄
        ▀██▄▄   ████▄ ▄▀▀█▄ ▄████ ▄█▀█▄ ████▄ ▄██▀█
      ▄   ▀██▄  ██ ██ ▄█▀██ ██ ██ ██▄█▀ ██    ▀███▄
-     ▀██████▀ ▄██ ██▄▀█▄██▄█▀███▄▀█▄▄▄▄█▀   █▄▄██▀ */
-
+     ▀██████▀ ▄██ ██▄▀█▄██▄█▀███▄▀█▄▄▄▄█▀   █▄▄██▀ 
+                                                   */
 
     VulkanShader& CreateShader(const std::string& name, const std::vector<std::string>& paths) {
         g_shaders.emplace(

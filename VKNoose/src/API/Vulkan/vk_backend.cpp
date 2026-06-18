@@ -18,7 +18,6 @@
 #include "API/Vulkan/Managers/vk_instance_manager.h"
 #include "API/Vulkan/Managers/vk_memory_manager.h"
 #include "API/Vulkan/Managers/vk_raytracing_manager.h"
-#include "API/Vulkan/Managers/vk_pipeline_manager.h"
 #include "API/Vulkan/Managers/vk_resource_manager.h"
 #include "API/Vulkan/Managers/vk_swapchain_manager.h"
 #include "API/Vulkan/Managers/vk_sync_manager.h"
@@ -69,7 +68,6 @@ namespace VulkanBackEnd {
 		if (!VulkanSyncManager::Init()) return false;
 		if (!VulkanCommandManager::Init()) return false;
 		if (!VulkanRenderer::Init()) return false;
-		if (!VulkanPipelineManager::Init()) return false;
 
 		AssetManager::Init();
 		AssetManager::LoadFont();
@@ -170,8 +168,6 @@ void VulkanBackEnd::Cleanup() {
 		}
 	}
 
-	VulkanPipelineManager::Cleanup();
-
 	vmaDestroyBuffer(GetAllocator(), _lineListMesh.m_vertexBufferOLD.m_buffer, _lineListMesh.m_vertexBufferOLD.m_allocation);
 
 	VulkanCommandManager::Cleanup();
@@ -213,7 +209,7 @@ void VulkanBackEnd::RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuff
 	cmd_SetViewportSize(commandBuffer, loadingTarget->GetWidth(), loadingTarget->GetHeight());
 
 	// Pipeline
-    VulkanPipeline* textBlitterPipeline = VulkanPipelineManager::GetPipeline("TextBlitter");
+    VulkanPipeline* textBlitterPipeline = VulkanResourceManager::GetPipeline("TextBlitter");
     if (!textBlitterPipeline) return;
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetHandle());
 
@@ -481,7 +477,7 @@ void VulkanBackEnd::HotloadShaders() {
 	vkDeviceWaitIdle(GetDevice());
 
     VulkanResourceManager::HotloadShaders();
-	VulkanPipelineManager::ReloadAll();
+	VulkanRenderer::RecreatePipelines();
 }
 
 void VulkanBackEnd::upload_mesh(MeshOLD& mesh)
@@ -836,11 +832,11 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
     VulkanDescriptorSet* sceneTlasSet = VulkanResourceManager::GetDescriptorSet("SceneTLASDescriptorSet");
     VulkanDescriptorSet* inventoryTlasSet = VulkanResourceManager::GetDescriptorSet("InventoryTLASDescriptorSet");
 
-	VulkanPipeline* compositePipeline = VulkanPipelineManager::GetPipeline("Composite");
-	VulkanPipeline* linesPipeline = VulkanPipelineManager::GetPipeline("Lines");
-    VulkanPipeline* textBlitterPipeline = VulkanPipelineManager::GetPipeline("TextBlitter");
-    VulkanRaytracingPipeline* mousePickPipeline = VulkanPipelineManager::GetRaytracingPipeline("MousePick");
-    VulkanRaytracingPipeline* pathPipeline = VulkanPipelineManager::GetRaytracingPipeline("PathTrace");
+	VulkanPipeline* compositePipeline = VulkanResourceManager::GetPipeline("Composite");
+	VulkanPipeline* linesPipeline = VulkanResourceManager::GetPipeline("Lines");
+    VulkanPipeline* textBlitterPipeline = VulkanResourceManager::GetPipeline("TextBlitter");
+    VulkanRaytracingPipeline* mousePickPipeline = VulkanResourceManager::GetRaytracingPipeline("MousePick");
+    VulkanRaytracingPipeline* pathPipeline = VulkanResourceManager::GetRaytracingPipeline("PathTrace");
 
     if (!staticSet) return;
     if (!sceneTlasSet) return;
