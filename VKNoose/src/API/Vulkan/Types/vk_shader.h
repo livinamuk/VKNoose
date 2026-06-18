@@ -6,14 +6,14 @@
 
 struct VulkanShaderModule {
     VulkanShaderModule() = default;
-    VulkanShaderModule(VkDevice device, const std::string& filename, VkShaderStageFlagBits stage);
+    VulkanShaderModule(const std::string& filename, VkShaderStageFlagBits stage);
     VulkanShaderModule(const VulkanShaderModule&) = delete;
     VulkanShaderModule& operator=(const VulkanShaderModule&) = delete;
     VulkanShaderModule(VulkanShaderModule&& other) noexcept;
     VulkanShaderModule& operator=(VulkanShaderModule&& other) noexcept;
 
-    void Cleanup(VkDevice device);
-    void Hotload(VkDevice device);
+    void Cleanup();
+    void Hotload();
 
     VkShaderModule GetModule() const { return m_module; }
     VkShaderStageFlagBits GetStage() const { return m_stage; }
@@ -27,16 +27,16 @@ private:
 
 struct VulkanShader {
     VulkanShader() = default;
-    VulkanShader(VkDevice device, const std::vector<std::string>& filenames);
+    VulkanShader(const std::vector<std::string>& filenames);
     VulkanShader(const VulkanShader&) = delete;
     VulkanShader& operator=(const VulkanShader&) = delete;
     VulkanShader(VulkanShader&& other) noexcept;
     VulkanShader& operator=(VulkanShader&& other) noexcept;
 
-    //std::vector<VkPipelineShaderStageCreateInfo> GetStageInfos() const;
+    std::vector<VkPipelineShaderStageCreateInfo> GetStageCreateInfos() const;
     VkPipelineShaderStageCreateInfo GetStageCreateInfo(VkShaderStageFlagBits stage) const;
-    void Cleanup(VkDevice device);
-    void Hotload(VkDevice device);
+    void Cleanup();
+    void Hotload();
     VkShaderModule GetVertexShader();
     VkShaderModule GetFragmentShader();
     VkShaderModule GetComputeShader();

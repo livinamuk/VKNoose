@@ -19,13 +19,13 @@ struct AllocatedBufferOLD {
 };
 
 struct AllocatedImageOLD {
-	VkImage _image;
-	VmaAllocation _allocation;
+	VkImage _image = VK_NULL_HANDLE;
+	VmaAllocation _allocation = VK_NULL_HANDLE;
 };
 
 struct TextureOLD {
 	AllocatedImageOLD image;
-	VkImageView imageView;
+	VkImageView imageView = VK_NULL_HANDLE;
 	int _width = 0;
 	int _height = 0;
 	int _channelCount = 0;

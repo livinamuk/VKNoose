@@ -14,10 +14,13 @@ struct VulkanShaderBindingTable{
 };
 
 struct VulkanRaytracingPipeline {
+    void AddDescriptorSetLayout(VkDescriptorSetLayout layout);
+    void AddPushConstant(uint32_t size, VkShaderStageFlags stageFlags);
+    void SetMaxRecursionDepth(uint32_t maxRecursionDepth);
     void AddRayGen(const std::string& shaderName);
     void AddMiss(const std::string& shaderName);
     void AddClosestHit(const std::string& shaderName);
-    bool Build(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts, const std::vector<VkPushConstantRange>& pushConstantRanges, uint32_t maxRecursionDepth);
+    bool Build();
     void Cleanup();
 
     VkPipeline GetHandle() const                                  { return m_handle; }
@@ -27,7 +30,10 @@ struct VulkanRaytracingPipeline {
 private:
     VkPipeline m_handle = VK_NULL_HANDLE;
     VkPipelineLayout m_layout = VK_NULL_HANDLE;
+    uint32_t m_maxRecursionDepth = 1;
 
+    std::vector<VkDescriptorSetLayout> m_descriptorLayouts;
+    std::vector<VkPushConstantRange> m_pushConstants;
     std::vector<VkPipelineShaderStageCreateInfo> m_stages;
     std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_groups;
 

@@ -1,4 +1,6 @@
 #include "vk_pipeline.h"
+#include "API/Vulkan/Managers/vk_device_manager.h"
+#include "API/Vulkan/Types/vk_allocated_image.h"
 #include <array>
 
 bool VulkanPipeline::CheckResult(VkResult result, const std::string& message) {
@@ -9,16 +11,66 @@ bool VulkanPipeline::CheckResult(VkResult result, const std::string& message) {
     return true;
 }
 
-void VulkanPipeline::PushDescriptorSetLayout(VkDescriptorSetLayout layout) {
+void VulkanPipeline::AddColorAttachmentFormat(VkFormat format) {
+    if (format == VK_FORMAT_UNDEFINED) {
+        std::cerr << "[Vulkan Pipeline Error] Cannot add an undefined color attachment format\n";
+        return;
+    }
+
+    m_colorAttachmentFormats.push_back(format);
+}
+
+void VulkanPipeline::AddColorAttachment(const AllocatedImage* image) {
+    if (!image) {
+        std::cerr << "[Vulkan Pipeline Error] Cannot add a null color attachment\n";
+        return;
+    }
+
+    AddColorAttachmentFormat(image->GetFormat());
+}
+
+void VulkanPipeline::SetDepthAttachmentFormat(VkFormat format) {
+    if (format == VK_FORMAT_UNDEFINED) {
+        std::cerr << "[Vulkan Pipeline Error] Cannot set an undefined depth attachment format\n";
+        return;
+    }
+
+    m_depthAttachmentFormat = format;
+}
+
+void VulkanPipeline::SetDepthAttachment(const AllocatedImage* image) {
+    if (!image) {
+        std::cerr << "[Vulkan Pipeline Error] Cannot set a null depth attachment\n";
+        return;
+    }
+
+    SetDepthAttachmentFormat(image->GetFormat());
+}
+
+void VulkanPipeline::AddDescriptorSetLayout(VkDescriptorSetLayout layout) {
     m_descriptorLayouts.push_back(layout);
 }
 
-void VulkanPipeline::SetPushConstant(uint32_t size, VkShaderStageFlags stageFlags) {
+void VulkanPipeline::AddPushConstant(uint32_t size, VkShaderStageFlags stageFlags) {
+    constexpr uint32_t alignment = 4;
+
+    if (size == 0 || stageFlags == 0) {
+        std::cerr << "[Vulkan Pipeline Error] Push constants require a non-zero size and shader stage flags\n";
+        return;
+    }
+
+    const uint32_t alignedSize = (size + alignment - 1) & ~(alignment - 1);
+    const uint32_t offset = m_pushConstants.empty() ? 0 : m_pushConstants.back().offset + m_pushConstants.back().size;
+
     VkPushConstantRange range{};
-    range.offset = 0;
-    range.size = size;
+    range.offset = offset;
+    range.size = alignedSize;
     range.stageFlags = stageFlags;
     m_pushConstants.push_back(range);
+}
+
+void VulkanPipeline::SetShader(const VulkanShader* shader) {
+    m_shader = shader;
 }
 
 void VulkanPipeline::SetTopology(VkPrimitiveTopology topology) { 
@@ -46,7 +98,14 @@ void VulkanPipeline::SetDepthTest(bool enabled, bool writeEnabled) {
     m_depthWrite = writeEnabled;
 }
 
-bool VulkanPipeline::Build(VkDevice device, VkShaderModule vertShader, VkShaderModule fragShader, uint32_t colorAttachmentCount, VkFormat colorFormat) {
+bool VulkanPipeline::Build() {
+    if (!m_shader) {
+        std::cerr << "[Vulkan Pipeline Error] Cannot build pipeline with a null shader\n";
+        return false;
+    }
+
+    VkDevice device = VulkanDeviceManager::GetDevice();
+
     // Pipeline Layout
     VkPipelineLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -60,16 +119,26 @@ bool VulkanPipeline::Build(VkDevice device, VkShaderModule vertShader, VkShaderM
     }
 
     // Shader Stages
-    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{};
-    shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-    shaderStages[0].module = vertShader;
-    shaderStages[0].pName = "main";
+    constexpr VkShaderStageFlags graphicsStageMask =
+        VK_SHADER_STAGE_VERTEX_BIT |
+        VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT |
+        VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT |
+        VK_SHADER_STAGE_GEOMETRY_BIT |
+        VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    shaderStages[1].module = fragShader;
-    shaderStages[1].pName = "main";
+    std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
+    for (const VkPipelineShaderStageCreateInfo& stageInfo : m_shader->GetStageCreateInfos()) {
+        if (stageInfo.stage & graphicsStageMask) {
+            shaderStages.push_back(stageInfo);
+        }
+    }
+
+    if (shaderStages.empty()) {
+        std::cerr << "[Vulkan Pipeline Error] Shader contains no graphics shader stages\n";
+        vkDestroyPipelineLayout(device, m_layout, nullptr);
+        m_layout = VK_NULL_HANDLE;
+        return false;
+    }
 
     // Vertex Input
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
@@ -133,11 +202,16 @@ bool VulkanPipeline::Build(VkDevice device, VkShaderModule vertShader, VkShaderM
         colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
     }
 
+    std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachments(
+        m_colorAttachmentFormats.size(),
+        colorBlendAttachment
+    );
+
     VkPipelineColorBlendStateCreateInfo colorBlending{};
     colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     colorBlending.logicOpEnable = VK_FALSE;
-    colorBlending.attachmentCount = 1;
-    colorBlending.pAttachments = &colorBlendAttachment;
+    colorBlending.attachmentCount = static_cast<uint32_t>(colorBlendAttachments.size());
+    colorBlending.pAttachments = colorBlendAttachments.empty() ? nullptr : colorBlendAttachments.data();
 
     // Dynamic State
     std::array<VkDynamicState, 2> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
@@ -149,14 +223,15 @@ bool VulkanPipeline::Build(VkDevice device, VkShaderModule vertShader, VkShaderM
     // Dynamic Rendering Info
     VkPipelineRenderingCreateInfo renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-    renderingInfo.colorAttachmentCount = colorAttachmentCount;
-    renderingInfo.pColorAttachmentFormats = &colorFormat;
+    renderingInfo.colorAttachmentCount = static_cast<uint32_t>(m_colorAttachmentFormats.size());
+    renderingInfo.pColorAttachmentFormats = m_colorAttachmentFormats.empty() ? nullptr : m_colorAttachmentFormats.data();
+    renderingInfo.depthAttachmentFormat = m_depthAttachmentFormat;
 
     // Final Creation
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineInfo.pNext = &renderingInfo;
-    pipelineInfo.stageCount = 2;
+    pipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
     pipelineInfo.pStages = shaderStages.data();
     pipelineInfo.pVertexInputState = &vertexInputInfo;
     pipelineInfo.pInputAssemblyState = &inputAssembly;
@@ -172,7 +247,9 @@ bool VulkanPipeline::Build(VkDevice device, VkShaderModule vertShader, VkShaderM
     return CheckResult(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_handle), "Failed to create graphics pipeline");
 }
 
-void VulkanPipeline::Cleanup(VkDevice device) {
+void VulkanPipeline::Cleanup() {
+    VkDevice device = VulkanDeviceManager::GetDevice();
+
     if (m_layout != VK_NULL_HANDLE) vkDestroyPipelineLayout(device, m_layout, nullptr);
     if (m_handle != VK_NULL_HANDLE) vkDestroyPipeline(device, m_handle, nullptr);
     m_layout = VK_NULL_HANDLE;

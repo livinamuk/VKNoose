@@ -1,8 +1,13 @@
 #include "vk_allocated_image.h"
 #include "API/Vulkan/Managers/vk_command_manager.h"
+#include "API/Vulkan/Managers/vk_device_manager.h"
+#include "API/Vulkan/Managers/vk_memory_manager.h"
 #include "API/Vulkan/vk_utils.h"
 
-AllocatedImage::AllocatedImage(VkDevice device, VmaAllocator allocator, VkFormat imageFormat, VkExtent3D imageExtent, VkImageUsageFlags usage, std::string debugName) {
+AllocatedImage::AllocatedImage(VkFormat imageFormat, VkExtent3D imageExtent, VkImageUsageFlags usage, std::string debugName) {
+    VkDevice device = VulkanDeviceManager::GetDevice();
+    VmaAllocator allocator = VulkanMemoryManager::GetAllocator();
+
     m_format = imageFormat;
     m_extent = imageExtent;
     m_currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -104,33 +109,6 @@ AllocatedImage& AllocatedImage::operator=(AllocatedImage&& other) noexcept {
     return *this;
 }
 
-//void AllocatedImage::TransitionLayout(VkCommandBuffer cmd, VkImageLayout newLayout, VkAccessFlags dstAccess, VkPipelineStageFlags dstStage) {
-//    if (m_currentLayout == newLayout) {
-//        return;
-//    }
-//
-//    VkImageMemoryBarrier barrier = {};
-//    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-//    barrier.oldLayout = m_currentLayout;
-//    barrier.newLayout = newLayout;
-//    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-//    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-//    barrier.image = m_image;
-//    barrier.subresourceRange.aspectMask = VulkanUtils::GetImageAspectFlagsFromFormat(m_format);
-//    barrier.subresourceRange.baseMipLevel = 0;
-//    barrier.subresourceRange.levelCount = 1;
-//    barrier.subresourceRange.baseArrayLayer = 0;
-//    barrier.subresourceRange.layerCount = 1;
-//    barrier.srcAccessMask = m_currentAccessMask;
-//    barrier.dstAccessMask = dstAccess;
-//
-//    vkCmdPipelineBarrier(cmd, m_currentStageFlags, dstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-//
-//    m_currentLayout = newLayout;
-//    m_currentAccessMask = dstAccess;
-//    m_currentStageFlags = dstStage;
-//}
-
 void AllocatedImage::Sync(VkCommandBuffer cmd, VkAccessFlags2 dstAccess, VkPipelineStageFlags2 dstStage) {
     // only sync memory, no layout transition needed
     VkMemoryBarrier2 barrier{ VK_STRUCTURE_TYPE_MEMORY_BARRIER_2 };
@@ -149,7 +127,10 @@ void AllocatedImage::Sync(VkCommandBuffer cmd, VkAccessFlags2 dstAccess, VkPipel
     m_currentStageFlags = dstStage;
 }
 
-void AllocatedImage::Cleanup(VkDevice device, VmaAllocator allocator) {
+void AllocatedImage::Cleanup() {
+    VkDevice device = VulkanDeviceManager::GetDevice();
+    VmaAllocator allocator = VulkanMemoryManager::GetAllocator();
+
     if (m_imageView != VK_NULL_HANDLE) {
         vkDestroyImageView(device, m_imageView, nullptr);
     }

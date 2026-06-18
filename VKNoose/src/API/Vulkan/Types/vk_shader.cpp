@@ -1,6 +1,6 @@
 #include "vk_shader.h"
 #include "shaderc/shaderc.hpp"
-#include "API/Vulkan/vk_backend.h"
+#include "API/Vulkan/Managers/vk_device_manager.h"
 #include <fstream>
 #include <iostream>
 #include <filesystem>
@@ -74,10 +74,10 @@ static std::vector<uint32_t> CompileGLSL(const std::string& path, VkShaderStageF
     return { result.cbegin(), result.cend() };
 }
 
-VulkanShaderModule::VulkanShaderModule(VkDevice device, const std::string& filename, VkShaderStageFlagBits stage) {
+VulkanShaderModule::VulkanShaderModule(const std::string& filename, VkShaderStageFlagBits stage) {
     m_path = filename;
     m_stage = stage;
-    Hotload(device);
+    Hotload();
 }
 
 VulkanShaderModule::VulkanShaderModule(VulkanShaderModule&& other) noexcept {
@@ -97,16 +97,18 @@ VulkanShaderModule& VulkanShaderModule::operator=(VulkanShaderModule&& other) no
     return *this;
 }
 
-void VulkanShaderModule::Cleanup(VkDevice device) {
+void VulkanShaderModule::Cleanup() {
     if (m_module != VK_NULL_HANDLE) {
-        vkDestroyShaderModule(device, m_module, nullptr);
+        vkDestroyShaderModule(VulkanDeviceManager::GetDevice(), m_module, nullptr);
         m_module = VK_NULL_HANDLE;
     }
 }
 
-void VulkanShaderModule::Hotload(VkDevice device) {
+void VulkanShaderModule::Hotload() {
     std::vector<uint32_t> spirv = CompileGLSL(m_path, m_stage);
     if (spirv.empty()) return;
+
+    VkDevice device = VulkanDeviceManager::GetDevice();
 
     VkShaderModuleCreateInfo createInfo = { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
     createInfo.codeSize = spirv.size() * sizeof(uint32_t);
@@ -114,7 +116,7 @@ void VulkanShaderModule::Hotload(VkDevice device) {
 
     VkShaderModule newModule;
     if (vkCreateShaderModule(device, &createInfo, nullptr, &newModule) == VK_SUCCESS) {
-        Cleanup(device);
+        Cleanup();
         m_module = newModule;
 
         VkDebugUtilsObjectNameInfoEXT nameInfo = { VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
@@ -125,11 +127,14 @@ void VulkanShaderModule::Hotload(VkDevice device) {
     }
 }
 
-VulkanShader::VulkanShader(VkDevice device, const std::vector<std::string>& filenames) {
+VulkanShader::VulkanShader(const std::vector<std::string>& filenames) {
     static const std::unordered_map<std::string, VkShaderStageFlagBits> shaderTypeMap = {
         {".vert", VK_SHADER_STAGE_VERTEX_BIT},
         {".frag", VK_SHADER_STAGE_FRAGMENT_BIT},
         {".comp", VK_SHADER_STAGE_COMPUTE_BIT},
+        {".geom", VK_SHADER_STAGE_GEOMETRY_BIT},
+        {".tesc", VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT},
+        {".tese", VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT},
         {".rgen", VK_SHADER_STAGE_RAYGEN_BIT_KHR},
         {".rmiss", VK_SHADER_STAGE_MISS_BIT_KHR},
         {".rchit", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR}
@@ -142,7 +147,7 @@ VulkanShader::VulkanShader(VkDevice device, const std::vector<std::string>& file
             std::string fullPath = "res/shaders/Vulkan/" + filename;
 
             if (std::filesystem::exists(fullPath)) {
-                m_modules.emplace_back(VulkanShaderModule(device, fullPath, shaderTypeMap.at(extension)));
+                m_modules.emplace_back(VulkanShaderModule(fullPath, shaderTypeMap.at(extension)));
             }
             else {
                 std::cerr << "SHADER FILE NOT FOUND: " << fullPath << "\n";
@@ -162,17 +167,24 @@ VulkanShader& VulkanShader::operator=(VulkanShader&& other) noexcept {
     return *this;
 }
 
-//std::vector<VkPipelineShaderStageCreateInfo> VulkanShader::GetStageInfos() const {
-//    std::vector<VkPipelineShaderStageCreateInfo> infos;
-//    for (const auto& module : m_modules) {
-//        VkPipelineShaderStageCreateInfo info = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
-//        info.stage = module.GetStage();
-//        info.module = module.GetModule();
-//        info.pName = m_entryPoint;
-//        infos.push_back(info);
-//    }
-//    return infos;
-//}
+std::vector<VkPipelineShaderStageCreateInfo> VulkanShader::GetStageCreateInfos() const {
+    std::vector<VkPipelineShaderStageCreateInfo> infos;
+    infos.reserve(m_modules.size());
+
+    for (const VulkanShaderModule& module : m_modules) {
+        if (module.GetModule() == VK_NULL_HANDLE) {
+            continue;
+        }
+
+        VkPipelineShaderStageCreateInfo info{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+        info.stage = module.GetStage();
+        info.module = module.GetModule();
+        info.pName = m_entryPoint;
+        infos.push_back(info);
+    }
+
+    return infos;
+}
 
 VkPipelineShaderStageCreateInfo VulkanShader::GetStageCreateInfo(VkShaderStageFlagBits stage) const {
     for (const auto& module : m_modules) {
@@ -187,16 +199,16 @@ VkPipelineShaderStageCreateInfo VulkanShader::GetStageCreateInfo(VkShaderStageFl
     return {}; // Returns empty/null if stage not found
 }
 
-void VulkanShader::Cleanup(VkDevice device) {
+void VulkanShader::Cleanup() {
     for (auto& module : m_modules) {
-        module.Cleanup(device);
+        module.Cleanup();
     }
     m_modules.clear();
 }
 
-void VulkanShader::Hotload(VkDevice device) {
+void VulkanShader::Hotload() {
     for (auto& module : m_modules) {
-        module.Hotload(device);
+        module.Hotload();
     }
 }
 

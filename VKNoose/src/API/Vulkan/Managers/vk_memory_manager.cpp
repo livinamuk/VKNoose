@@ -106,6 +106,7 @@ namespace VulkanMemoryManager {
 
         if (g_descriptorPool != VK_NULL_HANDLE) {
             vkDestroyDescriptorPool(device, g_descriptorPool, nullptr);
+            g_descriptorPool = VK_NULL_HANDLE;
         }
         std::cout << "VulkanMemoryManager::Cleanup()\n";
     }

@@ -5,7 +5,7 @@
 
 struct AllocatedImage {
     AllocatedImage() = default;
-    AllocatedImage(VkDevice device, VmaAllocator allocator, VkFormat imageFormat, VkExtent3D imageExtent, VkImageUsageFlags usage, std::string debugName);
+    AllocatedImage(VkFormat imageFormat, VkExtent3D imageExtent, VkImageUsageFlags usage, std::string debugName);
     AllocatedImage(const AllocatedImage&) = delete;
     AllocatedImage& operator=(const AllocatedImage&) = delete;
     AllocatedImage(AllocatedImage&& other) noexcept;
@@ -13,7 +13,7 @@ struct AllocatedImage {
 
     void Sync(VkCommandBuffer cmd, VkAccessFlags2 dstAccess, VkPipelineStageFlags2 dstStage);
     //void TransitionLayout(VkCommandBuffer cmd, VkImageLayout newLayout, VkAccessFlags dstAccess, VkPipelineStageFlags dstStage);
-    void Cleanup(VkDevice device, VmaAllocator allocator);
+    void Cleanup();
 
     int32_t GetWidth() const            { return m_extent.width; }
     int32_t GetHeight() const           { return m_extent.height; }

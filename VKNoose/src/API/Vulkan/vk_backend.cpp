@@ -157,7 +157,7 @@ void VulkanBackEnd::Cleanup() {
 
 	VulkanResourceManager::Cleanup();
 
-	// Cleanup textures properly
+	// Cleanup legacy textures
 	for (int i = 0; i < AssetManager::GetNumberOfTextures(); i++) {
 		TextureOLD* tex = AssetManager::GetTextureByIndexOLD(i);
 		if (tex) {
@@ -165,10 +165,20 @@ void VulkanBackEnd::Cleanup() {
 				vkDestroyImageView(GetDevice(), tex->imageView, nullptr);
 				tex->imageView = VK_NULL_HANDLE;
 			}
+
+			if (tex->image._image != VK_NULL_HANDLE) {
+				vmaDestroyImage(GetAllocator(), tex->image._image, tex->image._allocation);
+				tex->image._image = VK_NULL_HANDLE;
+				tex->image._allocation = VK_NULL_HANDLE;
+			}
 		}
 	}
 
-	vmaDestroyBuffer(GetAllocator(), _lineListMesh.m_vertexBufferOLD.m_buffer, _lineListMesh.m_vertexBufferOLD.m_allocation);
+	if (_lineListMesh.m_vertexBufferOLD.m_buffer != VK_NULL_HANDLE) {
+		vmaDestroyBuffer(GetAllocator(), _lineListMesh.m_vertexBufferOLD.m_buffer, _lineListMesh.m_vertexBufferOLD.m_allocation);
+		_lineListMesh.m_vertexBufferOLD.m_buffer = VK_NULL_HANDLE;
+		_lineListMesh.m_vertexBufferOLD.m_allocation = VK_NULL_HANDLE;
+	}
 
 	VulkanCommandManager::Cleanup();
 	VulkanSyncManager::Cleanup();
@@ -904,8 +914,8 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 
         cmd_BindRayTracingPipeline(commandBuffer, mousePickPipeline->GetHandle());
 
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 0, 1, sceneTlasSet->GetHandlePtr(), 0, nullptr);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 1, 1, staticSet->GetHandlePtr(), 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, mousePickPipeline->GetLayout(), 0, 1, sceneTlasSet->GetHandlePtr(), 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, mousePickPipeline->GetLayout(), 1, 1, staticSet->GetHandlePtr(), 0, nullptr);
 
         const VulkanShaderBindingTable& mouseSbt = mousePickPipeline->GetShaderBindingTable();
         vkCmdTraceRaysKHR(commandBuffer, &mouseSbt.raygen, &mouseSbt.miss, &mouseSbt.hit, &mouseSbt.callable, 1, 1, 1);
@@ -949,7 +959,7 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 			cmd_SetViewportSize(commandBuffer, laptopDisplayAllocatedImage->GetWidth(), laptopDisplayAllocatedImage->GetHeight());
 
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetHandle());
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, textBlitterPipeline->GetLayout(), 1, 1, staticSet->GetHandlePtr(), 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 0, 1, staticSet->GetHandlePtr(), 0, nullptr);
 
             // Push constant
             UIPushConstant pushConstant{};
@@ -1029,7 +1039,7 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 		vkCmdBeginRendering(commandBuffer, &uiRenderingInfo);
 		cmd_SetViewportSize(commandBuffer, presentAllocatedImage->GetWidth(), presentAllocatedImage->GetHeight());
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetHandle());
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 1, 1, staticSet->GetHandlePtr(), 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 0, 1, staticSet->GetHandlePtr(), 0, nullptr);
 
 		for (int i = 0; i < RasterRenderer::instanceCount; i++) {
 			if (RasterRenderer::_UIToRender[i].destination == RasterRenderer::Destination::MAIN_UI)

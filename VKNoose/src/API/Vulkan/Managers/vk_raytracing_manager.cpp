@@ -61,6 +61,10 @@ namespace VulkanRaytracingManager {
         VkAccelerationStructureBuildSizesInfoKHR sizeInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
         vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo, &numInstances, &sizeInfo);
     
+        // This TLAS is rebuilt in place. Release the previous handle and backing
+        // buffer before replacing them.
+        accelerationStructure->Cleanup();
+
         // Create TLAS handle and buffer
         accelerationStructure->CreateBuffer(sizeInfo);
 
@@ -87,8 +91,9 @@ namespace VulkanRaytracingManager {
         addressInfo.accelerationStructure = accelerationStructure->m_handle;
         accelerationStructure->m_deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device, &addressInfo);
 
-        // Cleanup
+        // Both buffers are only needed while the synchronous build is running.
         scratchBuffer.Cleanup();
+        instanceBuffer.Cleanup();
     }
 
     uint64_t CreateBottomLevelAS(Mesh* mesh) {

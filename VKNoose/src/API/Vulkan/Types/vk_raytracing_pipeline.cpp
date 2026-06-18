@@ -18,6 +18,37 @@ static VkDeviceSize AlignedSize(VkDeviceSize value, VkDeviceSize alignment) {
     return (value + alignment - 1) & ~(alignment - 1);
 }
 
+void VulkanRaytracingPipeline::AddDescriptorSetLayout(VkDescriptorSetLayout layout) {
+    m_descriptorLayouts.push_back(layout);
+}
+
+void VulkanRaytracingPipeline::AddPushConstant(uint32_t size, VkShaderStageFlags stageFlags) {
+    constexpr uint32_t alignment = 4;
+
+    if (size == 0 || stageFlags == 0) {
+        std::cerr << "[Vulkan Raytracing Pipeline Error] Push constants require a non-zero size and shader stage flags\n";
+        return;
+    }
+
+    const uint32_t alignedSize = (size + alignment - 1) & ~(alignment - 1);
+    const uint32_t offset = m_pushConstants.empty() ? 0 : m_pushConstants.back().offset + m_pushConstants.back().size;
+
+    VkPushConstantRange range{};
+    range.offset = offset;
+    range.size = alignedSize;
+    range.stageFlags = stageFlags;
+    m_pushConstants.push_back(range);
+}
+
+void VulkanRaytracingPipeline::SetMaxRecursionDepth(uint32_t maxRecursionDepth) {
+    if (maxRecursionDepth == 0) {
+        std::cerr << "[Vulkan Raytracing Pipeline Error] Maximum recursion depth must be greater than zero\n";
+        return;
+    }
+
+    m_maxRecursionDepth = maxRecursionDepth;
+}
+
 void VulkanRaytracingPipeline::AddRayGen(const std::string& shaderName) {
     VulkanShader* shader = VulkanResourceManager::GetShader(shaderName);
     if (!shader) {
@@ -81,11 +112,7 @@ void VulkanRaytracingPipeline::AddClosestHit(const std::string& shaderName) {
     m_groups.push_back(group);
 }
 
-bool VulkanRaytracingPipeline::Build(
-    const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts,
-    const std::vector<VkPushConstantRange>& pushConstantRanges,
-    uint32_t maxRecursionDepth
-) {
+bool VulkanRaytracingPipeline::Build() {
     VkDevice device = VulkanDeviceManager::GetDevice();
     const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rtProperties = VulkanDeviceManager::GetRayTracingPipelineProperties();
 
@@ -93,10 +120,10 @@ bool VulkanRaytracingPipeline::Build(
 
     VkPipelineLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    layoutInfo.setLayoutCount = (uint32_t)descriptorSetLayouts.size();
-    layoutInfo.pSetLayouts = descriptorSetLayouts.data();
-    layoutInfo.pushConstantRangeCount = (uint32_t)pushConstantRanges.size();
-    layoutInfo.pPushConstantRanges = pushConstantRanges.data();
+    layoutInfo.setLayoutCount = (uint32_t)m_descriptorLayouts.size();
+    layoutInfo.pSetLayouts = m_descriptorLayouts.data();
+    layoutInfo.pushConstantRangeCount = (uint32_t)m_pushConstants.size();
+    layoutInfo.pPushConstantRanges = m_pushConstants.data();
 
     if (!CheckResult(vkCreatePipelineLayout(device, &layoutInfo, nullptr, &m_layout), "Failed to create pipeline layout")) {
         return false;
@@ -108,7 +135,7 @@ bool VulkanRaytracingPipeline::Build(
     pipelineInfo.pStages = m_stages.data();
     pipelineInfo.groupCount = (uint32_t)m_groups.size();
     pipelineInfo.pGroups = m_groups.data();
-    pipelineInfo.maxPipelineRayRecursionDepth = maxRecursionDepth;
+    pipelineInfo.maxPipelineRayRecursionDepth = m_maxRecursionDepth;
     pipelineInfo.layout = m_layout;
 
     if (!CheckResult(vkCreateRayTracingPipelinesKHR(device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_handle), "Failed to create raytracing pipeline")) {
