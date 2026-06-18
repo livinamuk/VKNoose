@@ -132,9 +132,6 @@
     <ClCompile Include="src\API\Vulkan\Managers\vk_command_manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\API\Vulkan\Managers\vk_descriptor_manager.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\API\Vulkan\Managers\vk_resource_manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -187,6 +184,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\API\Vulkan\Types\vk_raytracing_pipeline.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\API\Vulkan\Renderer\vk_renderer_init.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\API\Vulkan\Renderer\vk_renderer_update.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -336,9 +339,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\API\Vulkan\Managers\vk_command_manager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\API\Vulkan\Managers\vk_descriptor_manager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\API\Vulkan\Managers\vk_resource_manager.h">

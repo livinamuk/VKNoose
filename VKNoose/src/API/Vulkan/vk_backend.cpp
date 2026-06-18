@@ -15,7 +15,6 @@
 
 #include "API/Vulkan/Managers/vk_command_manager.h"
 #include "API/Vulkan/Managers/vk_device_manager.h"
-#include "API/Vulkan/Managers/vk_descriptor_manager.h"
 #include "API/Vulkan/Managers/vk_instance_manager.h"
 #include "API/Vulkan/Managers/vk_memory_manager.h"
 #include "API/Vulkan/Managers/vk_raytracing_manager.h"
@@ -69,7 +68,6 @@ namespace VulkanBackEnd {
 		if (!VulkanSwapchainManager::Init()) return false;
 		if (!VulkanSyncManager::Init()) return false;
 		if (!VulkanCommandManager::Init()) return false;
-		if (!VulkanDescriptorManager::Init()) return false;
 		if (!VulkanRenderer::Init()) return false;
 		if (!VulkanPipelineManager::Init()) return false;
 
@@ -77,15 +75,17 @@ namespace VulkanBackEnd {
 		AssetManager::LoadFont();
 		AssetManager::LoadHardcodedMesh();
 
+        VulkanDescriptorSet* staticSet = VulkanResourceManager::GetDescriptorSet("StaticDescriptorSet");
 		VulkanSampler* linearSampler = VulkanResourceManager::GetSampler("Linear");
-		if (!linearSampler) return false;
 
-		VulkanDescriptorSet& bindlessSet = VulkanRenderer::GetStaticDescriptorSet();
+        if (!staticSet) return false;
+        if (!linearSampler) return false;
+
 
 		VkDescriptorImageInfo samplerImageInfo = {};
 		samplerImageInfo.sampler = linearSampler->GetSampler();
 
-		bindlessSet.WriteImage(0, VK_NULL_HANDLE, linearSampler->GetSampler(), VK_IMAGE_LAYOUT_UNDEFINED, VK_DESCRIPTOR_TYPE_SAMPLER);
+		staticSet->WriteImage(0, VK_NULL_HANDLE, linearSampler->GetSampler(), VK_IMAGE_LAYOUT_UNDEFINED, VK_DESCRIPTOR_TYPE_SAMPLER);
 
 		// All textures
 		VkDescriptorImageInfo textureImageInfo[TEXTURE_ARRAY_SIZE];
@@ -96,10 +96,10 @@ namespace VulkanBackEnd {
 			textureImageInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 			textureImageInfo[i].imageView = imageView;
 		
-			bindlessSet.WriteImage(1, imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, i);
+			staticSet->WriteImage(1, imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, i);
 		}
 
-		bindlessSet.Update();
+		staticSet->Update();
 
 		VulkanBackEnd::ToggleFullscreen();
 
@@ -144,7 +144,7 @@ void VulkanBackEnd::LoadNextItem() {
 
         vkDeviceWaitIdle(GetDevice());
 
-        UpdateStaticDescriptorSet();
+        VulkanRenderer::UpdateStaticDescriptorSet();
 		Input::SetMousePos(_windowedModeExtent.width / 2, _windowedModeExtent.height / 2);
 	}
 
@@ -174,7 +174,6 @@ void VulkanBackEnd::Cleanup() {
 
 	vmaDestroyBuffer(GetAllocator(), _lineListMesh.m_vertexBufferOLD.m_buffer, _lineListMesh.m_vertexBufferOLD.m_allocation);
 
-	VulkanDescriptorManager::Cleanup();
 	VulkanCommandManager::Cleanup();
 	VulkanSyncManager::Cleanup();
 	VulkanSwapchainManager::Cleanup();
@@ -219,8 +218,8 @@ void VulkanBackEnd::RecordAssetLoadingRenderCommands(VkCommandBuffer commandBuff
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetHandle());
 
 	// Static descriptor set
-    VulkanDescriptorSet& staticSet = VulkanRenderer::GetStaticDescriptorSet();
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 0, 1, staticSet.GetHandlePtr(), 0, nullptr);
+    VulkanDescriptorSet* staticSet = VulkanResourceManager::GetDescriptorSet("StaticDescriptorSet");
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetLayout(), 0, 1, staticSet->GetHandlePtr(), 0, nullptr);
 
     // Push constant
     UIPushConstant pushConstant{};
@@ -391,13 +390,14 @@ void VulkanBackEnd::RenderGameFrame() {
 
 	VulkanSyncManager::WaitForRenderFence(frameIndex);
 
-    VulkanRaytracingManager::CreateTopLevelAS(frameData.tlas.scene, Scene::GetMeshInstancesForSceneAccelerationStructure());
-    VulkanRaytracingManager::CreateTopLevelAS(frameData.tlas.inventory, Scene::GetMeshInstancesForInventoryAccelerationStructure());
+    VulkanRaytracingManager::CreateTLAS(frameData.tlas.scene, Scene::GetMeshInstancesForSceneAccelerationStructure());
+    VulkanRaytracingManager::CreateTLAS(frameData.tlas.inventory, Scene::GetMeshInstancesForInventoryAccelerationStructure());
 
     get_required_lines();
     UpdateBuffers();
     UpdateBuffers2D();
-    UpdateRaytracingTlasDescriptors();
+
+	VulkanRenderer::UpdateTLASDescriptorSets();
 
 	VulkanSyncManager::ResetRenderFence(frameIndex);
 
@@ -784,83 +784,6 @@ void VulkanBackEnd::UpdateBuffers() {
 	}
 }
 
-void VulkanBackEnd::UpdateStaticDescriptorSet() {
-	AllocatedImage* rtFirstHitColor = VulkanResourceManager::GetAllocatedImage("RT_FirstHit_Color");
-	AllocatedImage* rtFirstHitNormals = VulkanResourceManager::GetAllocatedImage("RT_FirstHit_Normals");
-	AllocatedImage* rtFirstHitBaseColor = VulkanResourceManager::GetAllocatedImage("RT_FirstHit_BaseColor");
-	AllocatedImage* rtSecondHitColor = VulkanResourceManager::GetAllocatedImage("RT_SecondHit_Color");
-	AllocatedImage* gBufferBaseColor = VulkanResourceManager::GetAllocatedImage("GBuffer_BaseColor");
-	AllocatedImage* gBufferNormal = VulkanResourceManager::GetAllocatedImage("GBuffer_Normal");
-	AllocatedImage* gBufferRma = VulkanResourceManager::GetAllocatedImage("GBuffer_RMA");
-	AllocatedImage* laptopDisplay = VulkanResourceManager::GetAllocatedImage("LaptopDisplay");
-	AllocatedImage* composite = VulkanResourceManager::GetAllocatedImage("Composite");
-	AllocatedImage* present = VulkanResourceManager::GetAllocatedImage("Present");
-	AllocatedImage* loadingScreen = VulkanResourceManager::GetAllocatedImage("LoadingScreen");
-	AllocatedImage* depthPresent = VulkanResourceManager::GetAllocatedImage("Depth_Present");
-	AllocatedImage* depthGBuffer = VulkanResourceManager::GetAllocatedImage("Depth_GBuffer");
-
-	VulkanDescriptorSet& staticDescriptorSet = VulkanRenderer::GetStaticDescriptorSet();
-	VulkanSampler* linearSampler = VulkanResourceManager::GetSampler("Linear");
-	if (!linearSampler) return;
-	
-	// Samplers
-	staticDescriptorSet.WriteImage(DESC_IDX_SAMPLERS, VK_NULL_HANDLE, linearSampler->GetSampler(), VK_IMAGE_LAYOUT_UNDEFINED, VK_DESCRIPTOR_TYPE_SAMPLER);
-
-	// // Textures
-	uint32_t assetTextureCount = AssetManager::GetNumberOfTextures();
-	for (uint32_t i = 0; i < assetTextureCount; ++i) {
-		VkImageView view = AssetManager::GetTextureByIndexOLD(i)->imageView;
-		staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, view, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, i);
-	}
-
-	// Render Targets
-	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, rtFirstHitColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_FIRST_HIT_COLOR);
-	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, rtFirstHitNormals->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_FIRST_HIT_NORMALS);
-	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, rtFirstHitBaseColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_FIRST_HIT_BASE);
-	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, rtSecondHitColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_SECOND_HIT_COLOR);
-	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, gBufferBaseColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_GBUFFER_BASE);
-	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, gBufferNormal->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_GBUFFER_NORMAL);
-	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, gBufferRma->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_GBUFFER_RMA);
-	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, laptopDisplay->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_LAPTOP);
-	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, composite->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_COMPOSITE);
-
-	// Depth targets use specific depth layout
-	staticDescriptorSet.WriteImage(DESC_IDX_TEXTURES, depthGBuffer->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, RT_IDX_DEPTH_GBUFFER);
-
-	// Storage Images RGBA32F
-	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA32F, rtFirstHitColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_RT_FIRST_COLOR);
-	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA32F, rtFirstHitNormals->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_RT_FIRST_NORMALS);
-	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA32F, rtFirstHitBaseColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_RT_FIRST_BASE);
-	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA32F, rtSecondHitColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_RT_SECOND_COLOR);
-
-	// Storage Images RGBA16F
-
-	// Storage Images RGBA8
-	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, gBufferBaseColor->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_GBUFFER_BASE);
-	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, gBufferNormal->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_GBUFFER_NORMAL);
-	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, gBufferRma->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_GBUFFER_RMA);
-	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, laptopDisplay->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_LAPTOP);
-	staticDescriptorSet.WriteImage(DESC_IDX_STORAGE_IMAGES_RGBA8, composite->GetImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, IMG_IDX_COMPOSITE);
-
-	// Finalize all writes
-	staticDescriptorSet.Update();
-}
-
-void VulkanBackEnd::UpdateRaytracingTlasDescriptors() {
-	uint32_t frameIndex = VulkanRenderer::GetCurrentFrameIndex();
-	VulkanFrameData& frameData = VulkanRenderer::GetCurrentFrameData();
-
-    VulkanAccelerationStructure* sceneTlas = VulkanResourceManager::GetAccelerationStructure(frameData.tlas.scene);
-    VulkanDescriptorSet& sceneSet = VulkanDescriptorManager::GetSceneTlasSet(frameIndex);
-    sceneSet.WriteAccelerationStructure(DESC_IDX_TLAS, sceneTlas->GetHandle());
-    sceneSet.Update();
-
-    VulkanAccelerationStructure* inventoryTLAS = VulkanResourceManager::GetAccelerationStructure(frameData.tlas.inventory);
-    VulkanDescriptorSet& inventorySet = VulkanDescriptorManager::GetInventoryTlasSet(frameIndex);
-    inventorySet.WriteAccelerationStructure(DESC_IDX_TLAS, inventoryTLAS->GetHandle());
-    inventorySet.Update();
-}
-
 void DrawMesh(VkCommandBuffer commandBuffer, uint32_t meshIndex, uint32_t firstInstance) {
     Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
     if (!mesh) return;
@@ -909,16 +832,22 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 	AllocatedImage* compositeAllocatedImage = VulkanResourceManager::GetAllocatedImage("Composite");
 	AllocatedImage* presentAllocatedImage = VulkanResourceManager::GetAllocatedImage("Present");
 
+    VulkanDescriptorSet* staticSet = VulkanResourceManager::GetDescriptorSet("StaticDescriptorSet");
+    VulkanDescriptorSet* sceneTlasSet = VulkanResourceManager::GetDescriptorSet("SceneTLASDescriptorSet");
+    VulkanDescriptorSet* inventoryTlasSet = VulkanResourceManager::GetDescriptorSet("InventoryTLASDescriptorSet");
+
 	VulkanPipeline* compositePipeline = VulkanPipelineManager::GetPipeline("Composite");
 	VulkanPipeline* linesPipeline = VulkanPipelineManager::GetPipeline("Lines");
-	VulkanPipeline* textBlitterPipeline = VulkanPipelineManager::GetPipeline("TextBlitter");
-    VulkanRaytracingPipeline* pathPipeline = VulkanPipelineManager::GetRaytracingPipeline("PathTrace");
+    VulkanPipeline* textBlitterPipeline = VulkanPipelineManager::GetPipeline("TextBlitter");
     VulkanRaytracingPipeline* mousePickPipeline = VulkanPipelineManager::GetRaytracingPipeline("MousePick");
+    VulkanRaytracingPipeline* pathPipeline = VulkanPipelineManager::GetRaytracingPipeline("PathTrace");
 
-	VulkanDescriptorSet& staticDescriptorSet = VulkanRenderer::GetStaticDescriptorSet();
-
-	if (!linesPipeline) return;
+    if (!staticSet) return;
+    if (!sceneTlasSet) return;
+    if (!inventoryTlasSet) return;
     if (!compositePipeline) return;
+    if (!linesPipeline) return;
+    if (!textBlitterPipeline) return;
     if (!pathPipeline) return;
     if (!mousePickPipeline) return;
 
@@ -929,16 +858,11 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 	VkCommandBufferBeginInfo cmdBufInfo = vkinit::command_buffer_begin_info();
 	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &cmdBufInfo));
 
-    VulkanDescriptorSet& sceneTlasSet = VulkanDescriptorManager::GetSceneTlasSet(frameIndex);
-    VulkanDescriptorSet& inventoryTlasSet = VulkanDescriptorManager::GetInventoryTlasSet(frameIndex);
-	VulkanDescriptorSet& staticSet = VulkanRenderer::GetStaticDescriptorSet();
-	VulkanDescriptorSet& bindlessStaticSet = VulkanRenderer::GetStaticDescriptorSet();
-	VulkanDescriptorSet* dynamicDescriptorSet = VulkanResourceManager::GetDescriptorSet(frameData.dynamicDescriptorSet);
 
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetHandle());
 
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 0, 1, sceneTlasSet.GetHandlePtr(), 0, nullptr);
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 1, 1, bindlessStaticSet.GetHandlePtr(), 0, nullptr);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 0, 1, sceneTlasSet->GetHandlePtr(), 0, nullptr);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 1, 1, staticSet->GetHandlePtr(), 0, nullptr);
 
 	rtFirstHitColorAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR);
 	rtFirstHitNormalsAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR);
@@ -969,7 +893,7 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
         vkCmdPushConstants(commandBuffer, pathPipeline->GetLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 0, sizeof(ScenePushConstants), &pushConstant);
 
 		// Descriptor set
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 0, 1, inventoryTlasSet.GetHandlePtr(), 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 0, 1, inventoryTlasSet->GetHandlePtr(), 0, nullptr);
 
 		// Trace rays
         vkCmdTraceRaysKHR(commandBuffer, &pathSbt.raygen, &pathSbt.miss, &pathSbt.hit, &pathSbt.callable, rtFirstHitColorAllocatedImage->GetWidth(), rtFirstHitColorAllocatedImage->GetHeight(), 1);
@@ -984,8 +908,8 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 
         cmd_BindRayTracingPipeline(commandBuffer, mousePickPipeline->GetHandle());
 
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 0, 1, sceneTlasSet.GetHandlePtr(), 0, nullptr);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 1, 1, bindlessStaticSet.GetHandlePtr(), 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 0, 1, sceneTlasSet->GetHandlePtr(), 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 1, 1, staticSet->GetHandlePtr(), 0, nullptr);
 
         const VulkanShaderBindingTable& mouseSbt = mousePickPipeline->GetShaderBindingTable();
         vkCmdTraceRaysKHR(commandBuffer, &mouseSbt.raygen, &mouseSbt.miss, &mouseSbt.hit, &mouseSbt.callable, 1, 1, 1);
@@ -1029,7 +953,7 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 			cmd_SetViewportSize(commandBuffer, laptopDisplayAllocatedImage->GetWidth(), laptopDisplayAllocatedImage->GetHeight());
 
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetHandle());
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, textBlitterPipeline->GetLayout(), 1, 1, staticSet.GetHandlePtr(), 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, textBlitterPipeline->GetLayout(), 1, 1, staticSet->GetHandlePtr(), 0, nullptr);
 
             // Push constant
             UIPushConstant pushConstant{};
@@ -1068,7 +992,7 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 		cmd_SetViewportSize(commandBuffer, compositeAllocatedImage->GetWidth(), compositeAllocatedImage->GetHeight());
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, compositePipeline->GetHandle());
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, compositePipeline->GetLayout(), 0, 1, staticDescriptorSet.GetHandlePtr(), 0, nullptr);
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, compositePipeline->GetLayout(), 0, 1, staticSet->GetHandlePtr(), 0, nullptr);
 
         uint32_t meshIndex = AssetManager::GetModelByName("fullscreen_quad")->GetMeshIndices()[0];
 		DrawMesh(commandBuffer, meshIndex, 0);
@@ -1109,7 +1033,7 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 		vkCmdBeginRendering(commandBuffer, &uiRenderingInfo);
 		cmd_SetViewportSize(commandBuffer, presentAllocatedImage->GetWidth(), presentAllocatedImage->GetHeight());
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, textBlitterPipeline->GetHandle());
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 1, 1, staticSet.GetHandlePtr(), 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetLayout(), 1, 1, staticSet->GetHandlePtr(), 0, nullptr);
 
 		for (int i = 0; i < RasterRenderer::instanceCount; i++) {
 			if (RasterRenderer::_UIToRender[i].destination == RasterRenderer::Destination::MAIN_UI)

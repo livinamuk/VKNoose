@@ -1,6 +1,5 @@
 #include "vk_pipeline_manager.h"
 #include "API/Vulkan/Managers/vk_resource_manager.h"
-#include "API/Vulkan/Managers/vk_descriptor_manager.h"
 #include "API/Vulkan/Managers/vk_device_manager.h"
 #include "API/Vulkan/Renderer/vk_renderer.h"
 #include "API/Vulkan/Renderer/vk_push_constants.h"
@@ -45,16 +44,13 @@ namespace VulkanPipelineManager {
 
     void CreateTextBlitterPipeline() {
         VkDevice device = VulkanDeviceManager::GetDevice();
-        VulkanShader* shader = VulkanResourceManager::GetShader("TextBlitter");
 
-        if (!shader) {
-            std::cerr << "[Pipeline Manager] Could not find shader: TextBlitter\n";
-            return;
-        }
+        VulkanShader* shader = VulkanResourceManager::GetShader("TextBlitter");
+        if (!shader) return;
 
         VulkanPipeline& pipeline = g_pipelines["TextBlitter"];
         pipeline.Cleanup(device);
-        pipeline.PushDescriptorSetLayout(VulkanRenderer::GetStaticDescriptorSet().GetLayout());
+        pipeline.PushDescriptorSetLayout(VulkanResourceManager::GetDescriptorSetLayout("StaticDescriptorSet"));
         pipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
         pipeline.SetCullMode(VK_CULL_MODE_NONE);
         pipeline.SetFrontFace(VK_FRONT_FACE_COUNTER_CLOCKWISE);
@@ -68,21 +64,16 @@ namespace VulkanPipelineManager {
 
     void CreateLinesPipeline() {
         VkDevice device = VulkanDeviceManager::GetDevice();
-        VulkanShader* shader = VulkanResourceManager::GetShader("SolidColor");
 
-        if (!shader) {
-            std::cerr << "[Pipeline Manager] Could not find shader: SolidColor\n";
-            return;
-        }
+        VulkanShader* shader = VulkanResourceManager::GetShader("SolidColor");
+        if (!shader) return;
 
         VulkanPipeline& pipeline = g_pipelines["Lines"];
         pipeline.Cleanup(device);
 
-        pipeline.PushDescriptorSetLayout(VulkanDescriptorManager::GetTlasSetLayout());
-        pipeline.PushDescriptorSetLayout(VulkanRenderer::GetStaticDescriptorSet().GetLayout());
-
+        pipeline.PushDescriptorSetLayout(VulkanResourceManager::GetDescriptorSetLayout("SceneTLASDescriptorSet"));
+        pipeline.PushDescriptorSetLayout(VulkanResourceManager::GetDescriptorSetLayout("StaticDescriptorSet"));
         pipeline.SetPushConstant(64, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
-
         pipeline.SetVertexDescription<VertexDebug>();
         pipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
         pipeline.SetCullMode(VK_CULL_MODE_NONE);
@@ -101,7 +92,7 @@ namespace VulkanPipelineManager {
 
         VulkanPipeline& pipeline = g_pipelines["Composite"];
         pipeline.Cleanup(device);
-        pipeline.PushDescriptorSetLayout(VulkanRenderer::GetStaticDescriptorSet().GetLayout());
+        pipeline.PushDescriptorSetLayout(VulkanResourceManager::GetDescriptorSetLayout("StaticDescriptorSet"));
         pipeline.SetVertexDescription<Vertex>();
         pipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
         pipeline.SetCullMode(VK_CULL_MODE_NONE);
@@ -113,7 +104,10 @@ namespace VulkanPipelineManager {
     }
 
     void CreatePathRaytracingPipeline() {
-        std::vector<VkDescriptorSetLayout> layouts = { VulkanDescriptorManager::GetTlasSetLayout(), VulkanRenderer::GetStaticDescriptorSet().GetLayout() };
+        std::vector<VkDescriptorSetLayout> layouts = {
+            VulkanResourceManager::GetDescriptorSetLayout("SceneTLASDescriptorSet"),
+            VulkanResourceManager::GetDescriptorSetLayout("StaticDescriptorSet")
+        };
 
         std::vector<VkPushConstantRange> pushConstantRanges;
         VkPushConstantRange& pushConstantRange = pushConstantRanges.emplace_back();
@@ -133,7 +127,10 @@ namespace VulkanPipelineManager {
     }
 
     void CreateMousePickRaytracingPipeline() {
-        std::vector<VkDescriptorSetLayout> layouts = { VulkanDescriptorManager::GetTlasSetLayout(), VulkanRenderer::GetStaticDescriptorSet().GetLayout() };
+        std::vector<VkDescriptorSetLayout> layouts = {
+            VulkanResourceManager::GetDescriptorSetLayout("SceneTLASDescriptorSet"),
+            VulkanResourceManager::GetDescriptorSetLayout("StaticDescriptorSet")
+        };
 
         std::vector<VkPushConstantRange> pushConstantRanges;
         VkPushConstantRange& pushConstantRange = pushConstantRanges.emplace_back();

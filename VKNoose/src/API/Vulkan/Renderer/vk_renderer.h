@@ -5,6 +5,9 @@
 
 namespace VulkanRenderer {
     bool Init();
+    void Cleanup();
+
+    void LoadShaders();
     
     void UploadGlobalGeometry();
     void BuildAllBLAS();
@@ -14,7 +17,7 @@ namespace VulkanRenderer {
     uint64_t GetVertexBufferAddress();
     uint64_t GetIndexBufferAddress();
 
-    VulkanDescriptorSet& GetStaticDescriptorSet();
+    //VulkanDescriptorSet& GetStaticDescriptorSet();
 
     // Frame data
     VulkanFrameData& GetCurrentFrameData();
@@ -22,8 +25,7 @@ namespace VulkanRenderer {
     uint32_t GetCurrentFrameIndex();
     void IncrementFrame();
 
-    // Descriptor sets
-    void UpdateDynamicDescriptorSet();
-
-    void Cleanup();
+    // Update
+    void UpdateStaticDescriptorSet();
+    void UpdateTLASDescriptorSets();
 }

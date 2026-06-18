@@ -94,7 +94,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\API\Vulkan\Managers\vk_command_manager.cpp" />
-    <ClCompile Include="src\API\Vulkan\Managers\vk_descriptor_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_device_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_instance_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_memory_manager.cpp" />
@@ -103,6 +102,8 @@
     <ClCompile Include="src\API\Vulkan\Managers\vk_resource_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_swapchain_manager.cpp" />
     <ClCompile Include="src\API\Vulkan\Managers\vk_sync_manager.cpp" />
+    <ClCompile Include="src\API\Vulkan\Renderer\vk_renderer_init.cpp" />
+    <ClCompile Include="src\API\Vulkan\Renderer\vk_renderer_update.cpp" />
     <ClCompile Include="src\API\Vulkan\Types\vk_acceleration_structure.cpp" />
     <ClCompile Include="src\API\Vulkan\Types\vk_allocated_image.cpp" />
     <ClCompile Include="src\API\Vulkan\Types\vk_buffer.cpp" />
@@ -169,7 +170,6 @@
     <ClInclude Include="src\Hell\Enums.h" />
     <ClInclude Include="src\Hell\Types.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_command_manager.h" />
-    <ClInclude Include="src\API\Vulkan\Managers\vk_descriptor_manager.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_device_manager.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_instance_manager.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_memory_manager.h" />

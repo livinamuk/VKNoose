@@ -11,42 +11,36 @@
 
 namespace VulkanResourceManager {
     std::unordered_map<std::string, AllocatedImage> g_allocatedImages;
+    std::unordered_map<std::string, VulkanDescriptorSetResource> g_descriptorSets;
     std::unordered_map<std::string, VulkanSampler> g_samplers;
     std::unordered_map<std::string, VulkanShader> g_shaders;
 
     Hell::SlotMap<VulkanAccelerationStructure> g_accelerationStructures;
     Hell::SlotMap<VulkanBuffer> g_buffers;
-    Hell::SlotMap<VulkanDescriptorSet> g_descriptorSets;
 
     void Cleanup() {
         VkDevice device = VulkanDeviceManager::GetDevice();
         VmaAllocator allocator = VulkanMemoryManager::GetAllocator();
 
-        for (VulkanAccelerationStructure& object : g_accelerationStructures) { object.Cleanup(); g_buffers.clear(); }
-        for (VulkanBuffer& object : g_buffers)                               { object.Cleanup(); g_buffers.clear(); }
-        for (VulkanDescriptorSet& object : g_descriptorSets)                 { object.Cleanup(); g_descriptorSets.clear(); }
-
-        // Allocated images
-        for (auto& [name, image] : g_allocatedImages) {
-            image.Cleanup(device, allocator);
-        }
-        g_allocatedImages.clear();
-
-        // Samplers
-        for (auto& [name, sampler] : g_samplers) {
-            sampler.Cleanup();
-        }
-        g_shaders.clear();
-
-        // Shaders
-        for (auto& [name, shader] : g_shaders) {
-            shader.Cleanup(device);
-        }
-        g_shaders.clear();
+        for (auto& object : g_accelerationStructures)  { object.Cleanup(); } g_accelerationStructures.clear();
+        for (auto& object : g_buffers)                 { object.Cleanup(); } g_buffers.clear();
+        for (auto& [name, object] : g_descriptorSets)  { object.Cleanup(); } g_descriptorSets.clear();
+        for (auto& [name, object] : g_allocatedImages) { object.Cleanup(device, allocator); } g_allocatedImages.clear();
+        for (auto& [name, object] : g_samplers)        { object.Cleanup(); } g_samplers.clear();
+        for (auto& [name, shader] : g_shaders)         { shader.Cleanup(device); } g_shaders.clear();
 
         std::cout << "VulkanResourceManager::Cleanup()\n";
     }
 
+                                                                                              
+     /*  ▄▄                       ▄▄                                          ▄▄▄▄▄
+       ▄█▀▀█▄                      ██                   █▄                   ██▀▀▀▀█▄  █▄                    █▄                         
+       ██  ██                      ██       ▄          ▄██▄ ▀▀       ▄       ▀██▄  ▄▀ ▄██▄ ▄                ▄██▄       ▄                
+       ██▀▀██   ▄███▀ ▄███▀ ▄█▀█▄  ██ ▄█▀█▄ ████▄ ▄▀▀█▄ ██  ██ ▄███▄ ████▄     ▀██▄▄   ██  ████▄ ██ ██ ▄███▀ ██  ██ ██ ████▄ ▄█▀█▄ ▄██▀█
+     ▄ ██  ██   ██    ██    ██▄█▀  ██ ██▄█▀ ██    ▄█▀██ ██  ██ ██ ██ ██ ██   ▄   ▀██▄  ██  ██    ██ ██ ██    ██  ██ ██ ██    ██▄█▀ ▀███▄
+     ▀██▀  ▀█▄█▄▀███▄▄▀███▄▄▀█▄▄▄ ▄██▄▀█▄▄▄▄█▀   ▄▀█▄██▄██ ▄██▄▀███▀▄██ ▀█   ▀██████▀ ▄██ ▄█▀   ▄▀██▀█▄▀███▄▄██ ▄▀██▀█▄█▀   ▄▀█▄▄▄█▄▄██▀ */
+                                                            
+                                                                        
     uint64_t CreateAccelerationStructure() {
         const uint64_t id = UniqueID::GetNextObjectId(ObjectType::VK_ACCELERATION_STRUCTURE);
         g_accelerationStructures.emplace_with_id(id);
@@ -57,6 +51,15 @@ namespace VulkanResourceManager {
         return g_accelerationStructures.get(id);
     }
 
+                                                                                                
+    /*   ▄▄     ▄▄  ▄▄                                       ▄▄▄▄▄▄
+       ▄█▀▀█▄    ██  ██                   █▄           █▄   █▀ ██                                   
+       ██  ██    ██  ██                  ▄██▄          ██      ██   ▄                 ▄▄            
+       ██▀▀██    ██  ██ ▄███▄ ▄███▀ ▄▀▀█▄ ██  ▄█▀█▄ ▄████      ██   ███▄███▄ ▄▀▀█▄ ▄████ ▄█▀█▄ ▄██▀█
+     ▄ ██  ██    ██  ██ ██ ██ ██    ▄█▀██ ██  ██▄█▀ ██ ██      ██   ██ ██ ██ ▄█▀██ ██ ██ ██▄█▀ ▀███▄
+     ▀██▀  ▀█▄█ ▄██ ▄██▄▀███▀▄▀███▄▄▀█▄██▄██ ▄▀█▄▄▄▄█▀███    ▄▄██▄▄▄██ ██ ▀█▄▀█▄██▄▀████▄▀█▄▄▄█▄▄██▀
+                                                                                      ██            
+                                                                                    ▀▀▀  */           
     AllocatedImage& CreateAllocatedImage(const std::string& name, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage) {
         if (width == 0 || height == 0) {
             std::cerr << "VulkanResourceManager Error: Zero dimension image '" << name << "' requested.\n";
@@ -90,6 +93,16 @@ namespace VulkanResourceManager {
         return g_allocatedImages.find(name) != g_allocatedImages.end();
     }
 
+                                          
+    /*  ▄▄▄           ▄▄  ▄▄
+       ██▀▀█▄        ██  ██                   
+       ██ ▄█▀       ▄██▄▄██▄       ▄          
+       ██▀▀█▄  ██ ██ ██  ██  ▄█▀█▄ ████▄ ▄██▀█
+     ▄ ██  ▄█  ██ ██ ██  ██  ██▄█▀ ██    ▀███▄
+     ▀██████▀ ▄▀██▀█▄██ ▄██ ▄▀█▄▄▄▄█▀   █▄▄██▀ 
+                     ██  ██                   
+                    ▀▀  ▀▀  */                  
+
     uint64_t CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VmaAllocationCreateFlags vmaFlags) {
         const uint64_t id = UniqueID::GetNextObjectId(ObjectType::VK_BUFFER);
         g_buffers.emplace_with_id(id, size, usage, memoryUsage, vmaFlags);
@@ -109,16 +122,65 @@ namespace VulkanResourceManager {
         }
     }
 
-    uint64_t CreateDescriptorSet(VkDescriptorSetLayoutCreateInfo layoutInfo) {
-        const uint64_t id = UniqueID::GetNextObjectId(ObjectType::VK_DESCRIPTOR_SET);
-        g_descriptorSets.emplace_with_id(id, layoutInfo);
-        return id;
+                                                                                  
+    /*▄▄▄▄▄▄                                                        ▄▄▄▄▄
+     █▀██▀▀██                                    █▄                ██▀▀▀▀█▄        █▄       
+       ██   ██                    ▄     ▀▀      ▄██▄       ▄       ▀██▄  ▄▀       ▄██▄      
+       ██   ██  ▄█▀█▄ ▄██▀█ ▄███▀ ████▄ ██ ████▄ ██  ▄███▄ ████▄     ▀██▄▄   ▄█▀█▄ ██  ▄██▀█
+     ▄ ██   ██  ██▄█▀ ▀███▄ ██    ██    ██ ██ ██ ██  ██ ██ ██      ▄   ▀██▄  ██▄█▀ ██  ▀███▄
+     ▀██▀███▀  ▄▀█▄▄▄█▄▄██▀▄▀███▄▄█▀   ▄██▄████▀▄██ ▄▀███▀▄█▀      ▀██████▀ ▄▀█▄▄▄▄██ █▄▄██▀
+                                           ██                                               
+                                           ▀  */                                              
+    VulkanDescriptorSetResource& CreateDescriptorSet(const std::string& name, VkDescriptorSetLayoutCreateInfo layoutInfo, DescriptorSetLifetime lifetime) {
+        auto [it, inserted] = g_descriptorSets.try_emplace(name);
+
+        if (!inserted) {
+            it->second.Cleanup();
+        }
+
+        it->second = VulkanDescriptorSetResource(layoutInfo, lifetime);
+        return it->second;
     }
 
-    VulkanDescriptorSet* GetDescriptorSet(uint64_t id) {
-        return g_descriptorSets.get(id);
+    VulkanDescriptorSetResource* GetDescriptorSetResource(const std::string& name) {
+        auto it = g_descriptorSets.find(name);
+
+        if (it == g_descriptorSets.end()) {
+            return nullptr;
+        }
+
+        return &it->second;
     }
 
+    VulkanDescriptorSet* GetDescriptorSet(const std::string& name) {
+        VulkanDescriptorSetResource* resource = GetDescriptorSetResource(name);
+
+        if (!resource) {
+            return nullptr;
+        }
+
+        return &resource->GetSet();
+    }
+
+    VkDescriptorSetLayout GetDescriptorSetLayout(const std::string& name) {
+        VulkanDescriptorSetResource* resource = GetDescriptorSetResource(name);
+
+        if (!resource) {
+            return VK_NULL_HANDLE;
+        }
+
+        return resource->GetLayout();
+    }
+    
+                                                     
+    /*▄▄▄▄▄                         ▄▄
+     ██▀▀▀▀█▄                        ██                  
+     ▀██▄  ▄▀        ▄               ██       ▄          
+       ▀██▄▄   ▄▀▀█▄ ███▄███▄ ████▄  ██ ▄█▀█▄ ████▄ ▄██▀█
+     ▄   ▀██▄  ▄█▀██ ██ ██ ██ ██ ██  ██ ██▄█▀ ██    ▀███▄
+     ▀██████▀ ▄▀█▄██▄██ ██ ▀█▄████▀ ▄██▄▀█▄▄▄▄█▀   █▄▄██▀
+                              ██                         
+                              ▀  */                         
     VulkanSampler& CreateSampler(const std::string& name, VkFilter magFilter, VkFilter minFilter, VkSamplerAddressMode addressMode, float maxAnisotropy) {
         // Get iterator to the new or existing element
         auto [it, inserted] = g_samplers.try_emplace(name);
@@ -145,6 +207,15 @@ namespace VulkanResourceManager {
     bool SamplerExists(const std::string& name) {
         return g_samplers.find(name) != g_samplers.end();
     }
+
+
+    /*▄▄▄▄▄
+     ██▀▀▀▀█▄  █▄             █▄
+     ▀██▄  ▄▀  ██             ██       ▄
+       ▀██▄▄   ████▄ ▄▀▀█▄ ▄████ ▄█▀█▄ ████▄ ▄██▀█
+     ▄   ▀██▄  ██ ██ ▄█▀██ ██ ██ ██▄█▀ ██    ▀███▄
+     ▀██████▀ ▄██ ██▄▀█▄██▄█▀███▄▀█▄▄▄▄█▀   █▄▄██▀ */
+
 
     VulkanShader& CreateShader(const std::string& name, const std::vector<std::string>& paths) {
         g_shaders.emplace(

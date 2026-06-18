@@ -23,8 +23,8 @@ namespace VulkanRaytracingManager {
         accelerationStructure.m_buffer = VulkanBuffer(buildSizeInfo.accelerationStructureSize, usage, VMA_MEMORY_USAGE_AUTO);
     }
 
-    void CreateTopLevelAS(uint64_t id, const std::vector<VkAccelerationStructureInstanceKHR>& instances) {
-        //Logging::Debug() << "CreateTopLevelAS() " << id << " " << instances.size() << " instances\n";
+    void CreateTLAS(uint64_t id, const std::vector<VkAccelerationStructureInstanceKHR>& instances) {
+        //Logging::Debug() << "CreateTLAS() " << id << " " << instances.size() << " instances\n";
 
         VulkanAccelerationStructure* accelerationStructure = VulkanResourceManager::GetAccelerationStructure(id);
         if (!accelerationStructure) return;

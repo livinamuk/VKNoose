@@ -27,8 +27,10 @@ namespace VulkanResourceManager {
     void UploadBufferData(uint64_t id, const void* data, VkDeviceSize size);
 
     // Descriptor Sets
-    uint64_t CreateDescriptorSet(VkDescriptorSetLayoutCreateInfo layoutInfo);
-    VulkanDescriptorSet* GetDescriptorSet(uint64_t id);
+    VulkanDescriptorSetResource& CreateDescriptorSet(const std::string& name, VkDescriptorSetLayoutCreateInfo layoutInfo, DescriptorSetLifetime lifetime);
+    VulkanDescriptorSetResource* GetDescriptorSetResource(const std::string& name);
+    VulkanDescriptorSet* GetDescriptorSet(const std::string& name);
+    VkDescriptorSetLayout GetDescriptorSetLayout(const std::string& name);
 
     // Samplers
     VulkanSampler& CreateSampler(const std::string& name, VkFilter magFilter, VkFilter minFilter, VkSamplerAddressMode addressMode, float maxAnisotropy = 1.0f);
