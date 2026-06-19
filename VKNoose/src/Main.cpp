@@ -5,7 +5,7 @@
 #include "Windows.h"
 #include "AssetManagement/AssetManager.h"
 
-#include "Hell/Core/Logging.h"
+#include "Hell/Logging.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -35,19 +35,19 @@ int main() {
 
         if (!AssetManager::LoadingComplete()) {
             AssetManager::UpdateLoading();
-            VulkanBackEnd::RenderLoadingFrame();
+            VulkanRenderer::RenderLoadingScreen();
         }
 
         //if (!VulkanBackEnd::_loaded && !AssetManager::LoadingComplete()) {
         else if (!VulkanBackEnd::_loaded) {
             VulkanBackEnd::LoadNextItem();
-            VulkanBackEnd::RenderLoadingFrame();
+            VulkanRenderer::RenderLoadingScreen();
         }
 
         else {
             GameData::Update();
             Audio::Update();
-            VulkanBackEnd::RenderGameFrame();
+            VulkanRenderer::RenderGame();
         }
     }
 

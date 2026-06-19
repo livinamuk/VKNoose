@@ -2,7 +2,16 @@
 #include "API/Vulkan/Managers/vk_command_manager.h"
 #include "API/Vulkan/Managers/vk_device_manager.h"
 #include "API/Vulkan/Managers/vk_memory_manager.h"
-#include "API/Vulkan/vk_utils.h"
+
+VkImageAspectFlags GetImageAspectFlagsFromFormat(VkFormat format) {
+    if (format == VK_FORMAT_D32_SFLOAT || format == VK_FORMAT_D16_UNORM) {
+        return VK_IMAGE_ASPECT_DEPTH_BIT;
+    }
+    if (format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT) {
+        return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    }
+    return VK_IMAGE_ASPECT_COLOR_BIT;
+}
 
 AllocatedImage::AllocatedImage(VkFormat imageFormat, VkExtent3D imageExtent, VkImageUsageFlags usage, std::string debugName) {
     VkDevice device = VulkanDeviceManager::GetDevice();
@@ -35,7 +44,7 @@ AllocatedImage::AllocatedImage(VkFormat imageFormat, VkExtent3D imageExtent, VkI
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     viewInfo.image = m_image;
     viewInfo.format = m_format;
-    viewInfo.subresourceRange.aspectMask = VulkanUtils::GetImageAspectFlagsFromFormat(m_format);
+    viewInfo.subresourceRange.aspectMask = GetImageAspectFlagsFromFormat(m_format);
     viewInfo.subresourceRange.baseMipLevel = 0;
     viewInfo.subresourceRange.levelCount = 1;
     viewInfo.subresourceRange.baseArrayLayer = 0;
@@ -49,7 +58,7 @@ AllocatedImage::AllocatedImage(VkFormat imageFormat, VkExtent3D imageExtent, VkI
         barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
         barrier.image = m_image;
-        barrier.subresourceRange = { VulkanUtils::GetImageAspectFlagsFromFormat(m_format), 0, 1, 0, 1 };
+        barrier.subresourceRange = { GetImageAspectFlagsFromFormat(m_format), 0, 1, 0, 1 };
         barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
         barrier.srcAccessMask = 0;
         barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;

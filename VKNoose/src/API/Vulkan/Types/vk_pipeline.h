@@ -1,8 +1,7 @@
 #pragma once
 #include "API/Vulkan/vk_common.h"
-#include "API/Vulkan/Types/vk_vertex_descriptions.h"
 #include "API/Vulkan/Types/vk_shader.h"
-#include "Hell/Types.h"
+#include "Hell/VertexAttributes.h"
 
 #include <vector>
 #include <string>
@@ -26,11 +25,11 @@ struct  VulkanPipeline {
     void SetCullMode(VkCullModeFlags cullMode);
     void SetColorBlending(bool enabled);
     void SetDepthTest(bool enabled, bool writeEnabled = true);
+    void SetVertexDescription(const VertexLayoutDescription& layout);
 
     template<typename T>
     void SetVertexDescription() {
-        m_bindingDescription = VulkanVertexDescription<T>::GetBinding();
-        m_attributeDescriptions = VulkanVertexDescription<T>::GetAttributes();
+        SetVertexDescription(T::GetLayout());
     }
 
     bool Build();

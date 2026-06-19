@@ -3,7 +3,7 @@
 #include "API/Vulkan/vk_types.h"
 #include "API/Vulkan/vk_backend.h"
 #include "Hell/Types.h"
-#include "Renderer/Material.hpp"
+#include "Hell/VertexAttributes.h"
 #include "Types/Mesh.h"
 #include "Types/Model.h"
 
@@ -147,10 +147,6 @@ namespace AssetManager  {
 	Vertex GetVertex(int offset);
 	uint32_t GetIndex(int offset);
 
-	//std::vector<Vertex>& GetVertices_TEMPORARY();
-	//std::vector<uint32_t>& GetIndices_TEMPORARY();
-
-	//int CreateModel(std::vector<int> meshIndices);
 	void AddTextureOLD(TextureOLD& texture);
 	int GetTextureIndex(const std::string& name);
 	int GetMaterialIndex(const std::string& name);

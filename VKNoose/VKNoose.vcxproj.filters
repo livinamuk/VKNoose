@@ -21,9 +21,6 @@
     <ClCompile Include="src\Main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\API\Vulkan\vk_initializers.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\API\Vulkan\vk_mesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -40,9 +37,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\Audio\Audio.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Renderer\Shader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\UI\TextBlitting.cpp">
@@ -138,7 +132,7 @@
     <ClCompile Include="src\API\Vulkan\Managers\vk_raytracing_manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Util.cpp">
+    <ClCompile Include="src\Util\Util.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\Types\Model.cpp">
@@ -171,7 +165,7 @@
     <ClCompile Include="src\Hell\Core\UniqueID.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Hell\Core\Logging.cpp">
+    <ClCompile Include="src\Hell\Logging.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\API\Vulkan\Types\vk_acceleration_structure.cpp">
@@ -189,7 +183,28 @@
     <ClCompile Include="src\API\Vulkan\Renderer\vk_renderer_update.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\API\Vulkan\Renderer\vk_renderer_uitl.cpp">
+    <ClCompile Include="src\API\Vulkan\Renderer\vk_renderer_util.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\API\Vulkan\Renderer\RenderPasses\vk_loading_screen_pass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\API\Vulkan\Renderer\vk_renderer_render_frame.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ResourceManagement\ResourceManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\API\OpenGL\Types\GL_generic_mesh.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\API\OpenGL\Types\GL_mesh_buffer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ResourceManagement\Types\GenericMesh.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ResourceManagement\Types\MeshBuffer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -206,10 +221,7 @@
     <ClInclude Include="src\Common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\Util.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\API\Vulkan\vk_initializers.h">
+    <ClInclude Include="src\Util\Util.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\API\Vulkan\vk_mesh.h">
@@ -233,9 +245,6 @@
     <ClInclude Include="src\Audio\Audio.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderer\Shader.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\UI\TextBlitter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -246,9 +255,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\AssetManagement\AssetManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Renderer\Material.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\Game\House\Wall.h">
@@ -287,16 +293,7 @@
     <ClInclude Include="vendor\stb_image\stb_image_write.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderer\Pipeline.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\BackEnd\BackEnd.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\common\NooseEnums.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\common\NooseTypes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\BackEnd\GLFWIntegration.h">
@@ -344,9 +341,6 @@
     <ClInclude Include="src\API\Vulkan\Managers\vk_resource_manager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\API\Vulkan\vk_utils.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\API\Vulkan\Managers\vk_raytracing_manager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -380,9 +374,6 @@
     <ClInclude Include="src\API\Vulkan\Types\vk_descriptor_set.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\API\Vulkan\Types\vk_vertex_descriptions.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\API\Vulkan\Renderer\vk_frame_data.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -401,7 +392,7 @@
     <ClInclude Include="src\Hell\Enums.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\Hell\Core\Logging.h">
+    <ClInclude Include="src\Hell\Logging.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\API\Vulkan\Renderer\vk_device_addresses.h">
@@ -417,6 +408,24 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\API\Vulkan\Renderer\vk_renderer_constants.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ResourceManagement\ResourceManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\API\OpenGL\Types\GL_generic_mesh.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\API\OpenGL\Types\GL_mesh_buffer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ResourceManagement\Types\GenericMesh.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ResourceManagement\Types\MeshBuffer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Hell\VertexAttributes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

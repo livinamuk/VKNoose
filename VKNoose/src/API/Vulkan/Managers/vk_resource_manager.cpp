@@ -3,7 +3,7 @@
 #include "API/Vulkan/Managers/vk_device_manager.h"
 
 #include "AssetManagement/AssetManager.h"
-#include "Hell/Core/Logging.h"
+#include "Hell/Logging.h"
 #include "Hell/Core/UniqueID.h"
 #include "Hell/Containers/SlotMap.h"
 

@@ -2,6 +2,7 @@
 #include "../Common.h"
 #include "Camera.h"
 #include "Hell/Types.h"
+#include "Hell/VertexAttributes.h"
 
 class Player
 {

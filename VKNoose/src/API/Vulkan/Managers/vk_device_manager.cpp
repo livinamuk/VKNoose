@@ -1,7 +1,7 @@
 #include "vk_device_manager.h"
 #include "vk_instance_manager.h"
 
-#include "Hell/Core/Logging.h"
+#include "Hell/Logging.h"
 
 #include <vector>
 #include <set>
@@ -80,14 +80,20 @@ namespace VulkanDeviceManager {
             }
             if (!allFound) continue;
 
-            // check for unified layouts feature support
+            // Check required feature support.
+            VkPhysicalDeviceVulkan12Features supportedFeatures12{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
             VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR unifiedFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_UNIFIED_IMAGE_LAYOUTS_FEATURES_KHR };
             VkPhysicalDeviceFeatures2 checkFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
-            checkFeatures.pNext = &unifiedFeatures;
+            checkFeatures.pNext = &supportedFeatures12;
+            supportedFeatures12.pNext = &unifiedFeatures;
             vkGetPhysicalDeviceFeatures2(physicalDevice, &checkFeatures);
 
-            // skip if hardware doesn't support the feature
-            if (!unifiedFeatures.unifiedImageLayouts) continue;
+            // Scalar block layout is required by the compact 44-byte Vertex
+            // used through PhysicalStorageBuffer buffer references.
+            if (!supportedFeatures12.scalarBlockLayout ||
+                !unifiedFeatures.unifiedImageLayouts) {
+                continue;
+            }
 
             // Find queue families
             uint32_t qCount = 0;
@@ -123,6 +129,7 @@ namespace VulkanDeviceManager {
             features12.descriptorIndexing = VK_TRUE;
             features12.bufferDeviceAddress = VK_TRUE;
             features12.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+            features12.scalarBlockLayout = VK_TRUE;
 
             VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipeline{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR };
             rtPipeline.rayTracingPipeline = VK_TRUE;
@@ -219,8 +226,6 @@ namespace VulkanDeviceManager {
             g_presentQueue = VK_NULL_HANDLE;
             g_graphicsQueueFamily = UINT32_MAX;
             g_presentQueueFamily = UINT32_MAX;
-
-            std::cout << "VulkanDeviceManager::Cleanup()\n";
         }
     }
 

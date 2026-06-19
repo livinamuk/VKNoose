@@ -2,10 +2,9 @@
 #include <chrono> 
 #include <fstream> 
 #include "vk_types.h"
-#include "vk_initializers.h"
 #include "vk_textures.h"
 #include "vk_tools.h"
-#include "Util.h"
+#include "Util/Util.h"
  
 #include "AssetManagement/AssetManager.h"
 #include "Game/Scene.h"
@@ -28,7 +27,7 @@
 
 #include "BackEnd/GLFWIntegration.h"
 
-#include "Hell/Core/Logging.h"
+#include "Hell/Logging.h"
 
 #define NOOSE_PI 3.14159265359f
 const bool _printAvaliableExtensions = false;
@@ -232,170 +231,6 @@ void VulkanBackEnd::PrepareSwapchainForPresent(VkCommandBuffer commandBuffer, ui
 	vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &swapChainBarrier);
 }
 
-void VulkanBackEnd::RenderLoadingFrame() {
-	if (ProgramIsMinimized()) {
-		return;
-	}
-
-	AllocatedImage* loadingTarget = VulkanResourceManager::GetAllocatedImage("LoadingScreen");
-	if (!loadingTarget) return;
-
-	AddDebugText();
-	TextBlitter::Update(GameData::GetDeltaTime(), loadingTarget->GetWidth(), loadingTarget->GetHeight());
-
-	uint32_t frameIndex = VulkanRenderer::GetCurrentFrameIndex();
-	VulkanFrameData& frameData = VulkanRenderer::GetCurrentFrameData();
-
-	VkCommandBuffer commandBuffer = VulkanCommandManager::GetGraphicsCommandBuffer(frameIndex);
-
-	// Wait for the GPU to finish the last frame using this FrameData slot
-	VulkanSyncManager::WaitForRenderFence(frameIndex);
-
-	// Reset the fence before submitting new work
-	VulkanSyncManager::ResetRenderFence(frameIndex);
-
-	// Update 2D buffers and descriptor sets
-	UpdateBuffers2D();
-
-	// Acquire next image from swapchain
-	uint32_t swapchainImageIndex;
-	VkSemaphore presentSemaphore = VulkanSyncManager::GetPresentSemaphore(frameIndex);
-	VkResult result = vkAcquireNextImageKHR(GetDevice(), GetSwapchain(), UINT64_MAX, presentSemaphore, VK_NULL_HANDLE, &swapchainImageIndex);
-
-	if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-		VulkanSwapchainManager::RecreateSwapchain();
-		return;
-	}
-
-	// Record the loading frame commands
-	VK_CHECK(vkResetCommandBuffer(commandBuffer, 0));
-	VkCommandBufferBeginInfo beginInfo = {};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
-
-	RecordAssetLoadingRenderCommands(commandBuffer);
-
-	// Blit the loading target and prepare for present
-	VulkanRenderer::BlitAllocatedImageToSwapchain(commandBuffer, *loadingTarget, swapchainImageIndex);
-	PrepareSwapchainForPresent(commandBuffer, swapchainImageIndex);
-
-	VK_CHECK(vkEndCommandBuffer(commandBuffer));
-
-	// Submit the command buffer
-	VkSemaphore renderFinishedSemaphore = VulkanSyncManager::GetRenderFinishedSemaphore(frameIndex, swapchainImageIndex);
-	VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
-	VkSubmitInfo submit = {};
-	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submit.pWaitDstStageMask = &waitStage;
-	submit.waitSemaphoreCount = 1;
-	submit.pWaitSemaphores = &presentSemaphore;
-	submit.signalSemaphoreCount = 1;
-	submit.pSignalSemaphores = &renderFinishedSemaphore;
-	submit.commandBufferCount = 1;
-	submit.pCommandBuffers = &commandBuffer;
-
-	VK_CHECK(vkQueueSubmit(GetGraphicsQueue(), 1, &submit, VulkanSyncManager::GetRenderFence(frameIndex)));
-
-	// Present
-	VkSwapchainKHR swapchain = GetSwapchain();
-	VkPresentInfoKHR presentInfo = {};
-	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	presentInfo.pSwapchains = &swapchain;
-	presentInfo.swapchainCount = 1;
-	presentInfo.pWaitSemaphores = &renderFinishedSemaphore;
-	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pImageIndices = &swapchainImageIndex;
-
-	result = vkQueuePresentKHR(GetGraphicsQueue(), &presentInfo);
-
-	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-		VulkanSwapchainManager::RecreateSwapchain();
-	}
-
-	VulkanRenderer::IncrementFrame();
-}
-
-void VulkanBackEnd::RenderGameFrame() {
-	if (ProgramIsMinimized()) return;
-
-	AllocatedImage* presentAllocatedImage = VulkanResourceManager::GetAllocatedImage("Present");
-	if (!presentAllocatedImage) return;
-
-	TextBlitter::Update(GameData::GetDeltaTime(), presentAllocatedImage->GetWidth(), presentAllocatedImage->GetHeight());
-
-	uint32_t frameIndex = VulkanRenderer::GetCurrentFrameIndex();
-	VulkanFrameData& frameData = VulkanRenderer::GetCurrentFrameData();
-
-	VkCommandBuffer commandBuffer = VulkanCommandManager::GetGraphicsCommandBuffer(frameIndex);
-
-	VulkanSyncManager::WaitForRenderFence(frameIndex);
-
-    VulkanRaytracingManager::CreateTLAS(frameData.tlas.scene, Scene::GetMeshInstancesForSceneAccelerationStructure());
-    VulkanRaytracingManager::CreateTLAS(frameData.tlas.inventory, Scene::GetMeshInstancesForInventoryAccelerationStructure());
-
-    get_required_lines();
-    UpdateBuffers();
-    UpdateBuffers2D();
-
-	VulkanRenderer::UpdateTLASDescriptorSets();
-
-	VulkanSyncManager::ResetRenderFence(frameIndex);
-
-	uint32_t swapchainImageIndex;
-	VkSemaphore presentSemaphore = VulkanSyncManager::GetPresentSemaphore(frameIndex);
-	VkResult result = vkAcquireNextImageKHR(GetDevice(), GetSwapchain(), UINT64_MAX, presentSemaphore, VK_NULL_HANDLE, &swapchainImageIndex);
-
-	if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-		VulkanSwapchainManager::RecreateSwapchain();
-		return;
-	}
-
-	// This now uses the command buffer from the manager internally
-	build_rt_command_buffers(swapchainImageIndex);
-
-	VkSemaphore renderFinishedSemaphore = VulkanSyncManager::GetRenderFinishedSemaphore(frameIndex, swapchainImageIndex);
-	VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
-	VkSubmitInfo submit = vkinit::submit_info(&commandBuffer);
-	submit.pWaitDstStageMask = &waitStage;
-	submit.waitSemaphoreCount = 1;
-	submit.pWaitSemaphores = &presentSemaphore;
-	submit.signalSemaphoreCount = 1;
-	submit.pSignalSemaphores = &renderFinishedSemaphore;
-
-	VK_CHECK(vkQueueSubmit(GetGraphicsQueue(), 1, &submit, VulkanSyncManager::GetRenderFence(frameIndex)));
-
-	VkSwapchainKHR swapchain = GetSwapchain();
-	VkPresentInfoKHR presentInfo = vkinit::present_info();
-	presentInfo.pSwapchains = &swapchain;
-	presentInfo.swapchainCount = 1;
-	presentInfo.pWaitSemaphores = &renderFinishedSemaphore;
-	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pImageIndices = &swapchainImageIndex;
-
-	result = vkQueuePresentKHR(GetGraphicsQueue(), &presentInfo);
-
-	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-		VulkanSwapchainManager::RecreateSwapchain();
-	}
-
-	if (!GameData::inventoryOpen) {
-		VulkanBuffer* buffer = VulkanResourceManager::GetBuffer(frameData.buffers.mousePickBufferCPU);
-		if (buffer) {
-			uint32_t mousePickResult[2];
-			void* mappedData;
-			buffer->Map(&mappedData);
-			memcpy(mousePickResult, mappedData, sizeof(uint32_t) * 2);
-			Scene::StoreMousePickResult(mousePickResult[0], mousePickResult[1]);
-		}
-	}
-	else {
-		Scene::StoreMousePickResult(-1, -1);
-	}
-
-	VulkanRenderer::IncrementFrame();
-}
 
 
 void VulkanBackEnd::ToggleFullscreen() {
@@ -598,7 +433,7 @@ void VulkanBackEnd::UpdateBuffers2D() {
 
 	// Queue all text characters for rendering
 	for (auto& instanceInfo : TextBlitter::_objectData) {
-			RasterRenderer::SubmitUI(instanceInfo.index_basecolor, instanceInfo.index_color, instanceInfo.modelMatrix, RasterRenderer::Destination::MAIN_UI, instanceInfo.xClipMin, instanceInfo.xClipMax, instanceInfo.yClipMin, instanceInfo.yClipMax); // Todo: You are storing color in the normals. Probably not a major deal but could be confusing at some point down the line.
+		RasterRenderer::SubmitUI(instanceInfo.index_basecolor, instanceInfo.index_color, instanceInfo.modelMatrix, RasterRenderer::Destination::MAIN_UI, instanceInfo.xClipMin, instanceInfo.xClipMax, instanceInfo.yClipMin, instanceInfo.yClipMax); // Todo: You are storing color in the normals. Probably not a major deal but could be confusing at some point down the line.
 	}
 
 	if (_loaded) {
@@ -730,7 +565,7 @@ void DrawMesh(VkCommandBuffer commandBuffer, Mesh* mesh, uint32_t firstInstance)
     vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh->GetIndexCount()), 1, 0, 0, firstInstance);
 }
 
-void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
+void VulkanBackEnd::build_rt_command_buffers() {
 	uint32_t frameIndex = VulkanRenderer::GetCurrentFrameIndex();
 	VulkanFrameData& frameData = VulkanRenderer::GetCurrentFrameData();
 
@@ -763,13 +598,11 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
     if (!pathPipeline) return;
     if (!mousePickPipeline) return;
 
-	uint32_t currentWindowWidth = GLFWIntegration::GetCurrentWindowWidth();
-	uint32_t currentWindowHeight = GLFWIntegration::GetCurrentWindowHeight();
+    VkCommandBufferBeginInfo cmdBufInfo = {};
+    cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-	VK_CHECK(vkResetCommandBuffer(commandBuffer, 0));
-	VkCommandBufferBeginInfo cmdBufInfo = vkinit::command_buffer_begin_info();
-	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &cmdBufInfo));
-
+	vkResetCommandBuffer(commandBuffer, 0);
+	vkBeginCommandBuffer(commandBuffer, &cmdBufInfo);
 
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pathPipeline->GetHandle());
 
@@ -982,54 +815,6 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 		vkCmdEndRendering(commandBuffer);
 	}
 
-	// Final Swapchain Blit
-	{
-		// sync present image for reading
-		presentAllocatedImage->Sync(commandBuffer, VK_ACCESS_2_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT);
-
-		VkImage swapchainImage = GetSwapchainImages()[swapchainIndex];
-
-		// swapchain still needs legacy layout transitions
-		VkImageMemoryBarrier2 swapChainBarrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
-		swapChainBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		swapChainBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		swapChainBarrier.image = swapchainImage;
-		swapChainBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-
-		// src info for the barrier
-		swapChainBarrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-		swapChainBarrier.srcAccessMask = 0;
-
-		// dst info for the barrier
-		swapChainBarrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-		swapChainBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-
-		VkDependencyInfo depInfo{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
-		depInfo.imageMemoryBarrierCount = 1;
-		depInfo.pImageMemoryBarriers = &swapChainBarrier;
-
-		vkCmdPipelineBarrier2(commandBuffer, &depInfo);
-
-		VkImageBlit blitRegion{};
-		blitRegion.srcOffsets[1] = { (int32_t)presentAllocatedImage->GetWidth(), (int32_t)presentAllocatedImage->GetHeight(), 1 };
-		blitRegion.dstOffsets[1] = { (int32_t)currentWindowWidth, (int32_t)currentWindowHeight, 1 };
-		blitRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-		blitRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-
-		// blit from unified GENERAL to legacy TRANSFER_DST_OPTIMAL
-		vkCmdBlitImage(commandBuffer, presentAllocatedImage->GetImage(), VK_IMAGE_LAYOUT_GENERAL, swapchainImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blitRegion, VK_FILTER_NEAREST);
-
-		// final transition for presentation
-		swapChainBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		swapChainBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		swapChainBarrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-		swapChainBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-		swapChainBarrier.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
-		swapChainBarrier.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT;
-
-		vkCmdPipelineBarrier2(commandBuffer, &depInfo);
-	}
-
 	if (!GameData::inventoryOpen) {
 		VulkanBuffer* gpuBuffer = VulkanResourceManager::GetBuffer(frameData.buffers.mousePickBufferGPU);
 		VulkanBuffer* cpuBuffer = VulkanResourceManager::GetBuffer(frameData.buffers.mousePickBufferCPU);
@@ -1037,8 +822,6 @@ void VulkanBackEnd::build_rt_command_buffers(int swapchainIndex) {
 		VkBufferCopy pickCopy = { 0, 0, sizeof(uint32_t) * 2 };
 		vkCmdCopyBuffer(commandBuffer, gpuBuffer->GetBuffer(), cpuBuffer->GetBuffer(), 1, &pickCopy);
 	}
-
-	VK_CHECK(vkEndCommandBuffer(commandBuffer));
 }
 
 void VulkanBackEnd::AddDebugText() {
@@ -1168,10 +951,6 @@ void VulkanBackEnd::cmd_SetViewportSize(VkCommandBuffer commandBuffer, int width
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 }
 
-void VulkanBackEnd::cmd_BindPipeline(VkCommandBuffer commandBuffer, Pipeline& pipeline) {
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline._handle);
-}
-
 void VulkanBackEnd::cmd_BindRayTracingPipeline(VkCommandBuffer commandBuffer, VkPipeline pipeline) {
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline);
 }
@@ -1180,4 +959,36 @@ GLFWwindow* VulkanBackEnd::GetWindow() {
     GLFWwindow* _window = (GLFWwindow*)GLFWIntegration::GetWindowPointer();
 
 	return _window;
+}
+
+std::string errorString(VkResult errorCode) {
+    switch (errorCode) {
+#define STR(r) case VK_ ##r: return #r
+        STR(NOT_READY);
+        STR(TIMEOUT);
+        STR(EVENT_SET);
+        STR(EVENT_RESET);
+        STR(INCOMPLETE);
+        STR(ERROR_OUT_OF_HOST_MEMORY);
+        STR(ERROR_OUT_OF_DEVICE_MEMORY);
+        STR(ERROR_INITIALIZATION_FAILED);
+        STR(ERROR_DEVICE_LOST);
+        STR(ERROR_MEMORY_MAP_FAILED);
+        STR(ERROR_LAYER_NOT_PRESENT);
+        STR(ERROR_EXTENSION_NOT_PRESENT);
+        STR(ERROR_FEATURE_NOT_PRESENT);
+        STR(ERROR_INCOMPATIBLE_DRIVER);
+        STR(ERROR_TOO_MANY_OBJECTS);
+        STR(ERROR_FORMAT_NOT_SUPPORTED);
+        STR(ERROR_SURFACE_LOST_KHR);
+        STR(ERROR_NATIVE_WINDOW_IN_USE_KHR);
+        STR(SUBOPTIMAL_KHR);
+        STR(ERROR_OUT_OF_DATE_KHR);
+        STR(ERROR_INCOMPATIBLE_DISPLAY_KHR);
+        STR(ERROR_VALIDATION_FAILED_EXT);
+        STR(ERROR_INVALID_SHADER_NV);
+#undef STR
+    default:
+        return "UNKNOWN_ERROR";
+    }
 }

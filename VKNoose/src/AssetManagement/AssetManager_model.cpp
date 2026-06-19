@@ -1,6 +1,6 @@
 #include "AssetManager.h"
-#include "Hell/Core/Logging.h"
-#include "Util.h"
+#include "Hell/Logging.h"
+#include "Util/Util.h"
 #include <future>
 
 //#define TINYOBJLOADER_IMPLEMENTATION
@@ -172,7 +172,8 @@ namespace AssetManager {
 			}
 		}
 
-		std::cout << "AssetManager::BakeModels()\n";
+		std::cout << "\n";
+		Logging::Init() << "AssetManager::BakeModels()\n";
 	}
 
 }

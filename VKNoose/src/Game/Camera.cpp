@@ -1,6 +1,6 @@
 #include "Camera.h"
 #include <math.h>
-#include "../Util.h"
+#include "Util/Util.h"
 
 #include <float.h>
 #include "../Input/Input.h"

@@ -3,7 +3,7 @@
 #include "vk_swapchain_manager.h"
 
 #include "API/Vulkan/vk_backend.h"
-#include "Hell/Core/Logging.h"
+#include "Hell/Logging.h"
 
 #include <iostream>
 

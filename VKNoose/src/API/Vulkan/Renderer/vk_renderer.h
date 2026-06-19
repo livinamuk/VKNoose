@@ -7,8 +7,8 @@
 namespace VulkanRenderer {
     bool Init();
 
-    void RecreatePipelines();
-    void UploadGlobalGeometry();
+    void RenderGame();
+    void RenderLoadingScreen();
 
     // Frame data
     VulkanFrameData& GetCurrentFrameData();
@@ -22,9 +22,11 @@ namespace VulkanRenderer {
     void UpdateTLASDescriptorSets();
 
     // Util
-    void BlitAllocatedImageToSwapchain(VkCommandBuffer cmd, AllocatedImage& srcImage, uint32_t swapchainIndex);
+    void BlitAllocatedImageToSwapchain(VkCommandBuffer cmd, AllocatedImage& srcImage, uint32_t swapchainIndex, VkFilter filter);
     void BuildAllBLAS();
     void HotloadShaders();
+    void RecreatePipelines();
+    void UploadGlobalGeometry();
 
     // Vertex/index buffers
     VulkanBuffer* GetVertexBuffer();

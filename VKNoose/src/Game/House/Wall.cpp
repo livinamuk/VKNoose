@@ -40,10 +40,10 @@ Wall::Wall(const glm::vec3& begin, const glm::vec3& end, const std::string& mate
 	vert2.uv = glm::vec2(wallWidth, upperYCoord);
 	vert3.uv = glm::vec2(wallWidth, lowerYCoord);
 
-	m_vertices.push_back(vert0);
-	m_vertices.push_back(vert1);
-	m_vertices.push_back(vert2);
-	m_vertices.push_back(vert3);
+    m_vertices.push_back(vert0);
+    m_vertices.push_back(vert1);
+    m_vertices.push_back(vert2);
+    m_vertices.push_back(vert3);
 
     m_indices = { 0, 1, 2, 0, 2, 3 };
 

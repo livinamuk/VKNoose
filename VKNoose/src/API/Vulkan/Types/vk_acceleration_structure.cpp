@@ -1,9 +1,11 @@
 #pragma once
 #include "vk_acceleration_structure.h"
+
 #include "API/Vulkan/Managers/vk_device_manager.h"
 #include "API/Vulkan/Managers/vk_command_manager.h"
-#include "API/Vulkan/vk_utils.h"
+
 #include "Hell/Types.h"
+#include "Hell/VertexAttributes.h"
 
 void VulkanAccelerationStructure::CreateBuffer(VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo) {
 	VkBufferUsageFlags usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
@@ -27,13 +29,13 @@ void VulkanAccelerationStructure::CreateBLAS(VulkanBuffer& vertexBuffer, VulkanB
     VkDevice device = VulkanDeviceManager::GetDevice();
 
     VkDeviceOrHostAddressConstKHR vertexBufferDeviceAddress{};
-    vertexBufferDeviceAddress.deviceAddress = VulkanUtils::GetBufferDeviceAddress(device, vertexBuffer.GetBuffer());
+    vertexBufferDeviceAddress.deviceAddress = vertexBuffer.GetDeviceAddress();
 
     VkDeviceOrHostAddressConstKHR indexBufferDeviceAddress{};
-    indexBufferDeviceAddress.deviceAddress = VulkanUtils::GetBufferDeviceAddress(device, indexBuffer.GetBuffer());
+    indexBufferDeviceAddress.deviceAddress = indexBuffer.GetDeviceAddress();
 
     VkDeviceOrHostAddressConstKHR transformBufferDeviceAddress{};
-    transformBufferDeviceAddress.deviceAddress = VulkanUtils::GetBufferDeviceAddress(device, transformBuffer.GetBuffer());
+    transformBufferDeviceAddress.deviceAddress = transformBuffer.GetDeviceAddress();
 
     // Standard geometry setup for triangles
     VkAccelerationStructureGeometryKHR geometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };

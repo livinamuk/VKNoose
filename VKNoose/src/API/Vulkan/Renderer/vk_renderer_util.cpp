@@ -7,7 +7,7 @@
 
 #include "AssetManagement/AssetManager.h"
 #include "BackEnd/GLFWIntegration.h"
-#include "Hell/Core/Logging.h"
+#include "Hell/Logging.h"
 
 namespace VulkanRenderer {
 
@@ -19,7 +19,7 @@ namespace VulkanRenderer {
         }
     }
 
-    void BlitAllocatedImageToSwapchain(VkCommandBuffer cmd, AllocatedImage& srcImage, uint32_t swapchainIndex) {
+    void BlitAllocatedImageToSwapchain(VkCommandBuffer cmd, AllocatedImage& srcImage, uint32_t swapchainIndex, VkFilter filter) {
         int32_t windowWidth = GLFWIntegration::GetCurrentWindowWidth();
         int32_t windowHeight = GLFWIntegration::GetCurrentWindowHeight();
 
@@ -49,7 +49,7 @@ namespace VulkanRenderer {
         blitRegion.dstOffsets[1] = { windowWidth, windowHeight, 1 };
         blitRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
 
-        vkCmdBlitImage(cmd, srcImage.GetImage(), VK_IMAGE_LAYOUT_GENERAL, swapchainImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blitRegion, VK_FILTER_LINEAR);
+        vkCmdBlitImage(cmd, srcImage.GetImage(), VK_IMAGE_LAYOUT_GENERAL, swapchainImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blitRegion, filter);
     }
 
     void HotloadShaders() {

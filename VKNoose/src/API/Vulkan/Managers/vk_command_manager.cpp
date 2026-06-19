@@ -3,8 +3,7 @@
 #include "vk_sync_manager.h"
 
 #include "API/Vulkan/vk_backend.h"
-#include "API/Vulkan/vk_initializers.h"
-#include "Hell/Core/Logging.h"
+#include "Hell/Logging.h"
 
 #include <iostream>
 
@@ -23,32 +22,46 @@ namespace VulkanCommandManager {
         VkDevice device = VulkanDeviceManager::GetDevice();
         uint32_t graphicsFamily = VulkanDeviceManager::GetGraphicsQueueFamily();
 
-        // Create per-frame graphics pools and buffers
-        VkCommandPoolCreateInfo poolInfo = vkinit::command_pool_create_info(graphicsFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+        VkCommandPoolCreateInfo poolInfo = {};
+        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        poolInfo.queueFamilyIndex = graphicsFamily;
 
         for (int i = 0; i < FRAME_OVERLAP; i++) {
             if (vkCreateCommandPool(device, &poolInfo, nullptr, &g_frames[i].graphicsPool) != VK_SUCCESS) {
-                Logging::Fatal() << "VulkanCommandManager::Init() failed to create command pool\n";
+                Logging::Fatal() << "VulkanCommandManager::Init() failed to create frame command pool\n";
                 return false;
             }
 
-            VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(g_frames[i].graphicsPool, 1);
-            if (vkAllocateCommandBuffers(device, &cmdAllocInfo, &g_frames[i].graphicsBuffer) != VK_SUCCESS) {
-                Logging::Fatal() << "VulkanCommandManager::Init() failed to create command buffers\n";
+            VkCommandBufferAllocateInfo allocInfo = {};
+            allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+            allocInfo.commandPool = g_frames[i].graphicsPool;
+            allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            allocInfo.commandBufferCount = 1;
+
+            if (vkAllocateCommandBuffers(device, &allocInfo, &g_frames[i].graphicsBuffer) != VK_SUCCESS) {
+                Logging::Fatal() << "VulkanCommandManager::Init() failed to allocate frame command buffer\n";
                 return false;
             }
         }
 
-        // Create upload context pool and buffer
-        VkCommandPoolCreateInfo uploadPoolInfo = vkinit::command_pool_create_info(graphicsFamily);
+        VkCommandPoolCreateInfo uploadPoolInfo = {};
+        uploadPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        uploadPoolInfo.queueFamilyIndex = graphicsFamily;
+
         if (vkCreateCommandPool(device, &uploadPoolInfo, nullptr, &g_uploadPool) != VK_SUCCESS) {
-            Logging::Fatal() << "VulkanCommandManager::Init() failed to create command pool\n";
+            Logging::Fatal() << "VulkanCommandManager::Init() failed to create upload command pool\n";
             return false;
         }
 
-        VkCommandBufferAllocateInfo uploadCmdAllocInfo = vkinit::command_buffer_allocate_info(g_uploadPool, 1);
-        if (vkAllocateCommandBuffers(device, &uploadCmdAllocInfo, &g_uploadBuffer) != VK_SUCCESS) {
-            Logging::Fatal() << "VulkanCommandManager::Init() failed to allocate command buffers\n";
+        VkCommandBufferAllocateInfo uploadAllocInfo = {};
+        uploadAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        uploadAllocInfo.commandPool = g_uploadPool;
+        uploadAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        uploadAllocInfo.commandBufferCount = 1;
+
+        if (vkAllocateCommandBuffers(device, &uploadAllocInfo, &g_uploadBuffer) != VK_SUCCESS) {
+            Logging::Fatal() << "VulkanCommandManager::Init() failed to allocate upload command buffer\n";
             return false;
         }
 
@@ -82,22 +95,37 @@ namespace VulkanCommandManager {
     }
 
     void SubmitImmediate(std::function<void(VkCommandBuffer cmd)>&& function) {
+        VkDevice device = VulkanDeviceManager::GetDevice();
+        VkQueue graphicsQueue = VulkanDeviceManager::GetGraphicsQueue();
+        VkFence uploadFence = VulkanSyncManager::GetUploadFence();
         VkCommandBuffer cmd = g_uploadBuffer;
 
-        VkCommandBufferBeginInfo beginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
         VK_CHECK(vkBeginCommandBuffer(cmd, &beginInfo));
 
         function(cmd);
 
         VK_CHECK(vkEndCommandBuffer(cmd));
 
-        VkSubmitInfo submit = vkinit::submit_info(&cmd);
-        VkFence uploadFence = VulkanSyncManager::GetUploadFence();
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &cmd;
 
         VulkanSyncManager::ResetUploadFence();
-        VK_CHECK(vkQueueSubmit(VulkanDeviceManager::GetGraphicsQueue(), 1, &submit, uploadFence));
+
+        VK_CHECK(vkQueueSubmit(
+            graphicsQueue,
+            1,
+            &submitInfo,
+            uploadFence
+        ));
 
         VulkanSyncManager::WaitForUploadFence();
-        vkResetCommandPool(VulkanDeviceManager::GetDevice(), g_uploadPool, 0);
+
+        VK_CHECK(vkResetCommandPool(device, g_uploadPool, 0));
     }
 }

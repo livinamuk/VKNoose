@@ -3,7 +3,7 @@
 #include "AssetManagement/AssetManager.h"
 #include "../Renderer/RasterRenderer.h"
 #include "../Input/Input.h"
-#include "../Util.h"
+#include "Util/Util.h"
 
 bool sortfileByDragState(File a, File b) {
 	return (a.dragging < b.dragging);

@@ -6,6 +6,10 @@
 #include "API/Vulkan/Renderer/vk_push_constants.h"
 #include "API/Vulkan/Renderer/vk_renderer_constants.h"
 
+#include "Common.h" // TODO: remove all of me into types.h and enums.h etc
+#include "Hell/Types.h"
+#include "Hell/VertexAttributes.h"
+
 namespace VulkanRenderer {
     void CreateFrameData();
     void CreatePipelines();
@@ -74,7 +78,7 @@ namespace VulkanRenderer {
         linesPipeline.AddDescriptorSetLayout(VulkanResourceManager::GetDescriptorSetLayout("SceneTLASDescriptorSet"));
         linesPipeline.AddDescriptorSetLayout(VulkanResourceManager::GetDescriptorSetLayout("StaticDescriptorSet"));
         linesPipeline.AddPushConstant(64, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
-        linesPipeline.SetVertexDescription<VertexDebug>();
+        linesPipeline.SetVertexDescription<Vertex>();
         linesPipeline.SetTopology(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
         linesPipeline.SetCullMode(VK_CULL_MODE_NONE);
         linesPipeline.SetFrontFace(VK_FRONT_FACE_COUNTER_CLOCKWISE);

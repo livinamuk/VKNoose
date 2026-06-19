@@ -5,11 +5,12 @@
 #include "API/Vulkan/Managers/vk_memory_manager.h"
 #include "API/Vulkan/Managers/vk_resource_manager.h"
 #include "API/Vulkan/Renderer/vk_renderer.h"
-#include "API/Vulkan/vk_utils.h"
-#include "API/Vulkan/vk_mesh.h"
 
-#include "Hell/Core/Logging.h"
+#include "API/Vulkan/vk_mesh.h" // TODO remove me when u can
+
+#include "Hell/Logging.h"
 #include "Hell/Types.h"
+#include "Hell/VertexAttributes.h"
 
 namespace VulkanRaytracingManager {
 
@@ -110,14 +111,9 @@ namespace VulkanRaytracingManager {
         VkDeviceOrHostAddressConstKHR indexBufferDeviceAddress{};
         VkDeviceOrHostAddressConstKHR transformBufferDeviceAddress{};
 
-        // Using your VulkanUtils helper to get addresses from the raw VkBuffer handles
-        //vertexBufferDeviceAddress.deviceAddress = VulkanUtils::GetBufferDeviceAddress(device, mesh->m_vertexBufferOLD.m_buffer);
-        //indexBufferDeviceAddress.deviceAddress = VulkanUtils::GetBufferDeviceAddress(device, mesh->m_indexBufferOLD.m_buffer);
-        //transformBufferDeviceAddress.deviceAddress = VulkanUtils::GetBufferDeviceAddress(device, mesh->m_transformBufferOLD.m_buffer);
-
         vertexBufferDeviceAddress.deviceAddress = VulkanRenderer::GetVertexBuffer()->GetDeviceAddress() + mesh->GetBaseVertex() * sizeof(Vertex);
         indexBufferDeviceAddress.deviceAddress = VulkanRenderer::GetIndexBuffer()->GetDeviceAddress() + mesh->GetBaseIndex() * sizeof(uint32_t);
-        transformBufferDeviceAddress.deviceAddress = {};//VulkanUtils::GetBufferDeviceAddress(device, mesh->m_transformBufferOLD.m_buffer);
+        transformBufferDeviceAddress.deviceAddress = {};
 
         // Standard geometry setup for triangles
         VkAccelerationStructureGeometryKHR geometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
@@ -163,7 +159,7 @@ namespace VulkanRaytracingManager {
 
         VulkanCommandManager::SubmitImmediate([&](VkCommandBuffer cmd) {
             vkCmdBuildAccelerationStructuresKHR(cmd, 1, &buildInfo, pRangeInfos.data());
-            });
+        });
 
         // Get final address for the BLAS handle itself
         VkAccelerationStructureDeviceAddressInfoKHR addressInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };

@@ -1,13 +1,9 @@
 
 struct Vertex {
     vec3 position;
-    float pad;
     vec3 normal;
-    float pad2;
     vec2 texCoord;
-    vec2 pad3;
     vec3 tangent;
-    float pad4;
 };
 
 struct Light {

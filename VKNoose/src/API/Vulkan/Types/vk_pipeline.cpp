@@ -2,6 +2,45 @@
 #include "API/Vulkan/Managers/vk_device_manager.h"
 #include "API/Vulkan/Types/vk_allocated_image.h"
 #include <array>
+#include <limits>
+
+namespace {
+    VkFormat GetVertexAttributeFormat(const VertexAttribute& attribute) {
+        if (attribute.normalized &&
+            (attribute.type == VertexAttributeType::Int || attribute.type == VertexAttributeType::UnsignedInt)) {
+            return VK_FORMAT_UNDEFINED;
+        }
+
+        switch (attribute.type) {
+            case VertexAttributeType::Float:
+                switch (attribute.componentCount) {
+                    case 1: return VK_FORMAT_R32_SFLOAT;
+                    case 2: return VK_FORMAT_R32G32_SFLOAT;
+                    case 3: return VK_FORMAT_R32G32B32_SFLOAT;
+                    case 4: return VK_FORMAT_R32G32B32A32_SFLOAT;
+                }
+                break;
+            case VertexAttributeType::Int:
+                switch (attribute.componentCount) {
+                    case 1: return VK_FORMAT_R32_SINT;
+                    case 2: return VK_FORMAT_R32G32_SINT;
+                    case 3: return VK_FORMAT_R32G32B32_SINT;
+                    case 4: return VK_FORMAT_R32G32B32A32_SINT;
+                }
+                break;
+            case VertexAttributeType::UnsignedInt:
+                switch (attribute.componentCount) {
+                    case 1: return VK_FORMAT_R32_UINT;
+                    case 2: return VK_FORMAT_R32G32_UINT;
+                    case 3: return VK_FORMAT_R32G32B32_UINT;
+                    case 4: return VK_FORMAT_R32G32B32A32_UINT;
+                }
+                break;
+        }
+
+        return VK_FORMAT_UNDEFINED;
+    }
+}
 
 bool VulkanPipeline::CheckResult(VkResult result, const std::string& message) {
     if (result != VK_SUCCESS) {
@@ -96,6 +135,52 @@ void VulkanPipeline::SetColorBlending(bool enabled) {
 void VulkanPipeline::SetDepthTest(bool enabled, bool writeEnabled) {
     m_depthTest = enabled;
     m_depthWrite = writeEnabled;
+}
+
+void VulkanPipeline::SetVertexDescription(const VertexLayoutDescription& layout) {
+    m_bindingDescription = {};
+    m_attributeDescriptions.clear();
+
+    if (layout.attributes.empty()) {
+        return;
+    }
+
+    if (layout.stride > std::numeric_limits<uint32_t>::max()) {
+        std::cerr << "[Vulkan Pipeline Error] Vertex stride exceeds Vulkan's uint32_t limit\n";
+        return;
+    }
+
+    m_bindingDescription.binding = 0;
+    m_bindingDescription.stride = static_cast<uint32_t>(layout.stride);
+    m_bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    m_attributeDescriptions.reserve(layout.attributes.size());
+
+    for (const VertexAttribute& attribute : layout.attributes) {
+        const VkFormat format = GetVertexAttributeFormat(attribute);
+
+        if (format == VK_FORMAT_UNDEFINED) {
+            std::cerr << "[Vulkan Pipeline Error] Unsupported vertex attribute at location "
+                      << attribute.location << "\n";
+            m_bindingDescription = {};
+            m_attributeDescriptions.clear();
+            return;
+        }
+
+        if (attribute.offset > std::numeric_limits<uint32_t>::max()) {
+            std::cerr << "[Vulkan Pipeline Error] Vertex attribute offset exceeds Vulkan's uint32_t limit\n";
+            m_bindingDescription = {};
+            m_attributeDescriptions.clear();
+            return;
+        }
+
+        VkVertexInputAttributeDescription description{};
+        description.binding = 0;
+        description.location = attribute.location;
+        description.format = format;
+        description.offset = static_cast<uint32_t>(attribute.offset);
+        m_attributeDescriptions.push_back(description);
+    }
 }
 
 bool VulkanPipeline::Build() {

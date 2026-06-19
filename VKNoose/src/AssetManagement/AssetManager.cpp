@@ -1,7 +1,6 @@
 #include "AssetManager.h"
-#include "../Util.h"
-#include "API/Vulkan/vk_initializers.h"
-#include "Hell/Core/Logging.h"
+#include "Util/Util.h"
+#include "Hell/Logging.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -474,6 +473,24 @@ uint32_t AssetManager::GetIndex(int offset) {
 	return g_indices[offset];
 }
 
+
+VkImageViewCreateInfo imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags) {
+    VkImageViewCreateInfo info = {};
+    info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    info.pNext = nullptr;
+
+    info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    info.image = image;
+    info.format = format;
+    info.subresourceRange.baseMipLevel = 0;
+    info.subresourceRange.levelCount = 1;
+    info.subresourceRange.baseArrayLayer = 0;
+    info.subresourceRange.layerCount = 1;
+    info.subresourceRange.aspectMask = aspectFlags;
+
+    return info;
+}
+
 bool AssetManager::load_image_from_file(const char* file, TextureOLD& outTexture, VkFormat imageFormat, bool generateMips)
 {
 	FileInfoOLD info = Util::GetFileInfo(file);
@@ -669,7 +686,7 @@ bool AssetManager::load_image_from_file(const char* file, TextureOLD& outTexture
 			outTexture.image = newImage;
 
 			// Image view  
-			VkImageViewCreateInfo imageinfo = vkinit::imageview_create_info(imageFormat, outTexture.image._image, VK_IMAGE_ASPECT_COLOR_BIT);
+			VkImageViewCreateInfo imageinfo = imageview_create_info(imageFormat, outTexture.image._image, VK_IMAGE_ASPECT_COLOR_BIT);
 			imageinfo.subresourceRange.levelCount = outTexture._mipLevels;
 
 			vkCreateImageView(VulkanBackEnd::GetDevice(), &imageinfo, nullptr, &outTexture.imageView);
@@ -848,7 +865,7 @@ bool AssetManager::load_image_from_file(const char* file, TextureOLD& outTexture
 		outTexture.image = newImage;
 
 		// Image view  
-		VkImageViewCreateInfo imageinfo = vkinit::imageview_create_info(imageFormat, outTexture.image._image, VK_IMAGE_ASPECT_COLOR_BIT);
+		VkImageViewCreateInfo imageinfo = imageview_create_info(imageFormat, outTexture.image._image, VK_IMAGE_ASPECT_COLOR_BIT);
 		imageinfo.subresourceRange.levelCount = outTexture._mipLevels;
 
 		vkCreateImageView(VulkanBackEnd::GetDevice(), &imageinfo, nullptr, &outTexture.imageView);

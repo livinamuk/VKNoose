@@ -2,6 +2,8 @@
 
 constexpr unsigned int FRAME_OVERLAP = 2;
 
+#define UNDEFINED_STRING "UNDEFINED_STRING"
+
 #define PRESENT_WIDTH 512
 #define PRESENT_HEIGHT 288
 

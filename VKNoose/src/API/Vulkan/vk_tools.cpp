@@ -1,59 +1,7 @@
 #include "vk_tools.h"
-#include "vk_initializers.h"
 #include <fstream>
 
 namespace vktools {
-
-	/*VkShaderModule loadShader(const char* fileName, VkDevice device) {
-		std::ifstream is(fileName, std::ios::binary | std::ios::in | std::ios::ate);
-		if (is.is_open()) {
-			size_t size = is.tellg();
-			is.seekg(0, std::ios::beg);
-			char* shaderCode = new char[size];
-			is.read(shaderCode, size);
-			is.close();
-			
-			//assert(size > 0);
-			
-			
-			VkShaderModule shaderModule;
-			VkShaderModuleCreateInfo moduleCreateInfo{};
-			moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-			moduleCreateInfo.codeSize = size;
-			moduleCreateInfo.pCode = (uint32_t*)shaderCode;
-			vkCreateShaderModule(device, &moduleCreateInfo, NULL, &shaderModule);
-			delete[] shaderCode;
-			return shaderModule;
-		}
-		else {
-			std::cerr << "Error: Could not open shader file \"" << fileName << "\"" << "\n";
-			return VK_NULL_HANDLE;
-		}
-	}*/
-
-	/*void insertImageMemoryBarrier(VkCommandBuffer cmdbuffer, AllocatedImage allocatedImage, VkImageLayout newImageLayout, VkAccessFlags dstAccessMask, VkPipelineStageFlags dstStageMask) {
-
-		VkImageSubresourceRange range;
-		range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		range.baseMipLevel = 0;
-		range.levelCount = 1;
-		range.baseArrayLayer = 0;
-		range.layerCount = 1;
-
-		VkImageMemoryBarrier barrier = {};
-		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		barrier.oldLayout = allocatedImage._currentLayout;
-		barrier.newLayout = newImageLayout;
-		barrier.image = allocatedImage._image;
-		barrier.subresourceRange = range;
-		barrier.srcAccessMask = allocatedImage._currentAccessMask;
-		barrier.dstAccessMask = dstAccessMask;
-		vkCmdPipelineBarrier(cmdbuffer, allocatedImage._currentLayout, dstStageMask, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-		allocatedImage._currentLayout = newImageLayout;
-		allocatedImage._currentAccessMask = dstAccessMask;
-		allocatedImage._currentStageFlags = dstStageMask;
-	}*/
 
 	void insertImageMemoryBarrier(
 		VkCommandBuffer cmdbuffer,
@@ -66,7 +14,11 @@ namespace vktools {
 		VkPipelineStageFlags dstStageMask,
 		VkImageSubresourceRange subresourceRange)
 	{
-		VkImageMemoryBarrier imageMemoryBarrier = vkinit::imageMemoryBarrier();
+
+        VkImageMemoryBarrier imageMemoryBarrier{};
+        imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		imageMemoryBarrier.srcAccessMask = srcAccessMask;
 		imageMemoryBarrier.dstAccessMask = dstAccessMask;
 		imageMemoryBarrier.oldLayout = oldImageLayout;
@@ -83,7 +35,6 @@ namespace vktools {
 			0, nullptr,
 			1, &imageMemoryBarrier);
 	}
-
 
 	// Fixed sub resource on first mip level and layer
 	void setImageLayout(

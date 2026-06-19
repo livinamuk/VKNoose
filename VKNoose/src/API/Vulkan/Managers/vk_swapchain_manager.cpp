@@ -3,7 +3,7 @@
 #include "vk_instance_manager.h"
 
 #include "BackEnd/GLFWIntegration.h"
-#include "Hell/Core/Logging.h"
+#include "Hell/Logging.h"
 
 #include <algorithm>
 #include <iostream>

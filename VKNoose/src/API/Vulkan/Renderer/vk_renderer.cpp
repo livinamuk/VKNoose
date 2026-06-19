@@ -10,9 +10,10 @@
 
 #include "AssetManagement/Assetmanager.h"
 
-#include "Hell/Core/Logging.h"
+#include "Hell/Logging.h"
 #include "Hell/Constants.h"
 #include "Hell/Types.h"
+#include "Hell/VertexAttributes.h"
 
 namespace VulkanRenderer {
 	VulkanFrameData g_frameData[FRAME_OVERLAP];

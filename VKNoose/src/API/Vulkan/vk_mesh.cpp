@@ -3,7 +3,7 @@
 #include <tiny_obj_loader.h>
 #include <iostream>
 #include <unordered_map>
-#include "Util.h"
+#include "Util/Util.h"
 #include "AssetManagement/AssetManager.h"
 #include "API/Vulkan/Managers/vk_resource_manager.h"
 

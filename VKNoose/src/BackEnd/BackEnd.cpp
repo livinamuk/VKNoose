@@ -5,7 +5,8 @@
 
 namespace BackEnd {
     void UpdateSubSystems();
-    void LazyKeypresses();
+
+    API g_api = API::VULKAN;
 
     bool Init(WindowedMode windowedMode) {
         if (!GLFWIntegration::Init(windowedMode)) return false;
@@ -20,6 +21,14 @@ namespace BackEnd {
 
     void UpdateSubSystems() {
         Input::Update();
+    }
+
+    void SetAPI(API api) {
+        g_api = api;
+    }
+
+    const API GetAPI() {
+        return g_api;
     }
 
     void LazyKeypresses() {

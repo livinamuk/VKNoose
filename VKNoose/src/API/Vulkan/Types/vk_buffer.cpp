@@ -2,7 +2,7 @@
 #include "API/Vulkan/Managers/vk_device_manager.h"
 #include "API/Vulkan/Managers/vk_memory_manager.h"
 #include "API/Vulkan/Managers/vk_command_manager.h"
-#include "Hell/Core/Logging.h"
+#include "Hell/Logging.h"
 
 VulkanBuffer::VulkanBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VmaAllocationCreateFlags vmaFlags) {
     m_size = size;

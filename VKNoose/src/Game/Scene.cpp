@@ -6,7 +6,7 @@
 
 #include "API/Vulkan/Renderer/vk_renderer.h"
 #include "API/Vulkan/Managers/vk_resource_manager.h"
-#include "Hell/Core/Logging.h"
+#include "Hell/Logging.h"
 
 namespace Scene {
 	std::vector<GameObject> _gameObjects;

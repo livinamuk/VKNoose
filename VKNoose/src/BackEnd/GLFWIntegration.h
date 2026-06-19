@@ -1,5 +1,5 @@
 #pragma once
-#include "NooseEnums.h"
+#include "Hell/Enums.h"
 
 namespace GLFWIntegration {
     bool Init(WindowedMode windowedMode);

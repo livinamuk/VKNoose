@@ -21,12 +21,7 @@
 #include "Audio/Audio.h"
 #include "Game/GameData.h"
 #include "Input/Input.h"
-#include "Renderer/Shader.h"
 #include "UI/TextBlitter.h"
-
-#include "Renderer/Pipeline.hpp"
-
-
 
 struct MeshPushConstants {
 	glm::vec4 data;
@@ -63,8 +58,6 @@ namespace VulkanBackEnd {
 	VmaAllocator GetAllocator();
 
 	void Cleanup();
-	void RenderGameFrame();
-	void RenderLoadingFrame();
 	void ToggleFullscreen();
 	bool ProgramIsMinimized();
 	void LoadNextItem();
@@ -95,7 +88,6 @@ namespace VulkanBackEnd {
 	
 	// Commands
 	void cmd_SetViewportSize(VkCommandBuffer commandBuffer, int width, int height);
-	void cmd_BindPipeline(VkCommandBuffer commandBuffer, Pipeline& pipeline);
 	void cmd_BindRayTracingPipeline(VkCommandBuffer commandBuffer, VkPipeline pipeline);
 
 	inline uint32_t _frameIndex;
@@ -126,7 +118,7 @@ namespace VulkanBackEnd {
 	inline bool _renderGBuffer = false;// true;
 
 	
-			void build_rt_command_buffers(int swapchainIndex);
+			void build_rt_command_buffers();
 			inline uint32_t _rtIndexCount;
 
 

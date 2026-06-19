@@ -1,8 +1,7 @@
 #pragma once
 #include "API/Vulkan/vk_mesh.h"
 #include "../../Common.h"
-#include "../../Util.h"
-#include "../../Renderer/Material.hpp"
+#include "../Util/Util.h"
 
 struct Wall {
 	Wall() = default;

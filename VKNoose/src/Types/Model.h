@@ -1,10 +1,7 @@
 #pragma once
 #include "Common.h"
-//#include "HellEnums.h"
-//#include "HellTypes.h"
-//#include "LoadingState.h"
-//#include "Mesh.h"
 #include "Hell/Types.h"
+#include "Hell/VertexAttributes.h"
 
 #include <limits>
 #include <string>
