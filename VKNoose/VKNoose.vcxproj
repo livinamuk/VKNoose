@@ -45,13 +45,15 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)\Build\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)\Build\$(Configuration)\Temp</IntDir>
+    <OutDir>$(SolutionDir)\$(ProjectName)\Build\Debug\</OutDir>
+    <IntDir>$(SolutionDir)\$(ProjectName)\Build\Intermediate\Debug\</IntDir>
+    <TargetName>VKNoose</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(SolutionDir)\Build\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)\Build\$(Configuration)\Temp</IntDir>
+    <OutDir>$(SolutionDir)\$(ProjectName)\Build\Release\</OutDir>
+    <IntDir>$(SolutionDir)\$(ProjectName)\Build\Intermediate\Release\</IntDir>
+    <TargetName>VKNoose</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -61,6 +63,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalIncludeDirectories>vendor\VulkanMemoryAllocator\include;vendor\stb_image;vendor\TinyObjectLoader;vendor\GLFW\include;vendor\Vulkan\include;vendor\VkBootstrap;vendor\fmod\include;src\common;vendor;vendor\volk\include;src;vendor\lz4\include;vendor\nlohmann_json\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -78,15 +81,16 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>vendor\glm;vendor\VulkanMemoryAllocator\include;vendor\stb_image;vendor\TinyObjectLoader;vendor\GLFW\include;vendor\vulkan\include;vendor\VkBootstrap;vendor\fmod\include;vendor\nlohmann_json\include;vendor\lz4\include;vendor\OpenImageIO\include;vendor\OpenImageDenoiser\include;src\common;src\;vendor\volt\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>vendor\glm;vendor\VulkanMemoryAllocator\include;vendor\stb_image;vendor\TinyObjectLoader;vendor\GLFW\include;vendor\vulkan\include;vendor\fmod\include;vendor\nlohmann_json\include;vendor\lz4\include;src\common;src\;vendor\volt\include\;vendor\compressonator\include\;vendor\tinyexr;vendor\lodepng\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>vendor\OpenImageIO\lib;vendor\Vulkan;vendor\GLFW\lib\release;vendor\lz4\lib;vendor\OpenImageDenoiser\lib;vendor\fmod\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>glfw3.lib;fmod_vc.lib;shaderc_combined.lib;liblz4_static.lib;OpenImageDenoise.lib;OpenImageIO.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>vendor\Vulkan;vendor\GLFW\lib\release;vendor\lz4\lib;vendor\fmod\lib;vendor\compressonator\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;fmod_vc.lib;shaderc_combined.lib;liblz4_static.lib;Compressonator_MD.lib;CMP_Framework_MD.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /Y "$(ProjectDir)vendor\dll\fmod.dll" "$(TargetDir)fmod.dll"</Command>
@@ -135,6 +139,10 @@
     <ClCompile Include="src\BackEnd\GLFWIntegration.cpp" />
     <ClCompile Include="src\Hell\Logging.cpp" />
     <ClCompile Include="src\Hell\Core\UniqueID.cpp" />
+    <ClCompile Include="src\ImageTools\ImageCompressor.cpp" />
+    <ClCompile Include="src\ImageTools\ImageLoader.cpp" />
+    <ClCompile Include="src\ImageTools\ImageUtil.cpp" />
+    <ClCompile Include="src\ImageTools\ImageWriter.cpp" />
     <ClCompile Include="src\Input\Input.cpp" />
     <ClCompile Include="src\Main.cpp" />
     <ClCompile Include="src\Profiler.cpp" />
@@ -150,12 +158,15 @@
     <ClCompile Include="src\API\Vulkan\vk_tools.cpp" />
     <ClCompile Include="src\API\Vulkan\vk_types.cpp" />
     <ClCompile Include="src\Util\Util.cpp" />
+    <ClCompile Include="vendor\lodepng\include\lodepng\lodepng.cpp" />
+    <ClCompile Include="vendor\lodepng\include\lodepng\lodepng_fuzzer.cpp" />
+    <ClCompile Include="vendor\lodepng\include\lodepng\lodepng_util.cpp" />
     <ClCompile Include="vendor\lz4\include\lz4.c" />
     <ClCompile Include="vendor\lz4\include\lz4file.c" />
     <ClCompile Include="vendor\lz4\include\lz4frame.c" />
     <ClCompile Include="vendor\lz4\include\lz4hc.c" />
     <ClCompile Include="vendor\lz4\include\xxhash.c" />
-    <ClCompile Include="vendor\VkBootstrap\VkBootstrap.cpp" />
+    <ClCompile Include="vendor\tinyexr\tinyexr.cpp" />
     <ClCompile Include="vendor\volk\include\volk\volk.c" />
   </ItemGroup>
   <ItemGroup>
@@ -175,6 +186,7 @@
     <ClInclude Include="src\Hell\Logging.h" />
     <ClInclude Include="src\Hell\Core\UniqueID.h" />
     <ClInclude Include="src\Hell\Enums.h" />
+    <ClInclude Include="src\Hell\TextureTypes.h" />
     <ClInclude Include="src\Hell\Types.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_command_manager.h" />
     <ClInclude Include="src\API\Vulkan\Managers\vk_device_manager.h" />
@@ -206,6 +218,8 @@
     <ClInclude Include="src\Game\Scene.h" />
     <ClInclude Include="src\BackEnd\GLFWIntegration.h" />
     <ClInclude Include="src\Hell\VertexAttributes.h" />
+    <ClInclude Include="src\ImageTools\DDS.h" />
+    <ClInclude Include="src\ImageTools\ImageTools.h" />
     <ClInclude Include="src\Input\Input.h" />
     <ClInclude Include="src\Input\keycodes.h" />
     <ClInclude Include="src\Profiler.h" />
@@ -222,6 +236,8 @@
     <ClInclude Include="src\API\Vulkan\vk_textures.h" />
     <ClInclude Include="src\API\Vulkan\vk_tools.h" />
     <ClInclude Include="src\API\Vulkan\vk_types.h" />
+    <ClInclude Include="vendor\lodepng\include\lodepng\lodepng.h" />
+    <ClInclude Include="vendor\lodepng\include\lodepng\lodepng_util.h" />
     <ClInclude Include="vendor\lz4\include\lz4.h" />
     <ClInclude Include="vendor\lz4\include\lz4file.h" />
     <ClInclude Include="vendor\lz4\include\lz4frame.h" />
@@ -229,9 +245,8 @@
     <ClInclude Include="vendor\lz4\include\lz4hc.h" />
     <ClInclude Include="vendor\lz4\include\xxhash.h" />
     <ClInclude Include="vendor\stb_image\stb_image_write.h" />
+    <ClInclude Include="vendor\tinyexr\tinyexr.h" />
     <ClInclude Include="vendor\TinyObjectLoader\tiny_obj_loader.h" />
-    <ClInclude Include="vendor\VkBootstrap\VkBootstrap.h" />
-    <ClInclude Include="vendor\VkBootstrap\VkBootstrapDispatch.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="res\shaders\composite.frag" />

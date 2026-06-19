@@ -30,7 +30,7 @@ namespace AssetManager {
         std::vector<uint32_t> indices = { 0, 1, 2, 0, 2, 3 };
 
         Model& model2 = AssetManager::CreateModel("fullscreen_quad");
-        model2.AddMeshIndex(AssetManager::CreateMesh("fullscreen_quad_mesh", vertices, indices));
+        model2.AddMeshId(AssetManager::CreateMesh("fullscreen_quad_mesh", vertices, indices));
         model2.SetLoadingState(LoadingState::Value::LOADING_COMPLETE);
     }
 
@@ -63,7 +63,7 @@ namespace AssetManager {
             Util::SetTangentsFromVertices(vertices, indices);
 
             Model& model2 = AssetManager::CreateModel("floor");
-            model2.AddMeshIndex(AssetManager::CreateMesh("floor_mesh", vertices, indices));
+            model2.AddMeshId(AssetManager::CreateMesh("floor_mesh", vertices, indices));
             model2.SetLoadingState(LoadingState::Value::LOADING_COMPLETE);
         }
 
@@ -100,7 +100,7 @@ namespace AssetManager {
             Util::SetTangentsFromVertices(vertices, indices);
 
             Model& model2 = AssetManager::CreateModel("bathroom_floor");
-            model2.AddMeshIndex(AssetManager::CreateMesh("bathroom_floor_mesh", vertices, indices));
+            model2.AddMeshId(AssetManager::CreateMesh("bathroom_floor_mesh", vertices, indices));
             model2.SetLoadingState(LoadingState::Value::LOADING_COMPLETE);
         }
 
@@ -137,7 +137,7 @@ namespace AssetManager {
             Util::SetTangentsFromVertices(vertices, indices);
 
             Model& model2 = AssetManager::CreateModel("bathroom_ceiling");
-            model2.AddMeshIndex(AssetManager::CreateMesh("bathroom_ceiling_mesh", vertices, indices));
+            model2.AddMeshId(AssetManager::CreateMesh("bathroom_ceiling_mesh", vertices, indices));
             model2.SetLoadingState(LoadingState::Value::LOADING_COMPLETE);
         }
 
@@ -176,7 +176,7 @@ namespace AssetManager {
             Util::SetTangentsFromVertices(vertices, indices);
 
             Model& model2 = AssetManager::CreateModel("ceiling");
-            model2.AddMeshIndex(AssetManager::CreateMesh("ceiling_mesh", vertices, indices));
+            model2.AddMeshId(AssetManager::CreateMesh("ceiling_mesh", vertices, indices));
             model2.SetLoadingState(LoadingState::Value::LOADING_COMPLETE);
         }
 

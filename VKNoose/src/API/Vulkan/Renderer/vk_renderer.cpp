@@ -14,56 +14,39 @@
 #include "Hell/Constants.h"
 #include "Hell/Types.h"
 #include "Hell/VertexAttributes.h"
+#include "ResourceManagement/ResourceManager.h"
 
 namespace VulkanRenderer {
 	VulkanFrameData g_frameData[FRAME_OVERLAP];
 	uint32_t g_frameNumber = 0;
-	uint64_t g_vertexBuffer = 0;
-	uint64_t g_indexBuffer = 0;
 
-    void UploadGlobalGeometry() {
-        Logging::Init() << "VulkanRenderer::UploadGlobalGeometry()\n";
+	VulkanMeshBuffer* GetStaticGeometryMeshBuffer() {
+		MeshBuffer* meshBuffer = ResourceManager::GetMeshBufferPtr(ResourceManager::STATIC_GEOMETRY_MESH_BUFFER_NAME);
+		if (!meshBuffer || meshBuffer->GetVulkanId() == 0) {
+			return nullptr;
+		}
 
-		const std::vector<Vertex>& vertices = AssetManager::GetVertices();
-		const std::vector<uint32_t>& indices = AssetManager::GetIndices();
-
-		// Define the usage flags once
-		VkBufferUsageFlags usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-			VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
-			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-			VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-
-		// Create and upload Vertex Buffer
-		g_vertexBuffer = VulkanResourceManager::CreateBuffer(vertices.size() * sizeof(Vertex), usage, VMA_MEMORY_USAGE_GPU_ONLY);
-		VulkanResourceManager::UploadBufferData(g_vertexBuffer, vertices.data(), vertices.size() * sizeof(Vertex));
-
-		// Create and upload Index Buffer
-		g_indexBuffer = VulkanResourceManager::CreateBuffer(indices.size() * sizeof(uint32_t), usage, VMA_MEMORY_USAGE_GPU_ONLY);
-		VulkanResourceManager::UploadBufferData(g_indexBuffer, indices.data(), indices.size() * sizeof(uint32_t));
+		return VulkanResourceManager::GetMeshBuffer(meshBuffer->GetVulkanId());
 	}
 
 	VulkanBuffer* GetVertexBuffer() {
-		return VulkanResourceManager::GetBuffer(g_vertexBuffer);
+		VulkanMeshBuffer* meshBuffer = GetStaticGeometryMeshBuffer();
+		return meshBuffer ? meshBuffer->GetVertexBuffer() : nullptr;
 	}
 
 	VulkanBuffer* GetIndexBuffer() {
-		return VulkanResourceManager::GetBuffer(g_indexBuffer);
+		VulkanMeshBuffer* meshBuffer = GetStaticGeometryMeshBuffer();
+		return meshBuffer ? meshBuffer->GetIndexBuffer() : nullptr;
 	}
 
 	uint64_t GetVertexBufferAddress() {
-        if (VulkanBuffer* buffer = GetVertexBuffer()) {
-            return buffer->GetDeviceAddress();
-        }
-        return 0;
+		VulkanMeshBuffer* meshBuffer = GetStaticGeometryMeshBuffer();
+		return meshBuffer ? meshBuffer->GetVertexBufferAddress() : 0;
 	}
 
     uint64_t GetIndexBufferAddress() {
-		if (VulkanBuffer* buffer = GetIndexBuffer()) {
-			return buffer->GetDeviceAddress();
-		}
-        return 0;
+		VulkanMeshBuffer* meshBuffer = GetStaticGeometryMeshBuffer();
+		return meshBuffer ? meshBuffer->GetIndexBufferAddress() : 0;
 	}
 
 	VulkanFrameData& GetCurrentFrameData() {

@@ -4,13 +4,13 @@
 #include "API/Vulkan/Managers/vk_device_manager.h"
 #include "API/Vulkan/Managers/vk_memory_manager.h"
 #include "API/Vulkan/Managers/vk_resource_manager.h"
-#include "API/Vulkan/Renderer/vk_renderer.h"
 
 #include "API/Vulkan/vk_mesh.h" // TODO remove me when u can
 
 #include "Hell/Logging.h"
 #include "Hell/Types.h"
 #include "Hell/VertexAttributes.h"
+#include "ResourceManagement/ResourceManager.h"
 
 namespace VulkanRaytracingManager {
 
@@ -100,6 +100,12 @@ namespace VulkanRaytracingManager {
     uint64_t CreateBottomLevelAS(Mesh* mesh) {
         if (!mesh || mesh->GetVertexCount() == 0 || mesh->GetIndexCount() == 0) return 0;
 
+        MeshBuffer* staticGeometry = ResourceManager::GetMeshBufferPtr(ResourceManager::STATIC_GEOMETRY_MESH_BUFFER_NAME);
+        if (!staticGeometry || staticGeometry->GetVulkanId() == 0) return 0;
+
+        VulkanMeshBuffer* vulkanMeshBuffer = VulkanResourceManager::GetMeshBuffer(staticGeometry->GetVulkanId());
+        if (!vulkanMeshBuffer) return 0;
+
         uint64_t accelerationStructureId = VulkanResourceManager::CreateAccelerationStructure();
 
         VulkanAccelerationStructure* accelerationStructure = VulkanResourceManager::GetAccelerationStructure(accelerationStructureId);
@@ -111,8 +117,8 @@ namespace VulkanRaytracingManager {
         VkDeviceOrHostAddressConstKHR indexBufferDeviceAddress{};
         VkDeviceOrHostAddressConstKHR transformBufferDeviceAddress{};
 
-        vertexBufferDeviceAddress.deviceAddress = VulkanRenderer::GetVertexBuffer()->GetDeviceAddress() + mesh->GetBaseVertex() * sizeof(Vertex);
-        indexBufferDeviceAddress.deviceAddress = VulkanRenderer::GetIndexBuffer()->GetDeviceAddress() + mesh->GetBaseIndex() * sizeof(uint32_t);
+        vertexBufferDeviceAddress.deviceAddress = vulkanMeshBuffer->GetVertexBufferAddress() + mesh->GetBaseVertex() * sizeof(Vertex);
+        indexBufferDeviceAddress.deviceAddress = vulkanMeshBuffer->GetIndexBufferAddress() + mesh->GetBaseIndex() * sizeof(uint32_t);
         transformBufferDeviceAddress.deviceAddress = {};
 
         // Standard geometry setup for triangles

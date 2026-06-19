@@ -1,6 +1,7 @@
 #include "MeshBuffer.h"
 
 //#include "API/OpenGL/GL_resource_manager.h"
+#include "API/Vulkan/Managers/vk_resource_manager.h"
 #include "Backend/BackEnd.h"
 #include "Hell/Logging.h"
 #include "Util/Util.h"
@@ -24,6 +25,16 @@ void MeshBuffer::Initialize() {
         //OpenGLMeshBuffer& meshBuffer = OpenGLResourceManager::GetMeshBuffer(m_openGLId);
         //meshBuffer.Init(Vertex::GetLayout());
     }
+    if (BackEnd::GetAPI() == API::VULKAN) {
+        if (m_vulkanId == 0) {
+            m_vulkanId = VulkanResourceManager::CreateMeshBuffer();
+        }
+
+        VulkanMeshBuffer* meshBuffer = VulkanResourceManager::GetMeshBuffer(m_vulkanId);
+        if (meshBuffer) {
+            meshBuffer->Init(Vertex::GetLayout());
+        }
+    }
 
     m_initialized = true;
 }
@@ -44,6 +55,12 @@ void MeshBuffer::Reset() {
         //OpenGLMeshBuffer& meshBuffer = OpenGLResourceManager::GetMeshBuffer(m_openGLId);
         //meshBuffer.Reset();
     }
+    if (BackEnd::GetAPI() == API::VULKAN && m_vulkanId != 0) {
+        VulkanMeshBuffer* meshBuffer = VulkanResourceManager::GetMeshBuffer(m_vulkanId);
+        if (meshBuffer) {
+            meshBuffer->Reset();
+        }
+    }
 
     m_initialized = false;
 }
@@ -55,6 +72,10 @@ void MeshBuffer::CleanUp() {
     //    OpenGLResourceManager::RemoveMeshBuffer(m_openGLId);
     //    m_openGLId = 0;
     //}
+    if (BackEnd::GetAPI() == API::VULKAN && m_vulkanId != 0) {
+        VulkanResourceManager::RemoveMeshBuffer(m_vulkanId);
+        m_vulkanId = 0;
+    }
 }
 
 uint64_t MeshBuffer::AddMesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices, const std::string& name) {
@@ -116,6 +137,12 @@ int32_t MeshBuffer::AddVertices(const std::vector<Vertex>& newVertices) {
                 //OpenGLMeshBuffer& meshBuffer = OpenGLResourceManager::GetMeshBuffer(m_openGLId);
                 //meshBuffer.ResizeVertexBuffer(m_vertexCapacity, m_vertices);
             }
+            if (BackEnd::GetAPI() == API::VULKAN) {
+                VulkanMeshBuffer* meshBuffer = VulkanResourceManager::GetMeshBuffer(m_vulkanId);
+                if (meshBuffer) {
+                    meshBuffer->ResizeVertexBuffer(m_vertexCapacity, m_vertices);
+                }
+            }
         }
 
         m_vertices.resize(newCount);
@@ -124,6 +151,12 @@ int32_t MeshBuffer::AddVertices(const std::vector<Vertex>& newVertices) {
         if (BackEnd::GetAPI() == API::OPENGL) {
             //OpenGLMeshBuffer& meshBuffer = OpenGLResourceManager::GetMeshBuffer(m_openGLId);
             //meshBuffer.InsertVertices(newVertices, insertOffset);
+        }
+        if (BackEnd::GetAPI() == API::VULKAN) {
+            VulkanMeshBuffer* meshBuffer = VulkanResourceManager::GetMeshBuffer(m_vulkanId);
+            if (meshBuffer) {
+                meshBuffer->InsertVertices(newVertices, insertOffset);
+            }
         }
 
         // Register newly allocated excess space as a free block
@@ -145,6 +178,12 @@ int32_t MeshBuffer::AddVertices(const std::vector<Vertex>& newVertices) {
         if (BackEnd::GetAPI() == API::OPENGL) {
             //OpenGLMeshBuffer& meshBuffer = OpenGLResourceManager::GetMeshBuffer(m_openGLId);
             //meshBuffer.InsertVertices(newVertices, insertOffset);
+        }
+        if (BackEnd::GetAPI() == API::VULKAN) {
+            VulkanMeshBuffer* meshBuffer = VulkanResourceManager::GetMeshBuffer(m_vulkanId);
+            if (meshBuffer) {
+                meshBuffer->InsertVertices(newVertices, insertOffset);
+            }
         }
 
         // Handle block resizing
@@ -188,6 +227,12 @@ int32_t MeshBuffer::AddIndices(const std::vector<uint32_t>& newIndices) {
                 //OpenGLMeshBuffer& meshBuffer = OpenGLResourceManager::GetMeshBuffer(m_openGLId);
                 //meshBuffer.ResizeIndexBuffer(m_indexCapacity, m_indices);
             }
+            if (BackEnd::GetAPI() == API::VULKAN) {
+                VulkanMeshBuffer* meshBuffer = VulkanResourceManager::GetMeshBuffer(m_vulkanId);
+                if (meshBuffer) {
+                    meshBuffer->ResizeIndexBuffer(m_indexCapacity, m_indices);
+                }
+            }
         }
 
         m_indices.resize(newCount);
@@ -196,6 +241,12 @@ int32_t MeshBuffer::AddIndices(const std::vector<uint32_t>& newIndices) {
         if (BackEnd::GetAPI() == API::OPENGL) {
             //OpenGLMeshBuffer& meshBuffer = OpenGLResourceManager::GetMeshBuffer(m_openGLId);
             //meshBuffer.InsertIndices(newIndices, insertOffset);
+        }
+        if (BackEnd::GetAPI() == API::VULKAN) {
+            VulkanMeshBuffer* meshBuffer = VulkanResourceManager::GetMeshBuffer(m_vulkanId);
+            if (meshBuffer) {
+                meshBuffer->InsertIndices(newIndices, insertOffset);
+            }
         }
 
         // Register newly allocated excess space as a free block
@@ -217,6 +268,12 @@ int32_t MeshBuffer::AddIndices(const std::vector<uint32_t>& newIndices) {
         if (BackEnd::GetAPI() == API::OPENGL) {
             //OpenGLMeshBuffer& meshBuffer = OpenGLResourceManager::GetMeshBuffer(m_openGLId);
             //meshBuffer.InsertIndices(newIndices, insertOffset);
+        }
+        if (BackEnd::GetAPI() == API::VULKAN) {
+            VulkanMeshBuffer* meshBuffer = VulkanResourceManager::GetMeshBuffer(m_vulkanId);
+            if (meshBuffer) {
+                meshBuffer->InsertIndices(newIndices, insertOffset);
+            }
         }
 
         // Handle block resizing
@@ -242,6 +299,12 @@ int32_t MeshBuffer::AllocateExtraVertexSpace(size_t vertexCount) {
             //OpenGLMeshBuffer& meshBuffer = OpenGLResourceManager::GetMeshBuffer(m_openGLId);
             //meshBuffer.ResizeVertexBuffer(m_vertexCapacity, m_vertices);
         }
+        if (BackEnd::GetAPI() == API::VULKAN) {
+            VulkanMeshBuffer* meshBuffer = VulkanResourceManager::GetMeshBuffer(m_vulkanId);
+            if (meshBuffer) {
+                meshBuffer->ResizeVertexBuffer(m_vertexCapacity, m_vertices);
+            }
+        }
     }
 
     MemoryBlock& block = m_freeVertexMemoryBlocks.emplace_back();
@@ -263,6 +326,12 @@ int32_t MeshBuffer::AllocateExtraIndexSpace(size_t indexCount) {
         if (BackEnd::GetAPI() == API::OPENGL) {
             //OpenGLMeshBuffer& meshBuffer = OpenGLResourceManager::GetMeshBuffer(m_openGLId);
             //meshBuffer.ResizeIndexBuffer(m_indexCapacity, m_indices);
+        }
+        if (BackEnd::GetAPI() == API::VULKAN) {
+            VulkanMeshBuffer* meshBuffer = VulkanResourceManager::GetMeshBuffer(m_vulkanId);
+            if (meshBuffer) {
+                meshBuffer->ResizeIndexBuffer(m_indexCapacity, m_indices);
+            }
         }
     }
 
@@ -398,6 +467,12 @@ void MeshBuffer::PreAllocate(size_t maxVertices, size_t maxIndices) {
     if (BackEnd::GetAPI() == API::OPENGL) {
         //OpenGLMeshBuffer& meshBuffer = OpenGLResourceManager::GetMeshBuffer(m_openGLId);
         //meshBuffer.PreAllocate(m_vertexCapacity, m_indexCapacity);
+    }
+    if (BackEnd::GetAPI() == API::VULKAN) {
+        VulkanMeshBuffer* meshBuffer = VulkanResourceManager::GetMeshBuffer(m_vulkanId);
+        if (meshBuffer) {
+            meshBuffer->PreAllocate(m_vertexCapacity, m_indexCapacity);
+        }
     }
 
     // Add one continuous free vertex memory block

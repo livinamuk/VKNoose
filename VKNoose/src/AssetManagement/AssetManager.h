@@ -91,17 +91,16 @@ namespace AssetManager  {
 	bool LoadingComplete();
 
 	// Mesh
-	std::vector<Mesh>& GetMeshes();
-	int CreateMesh(const std::string& name, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, glm::vec3 aabbMin, glm::vec3 aabbMax, int parentIndex, glm::mat4 localTransform, glm::mat4 inverseBindTransform);
-	int CreateMesh(const std::string& name, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
-	int GetMeshIndexByName(const std::string& name);
-	int GetMeshIndexByName(const std::string& name);
+	const std::vector<uint64_t>& GetMeshIds();
+	uint64_t CreateMesh(const std::string& name, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, glm::vec3 aabbMin, glm::vec3 aabbMax, int parentIndex, glm::mat4 localTransform, glm::mat4 inverseBindTransform);
+	uint64_t CreateMesh(const std::string& name, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
+	uint64_t GetMeshIdByName(const std::string& name);
 	Mesh* GetMeshByName(const std::string& name);
-	Mesh* GetMeshByIndex(int index);
+	Mesh* GetMeshById(uint64_t meshId);
 
 	std::span<Vertex> GetMeshVerticesSpan(Mesh* mesh);
 	std::span<uint32_t> GetMeshIndicesSpan(Mesh* mesh);
-	const std::string& GetMeshNameByMeshIndex(int index);
+	const std::string& GetMeshNameById(uint64_t meshId);
 
 	// Models
 	std::vector<Model>& GetModels();

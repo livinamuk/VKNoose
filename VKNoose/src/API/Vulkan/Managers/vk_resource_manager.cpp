@@ -17,9 +17,11 @@ namespace VulkanResourceManager {
 
     Hell::SlotMap<VulkanAccelerationStructure> g_accelerationStructures;
     Hell::SlotMap<VulkanBuffer> g_buffers;
+    Hell::SlotMap<VulkanMeshBuffer> g_meshBuffers;
 
     void Cleanup() {
         for (auto& object : g_accelerationStructures)  { object.Cleanup(); } g_accelerationStructures.clear();
+        for (auto& object : g_meshBuffers)             { object.Cleanup(); } g_meshBuffers.clear();
         for (auto& object : g_buffers)                 { object.Cleanup(); } g_buffers.clear();
 
         for (auto& [name, object] : g_descriptorSets)  { object.Cleanup(); } g_descriptorSets.clear();
@@ -155,6 +157,38 @@ namespace VulkanResourceManager {
         }
         else {
             Logging::Error() << "VulkanResourceManager::UploadBufferData(..) no buffer with id '" << id << "'.\n";
+        }
+    }
+
+    uint64_t CreateMeshBuffer() {
+        const uint64_t id = UniqueID::GetNextObjectId(ObjectType::VK_MESH_BUFFER);
+        g_meshBuffers.emplace_with_id(id);
+
+        if (!g_meshBuffers.get(id)) {
+            Logging::Error() << "VulkanResourceManager::CreateMeshBuffer() failed to create mesh buffer with id '" << id << "'.\n";
+            __debugbreak();
+        }
+
+        return id;
+    }
+
+    VulkanMeshBuffer* GetMeshBuffer(uint64_t id) {
+        VulkanMeshBuffer* meshBuffer = g_meshBuffers.get(id);
+
+        if (!meshBuffer) {
+            Logging::Error() << "VulkanResourceManager::GetMeshBuffer(..) no mesh buffer with id '" << id << "'.\n";
+        }
+
+        return meshBuffer;
+    }
+
+    void RemoveMeshBuffer(uint64_t id) {
+        if (VulkanMeshBuffer* meshBuffer = g_meshBuffers.get(id)) {
+            meshBuffer->Cleanup();
+            g_meshBuffers.erase(id);
+        }
+        else {
+            Logging::Error() << "VulkanResourceManager::RemoveMeshBuffer(..) no mesh buffer with id '" << id << "'.\n";
         }
     }
 

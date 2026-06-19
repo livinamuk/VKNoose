@@ -27,12 +27,11 @@
 #include "API/Vulkan/Renderer/vk_renderer.h"
 
 #include "Game/Scene.h" // for Scene::CeateWalls(). FIX ME SO THAT THE WALLS JUST HAVE A MESH INDEX AND A NAME YOU CAN SET THEM BY
+#include "ResourceManagement/ResourceManager.h"
 
 namespace AssetManager {
-	std::vector<Mesh> g_meshes;
 	std::vector<Model> g_models;
-	std::vector<Vertex> g_vertices;
-	std::vector<uint32_t> g_indices;
+	std::vector<uint64_t> g_meshIds;
 
 	std::vector<std::string> g_loadLog;
 	bool g_loadingComplete = false;
@@ -86,17 +85,17 @@ namespace AssetManager {
 
         if (LoadingComplete()) {
             BakeModels();
+            LoadHardcodedMesh();
             CreateHouseGeometry();
 
             Scene::CreateWalls();
 
-            VulkanRenderer::UploadGlobalGeometry();
 			VulkanRenderer::BuildAllBLAS();	
 		}
 	}
 
-	std::vector<Mesh>& GetMeshes() {
-		return g_meshes;
+	const std::vector<uint64_t>& GetMeshIds() {
+		return g_meshIds;
 	}
 
 	std::vector<Model>& GetModels() {
@@ -104,11 +103,11 @@ namespace AssetManager {
 	}
 
 	std::vector<Vertex>& GetVertices() {
-		return g_vertices;
+		return ResourceManager::GetMeshBuffer(ResourceManager::STATIC_GEOMETRY_MESH_BUFFER_NAME).GetVertices();
 	}
 
 	std::vector<uint32_t>& GetIndices() {
-		return g_indices;
+		return ResourceManager::GetMeshBuffer(ResourceManager::STATIC_GEOMETRY_MESH_BUFFER_NAME).GetIndices();
 	}
 
 	void AddItemToLoadLog(std::string text) {
@@ -458,19 +457,19 @@ AssetFile AssetManager::pack_mesh(MeshInfo* info, char* vertexData, char* indexD
 }
 
 void* AssetManager::GetVertexPointer(int offset) {
-	return &g_vertices[offset];
+	return &GetVertices()[offset];
 }
 
 Vertex AssetManager::GetVertex(int offset) {
-	return g_vertices[offset];
+	return GetVertices()[offset];
 }
 
 void* AssetManager::GetIndexPointer(int offset) {
-	return &g_indices[offset];
+	return &GetIndices()[offset];
 }
 
 uint32_t AssetManager::GetIndex(int offset) {
-	return g_indices[offset];
+	return GetIndices()[offset];
 }
 
 

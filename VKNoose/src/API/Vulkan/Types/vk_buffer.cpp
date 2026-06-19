@@ -79,7 +79,19 @@ void VulkanBuffer::UpdateData(const void* data, VkDeviceSize size) {
     }
 }
 
-void VulkanBuffer::UploadData(const void* data, VkDeviceSize size) {
+void VulkanBuffer::UploadData(const void* data, VkDeviceSize size, VkDeviceSize dstOffset) {
+    if (!data || size == 0) return;
+
+    if (m_buffer == VK_NULL_HANDLE) {
+        Logging::Error() << "VulkanBuffer::UploadData(..) called on a null buffer\n";
+        return;
+    }
+
+    if (dstOffset > m_size || size > m_size - dstOffset) {
+        Logging::Error() << "VulkanBuffer::UploadData(..) upload exceeds destination buffer size\n";
+        return;
+    }
+
     // Only use this for static/GPU_ONLY buffers
     VkBufferCreateInfo stagingInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
     stagingInfo.size = size;
@@ -99,15 +111,19 @@ void VulkanBuffer::UploadData(const void* data, VkDeviceSize size) {
 
     // Execute the transfer command
     VulkanCommandManager::SubmitImmediate([&](VkCommandBuffer cmd) {
-        VkBufferCopy copyRegion{ 0, 0, size };
+        VkBufferCopy copyRegion{ 0, dstOffset, size };
         vkCmdCopyBuffer(cmd, stagingBuffer, m_buffer, 1, &copyRegion);
 
         // Add a barrier if this buffer is used immediately after in a build or compute task
         VkBufferMemoryBarrier barrier{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR;
+        barrier.dstAccessMask =
+            VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT |
+            VK_ACCESS_INDEX_READ_BIT |
+            VK_ACCESS_SHADER_READ_BIT |
+            VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR;
         barrier.buffer = m_buffer;
-        barrier.offset = 0;
+        barrier.offset = dstOffset;
         barrier.size = size;
 
         vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);

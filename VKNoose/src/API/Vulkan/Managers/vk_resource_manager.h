@@ -4,6 +4,7 @@
 #include "API/Vulkan/Types/vk_allocated_image.h"
 #include "API/Vulkan/Types/vk_buffer.h"
 #include "API/Vulkan/Types/vk_descriptor_set.h"
+#include "API/Vulkan/Types/vk_mesh_buffer.h"
 #include "API/Vulkan/Types/vk_pipeline.h"
 #include "API/Vulkan/Types/vk_raytracing_pipeline.h"
 #include "API/Vulkan/Types/vk_sampler.h"
@@ -27,6 +28,11 @@ namespace VulkanResourceManager {
     uint64_t CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VmaAllocationCreateFlags vmaFlags = 0);
     VulkanBuffer* GetBuffer(uint64_t id);
     void UploadBufferData(uint64_t id, const void* data, VkDeviceSize size);
+
+    // Mesh Buffers
+    uint64_t CreateMeshBuffer();
+    VulkanMeshBuffer* GetMeshBuffer(uint64_t id);
+    void RemoveMeshBuffer(uint64_t id);
 
     // Descriptor Sets
     VulkanDescriptorSetResource& CreateDescriptorSet(const std::string& name, VkDescriptorSetLayoutCreateInfo layoutInfo, DescriptorSetLifetime lifetime);

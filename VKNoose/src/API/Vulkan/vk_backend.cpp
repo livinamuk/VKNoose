@@ -28,6 +28,7 @@
 #include "BackEnd/GLFWIntegration.h"
 
 #include "Hell/Logging.h"
+#include "ResourceManagement/ResourceManager.h"
 
 #define NOOSE_PI 3.14159265359f
 const bool _printAvaliableExtensions = false;
@@ -61,9 +62,9 @@ namespace VulkanBackEnd {
 		if (!VulkanCommandManager::Init())   return false;
 		if (!VulkanRenderer::Init())         return false;
 
+		ResourceManager::Init();
 		AssetManager::Init();
 		AssetManager::LoadFont();
-		AssetManager::LoadHardcodedMesh();
 
 		VulkanRenderer::UpdateBindlessTexturesDescriptorSets();
 		VulkanBackEnd::ToggleFullscreen();
@@ -123,6 +124,7 @@ void VulkanBackEnd::Cleanup() {
 
 	vkDeviceWaitIdle(GetDevice());
 
+	ResourceManager::CleanUp();
 	VulkanResourceManager::Cleanup();
 
 	// Cleanup legacy textures
@@ -531,38 +533,28 @@ void VulkanBackEnd::UpdateBuffers() {
 	}
 }
 
-void DrawMesh(VkCommandBuffer commandBuffer, uint32_t meshIndex, uint32_t firstInstance) {
-    Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
+void DrawMesh(VkCommandBuffer commandBuffer, uint64_t meshId, uint32_t firstInstance) {
+    Mesh* mesh = AssetManager::GetMeshById(meshId);
     if (!mesh) return;
 
     if (mesh->GetVertexCount() == 0) return;
     if (mesh->GetIndexCount() == 0) return;
 
-    VkDeviceSize offset = 0;
+    VulkanMeshBuffer* meshBuffer = VulkanRenderer::GetStaticGeometryMeshBuffer();
+    if (!meshBuffer) return;
 
-    VulkanBuffer* vertexBuffer = VulkanRenderer::GetVertexBuffer();
-    VulkanBuffer* indexBuffer = VulkanRenderer::GetIndexBuffer();
-    VkBuffer vertexBufferPtr = vertexBuffer->GetBuffer();
-    VkBuffer indexBufferPtr = indexBuffer->GetBuffer();
-
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBufferPtr, &offset);
-    vkCmdBindIndexBuffer(commandBuffer, indexBufferPtr, 0, VK_INDEX_TYPE_UINT32);
+    meshBuffer->Bind(commandBuffer);
     vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh->GetIndexCount()), 1, mesh->GetBaseIndex(), mesh->GetBaseVertex(), firstInstance);
 }
 
 void DrawMesh(VkCommandBuffer commandBuffer, Mesh* mesh, uint32_t firstInstance) {
     if (!mesh || mesh->GetVertexCount() == 0 || mesh->GetIndexCount() == 0) return;
 
-    VulkanBuffer* vertexBuffer = VulkanRenderer::GetVertexBuffer();
-    VulkanBuffer* indexBuffer = VulkanRenderer::GetIndexBuffer();
-    VkBuffer vertexBufferPtr = vertexBuffer->GetBuffer();
-    VkBuffer indexBufferPtr = indexBuffer->GetBuffer();
+    VulkanMeshBuffer* meshBuffer = VulkanRenderer::GetStaticGeometryMeshBuffer();
+    if (!meshBuffer) return;
 
-    VkDeviceSize offset = 0;
-
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBufferPtr, &offset);
-    vkCmdBindIndexBuffer(commandBuffer, indexBufferPtr, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh->GetIndexCount()), 1, 0, 0, firstInstance);
+    meshBuffer->Bind(commandBuffer);
+    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh->GetIndexCount()), 1, mesh->GetBaseIndex(), mesh->GetBaseVertex(), firstInstance);
 }
 
 void VulkanBackEnd::build_rt_command_buffers() {
@@ -739,8 +731,8 @@ void VulkanBackEnd::build_rt_command_buffers() {
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, compositePipeline->GetHandle());
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, compositePipeline->GetLayout(), 0, 1, staticSet->GetHandlePtr(), 0, nullptr);
 
-        uint32_t meshIndex = AssetManager::GetModelByName("fullscreen_quad")->GetMeshIndices()[0];
-		DrawMesh(commandBuffer, meshIndex, 0);
+        uint64_t meshId = AssetManager::GetModelByName("fullscreen_quad")->GetMeshIds()[0];
+		DrawMesh(commandBuffer, meshId, 0);
 
 		vkCmdEndRendering(commandBuffer);
 

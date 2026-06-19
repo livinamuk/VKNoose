@@ -88,11 +88,17 @@ namespace Scene {
         // Create mesh
         Model& model = AssetManager::CreateModel("Walls");
 		for (Wall& wall : _walls) {
-			uint32_t meshIndex = AssetManager::CreateMesh("Wall", wall.m_vertices, wall.m_indices);
-            model.AddMeshIndex(meshIndex);
+			uint64_t meshId = AssetManager::CreateMesh("Wall", wall.m_vertices, wall.m_indices);
+            model.AddMeshId(meshId);
             model.SetLoadingState(LoadingState::Value::LOADING_COMPLETE);
 
-			wall._meshIndex = meshIndex;
+			wall.m_meshId = meshId;
+		}
+
+		for (Wall& wall : _inventoryWalls) {
+			uint64_t meshId = AssetManager::CreateMesh("InventoryWall", wall.m_vertices, wall.m_indices);
+			model.AddMeshId(meshId);
+			wall.m_meshId = meshId;
 		}
 	}
 
@@ -1150,9 +1156,9 @@ std::vector<MeshInstance> Scene::GetSceneMeshInstances(bool debugScene) {
 	std::vector<MeshInstance> instances;
 
 	for (GameObject& gameObject : _gameObjects) {
-		for (int i = 0; i < gameObject.m_model->GetMeshIndices().size(); i++) {
-			int meshIndex = gameObject.m_model->GetMeshIndices()[i];
-			Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
+		for (int i = 0; i < gameObject.m_model->GetMeshIds().size(); i++) {
+			uint64_t meshId = gameObject.m_model->GetMeshIds()[i];
+			Mesh* mesh = AssetManager::GetMeshById(meshId);
             MeshInstance instance;
             instance.vertexBufferAddress = VulkanRenderer::GetVertexBufferAddress();
             instance.indexBufferAddress = VulkanRenderer::GetIndexBufferAddress();
@@ -1168,7 +1174,7 @@ std::vector<MeshInstance> Scene::GetSceneMeshInstances(bool debugScene) {
 	}
 
     for (Wall& wall : _walls) {
-        Mesh* mesh = AssetManager::GetMeshByIndex(wall._meshIndex);
+        Mesh* mesh = AssetManager::GetMeshById(wall.m_meshId);
 
 		Material* material = AssetManager::GetMaterial(wall.m_materialName);;
 
@@ -1197,9 +1203,9 @@ std::vector<MeshInstance> Scene::GetInventoryMeshInstances(bool debugScene)
 	std::vector<MeshInstance> instances;
 
 	for (GameObject& gameObject : _inventoryGameObjects) {
-		for (int i = 0; i < gameObject.m_model->GetMeshIndices().size(); i++) {
-			int meshIndex = gameObject.m_model->GetMeshIndices()[i];
-			Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
+		for (int i = 0; i < gameObject.m_model->GetMeshIds().size(); i++) {
+			uint64_t meshId = gameObject.m_model->GetMeshIds()[i];
+			Mesh* mesh = AssetManager::GetMeshById(meshId);
 			MeshInstance instance;
 			instance.worldMatrix = gameObject.GetModelMatrix();
 			instance.basecolorIndex = gameObject.GetMaterial(i)->_basecolor;
@@ -1212,7 +1218,7 @@ std::vector<MeshInstance> Scene::GetInventoryMeshInstances(bool debugScene)
 		}
 	}
 	for (Wall& wall : _inventoryWalls) {
-		Mesh* mesh = AssetManager::GetMeshByIndex(wall._meshIndex);
+		Mesh* mesh = AssetManager::GetMeshById(wall.m_meshId);
 		
 		Material* material = AssetManager::GetMaterial(wall.m_materialName);
 		
@@ -1240,8 +1246,8 @@ std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForInvent
 	std::vector<VkAccelerationStructureInstanceKHR> instances;
 
 	for (GameObject& gameObject : _inventoryGameObjects) {
-		for (auto meshIndex : gameObject.m_model->GetMeshIndices()) {
-			Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
+		for (uint64_t meshId : gameObject.m_model->GetMeshIds()) {
+			Mesh* mesh = AssetManager::GetMeshById(meshId);
 
 			VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
 			instance.transform = gameObject.GetVkTransformMatrixKHR();
@@ -1256,7 +1262,7 @@ std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForInvent
 	}
 
 	for (Wall& wall : _inventoryWalls) {
-		Mesh* mesh = AssetManager::GetMeshByIndex(wall._meshIndex);
+		Mesh* mesh = AssetManager::GetMeshById(wall.m_meshId);
 
 		VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
 		instance.transform = Util::GetIdentiyVkTransformMatrixKHR();
@@ -1277,8 +1283,8 @@ std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForSceneA
 	std::vector<VkAccelerationStructureInstanceKHR> instances;
 
     for (GameObject& gameObject : _gameObjects) {
-        for (auto meshIndex : gameObject.m_model->GetMeshIndices()) {
-            Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
+        for (uint64_t meshId : gameObject.m_model->GetMeshIds()) {
+            Mesh* mesh = AssetManager::GetMeshById(meshId);
             VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
             instance.transform = gameObject.GetVkTransformMatrixKHR();
             instance.instanceCustomIndex = instanceCustomIndex++;
@@ -1292,7 +1298,7 @@ std::vector<VkAccelerationStructureInstanceKHR> Scene::GetMeshInstancesForSceneA
     }
 
     for (Wall& wall : _walls) {
-        Mesh* mesh = AssetManager::GetMeshByIndex(wall._meshIndex);
+        Mesh* mesh = AssetManager::GetMeshById(wall.m_meshId);
         VkAccelerationStructureInstanceKHR& instance = instances.emplace_back(VkAccelerationStructureInstanceKHR());
         instance.transform = Util::GetIdentiyVkTransformMatrixKHR();
         instance.instanceCustomIndex = instanceCustomIndex++;
@@ -1330,8 +1336,8 @@ void Scene::StoreMousePickResult(int instanceIndex, int primitiveIndex)
 
 	for (GameObject& gameObject : _gameObjects) {
 
-        for (auto meshIndex : gameObject.m_model->GetMeshIndices()) {
-			Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
+        for (uint64_t meshId : gameObject.m_model->GetMeshIds()) {
+			Mesh* mesh = AssetManager::GetMeshById(meshId);
 			if (!mesh) continue;
 
             MeshHitInfo& info = infos.emplace_back(MeshHitInfo());
@@ -1343,7 +1349,7 @@ void Scene::StoreMousePickResult(int instanceIndex, int primitiveIndex)
 	}
 
     for (Wall& wall : _walls) {
-        Mesh* mesh = AssetManager::GetMeshByIndex(wall._meshIndex);
+        Mesh* mesh = AssetManager::GetMeshById(wall.m_meshId);
         if (!mesh) continue;
 
         MeshHitInfo& info = infos.emplace_back(MeshHitInfo());

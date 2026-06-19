@@ -3,6 +3,7 @@
 #include "API/Vulkan/Types/vk_allocated_image.h"
 #include "API/Vulkan/Types/vk_buffer.h"
 #include "API/Vulkan/Types/vk_descriptor_set.h"
+#include "API/Vulkan/Types/vk_mesh_buffer.h"
 
 namespace VulkanRenderer {
     bool Init();
@@ -26,9 +27,9 @@ namespace VulkanRenderer {
     void BuildAllBLAS();
     void HotloadShaders();
     void RecreatePipelines();
-    void UploadGlobalGeometry();
 
     // Vertex/index buffers
+    VulkanMeshBuffer* GetStaticGeometryMeshBuffer();
     VulkanBuffer* GetVertexBuffer();
     VulkanBuffer* GetIndexBuffer();
     uint64_t GetVertexBufferAddress();

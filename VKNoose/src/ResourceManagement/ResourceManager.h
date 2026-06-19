@@ -6,6 +6,8 @@
 #include <string>
 
 namespace ResourceManager {
+    inline constexpr const char* STATIC_GEOMETRY_MESH_BUFFER_NAME = "StaticGeometry";
+
     void Init();
     void CleanUp();
 

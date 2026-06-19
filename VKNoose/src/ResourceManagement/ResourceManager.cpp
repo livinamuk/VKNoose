@@ -13,6 +13,7 @@ namespace ResourceManager {
 
     void Init() {
         CreateGenericMesh("UI");
+        CreateMeshBuffer(STATIC_GEOMETRY_MESH_BUFFER_NAME);
     }
 
     void CleanUp() {

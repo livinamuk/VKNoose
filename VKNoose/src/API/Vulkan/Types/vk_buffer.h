@@ -16,7 +16,7 @@ struct VulkanBuffer {
     void Cleanup();
 
     void UpdateData(const void* data, VkDeviceSize size);
-    void UploadData(const void* data, VkDeviceSize size);
+    void UploadData(const void* data, VkDeviceSize size, VkDeviceSize dstOffset = 0);
     void Map(void** data);
     void Unmap();
 

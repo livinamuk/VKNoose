@@ -415,8 +415,8 @@ void GameObject::SetInteract(InteractType type, std::string text, std::function<
 void GameObject::SetBoundingBoxFromMesh(int meshIndex) {
 	if (!m_model) return;
 	
-	for (uint32_t meshIndex : m_model->GetMeshIndices()) {
-		Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
+	for (uint64_t meshId : m_model->GetMeshIds()) {
+		Mesh* mesh = AssetManager::GetMeshById(meshId);
 		
         _boundingBox.xLow = std::min(_boundingBox.xLow, mesh->aabbMin.x);
         _boundingBox.xHigh = std::max(_boundingBox.xHigh, mesh->aabbMax.x);
@@ -484,10 +484,10 @@ void GameObject::SetMeshMaterialByMeshName(std::string meshName, std::string mat
 	int materialIndex = AssetManager::GetMaterialIndex(materialName);
 	if (materialIndex == -1) return;
 
-    for (int i = 0; i < m_model->GetMeshIndices().size(); i++) {
-		int meshIndex = m_model->GetMeshIndices()[i];
+    for (int i = 0; i < m_model->GetMeshIds().size(); i++) {
+		uint64_t meshId = m_model->GetMeshIds()[i];
 
-		Mesh* mesh = AssetManager::GetMeshByIndex(meshIndex);
+		Mesh* mesh = AssetManager::GetMeshById(meshId);
 		if (!mesh) continue;
 
         if (mesh->GetName() == meshName) {

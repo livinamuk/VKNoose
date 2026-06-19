@@ -5,8 +5,8 @@ void Model::SetFileInfo(FileInfo fileInfo) {
     m_fileInfo = fileInfo;
 }
 
-void Model::AddMeshIndex(uint32_t index) {
-    m_meshIndices.push_back(index);
+void Model::AddMeshId(uint64_t meshId) {
+    m_meshIds.push_back(meshId);
 }
 
 void Model::SetName(std::string modelName) {

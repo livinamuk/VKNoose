@@ -11,6 +11,7 @@ enum class ObjectType : uint16_t {
     GL_OBJECT,
     VK_ACCELERATION_STRUCTURE,
     VK_BUFFER,
+    VK_MESH_BUFFER,
     UNDEFINED
 };
 

@@ -14,8 +14,11 @@ namespace VulkanRenderer {
     void BuildAllBLAS() {
         Logging::Init() << "VulkanRenderer::BuildAllBLAS()\n";
 
-        for (Mesh& mesh : AssetManager::GetMeshes()) {
-            mesh.m_vulkanAccelerationStructureId = VulkanRaytracingManager::CreateBottomLevelAS(&mesh);
+        for (uint64_t meshId : AssetManager::GetMeshIds()) {
+            Mesh* mesh = AssetManager::GetMeshById(meshId);
+            if (mesh) {
+                mesh->m_vulkanAccelerationStructureId = VulkanRaytracingManager::CreateBottomLevelAS(mesh);
+            }
         }
     }
 

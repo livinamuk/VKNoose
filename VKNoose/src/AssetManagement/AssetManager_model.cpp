@@ -1,5 +1,6 @@
 #include "AssetManager.h"
 #include "Hell/Logging.h"
+#include "ResourceManagement/ResourceManager.h"
 #include "Util/Util.h"
 #include <future>
 
@@ -159,16 +160,16 @@ namespace AssetManager {
 			}
 		}
 
-		GetVertices().reserve(GetVertices().size() + vertexCount);
-		GetIndices().reserve(GetIndices().size() + indexCount);
+		MeshBuffer& staticGeometry = ResourceManager::GetMeshBuffer(ResourceManager::STATIC_GEOMETRY_MESH_BUFFER_NAME);
+		staticGeometry.PreAllocate(vertexCount + 1024, indexCount + 4096);
 
 		// Copy the vertices/indices into the asset manager
 		for (Model& model : GetModels()) {
 			model.SetAABB(model.m_modelData.aabbMin, model.m_modelData.aabbMax);
 
 			for (MeshData& meshData : model.m_modelData.meshes) {
-				int meshIndex = CreateMesh(meshData.name, meshData.vertices, meshData.indices, meshData.aabbMin, meshData.aabbMax, meshData.parentIndex, meshData.localTransform, meshData.inverseBindTransform);
-				model.AddMeshIndex(meshIndex);
+				uint64_t meshId = CreateMesh(meshData.name, meshData.vertices, meshData.indices, meshData.aabbMin, meshData.aabbMax, meshData.parentIndex, meshData.localTransform, meshData.inverseBindTransform);
+				model.AddMeshId(meshId);
 			}
 		}
 

@@ -3,11 +3,13 @@
 #include "../../Common.h"
 #include "../Util/Util.h"
 
+#include <cstdint>
+
 struct Wall {
 	Wall() = default;
 	Wall(const glm::vec3& begin, const glm::vec3& end, const std::string& materialName);
 
-	int _meshIndex = 0;
+	uint64_t m_meshId = 0;
 	glm::vec3 m_begin;
 	glm::vec3 m_end;
 	std::string m_materialName;
